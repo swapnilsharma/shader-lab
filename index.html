@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shader Lab</title>
+  <meta name="description" content="Professional GLSL shader editing tool">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app">
+  <!-- ═══ TOPBAR ═══ -->
+  <header class="topbar">
+    <span class="topbar-logo">Shader Lab</span>
+    <div class="topbar-separator"></div>
+    <span class="topbar-filename">untitled.glsl</span>
+
+    <div class="topbar-center">
+      <div class="topbar-playback">
+        <button class="topbar-btn active" id="btn-play" onclick="togglePlay()" title="Play/Pause">
+          <svg viewBox="0 0 14 14"><polygon points="3,1 12,7 3,13" stroke="currentColor" fill="none"/></svg>
+        </button>
+        <button class="topbar-btn" id="btn-restart" onclick="restartTime()" title="Restart">
+          <svg viewBox="0 0 14 14"><path d="M2 7a5 5 0 0 1 9-3M12 7a5 5 0 0 1-9 3"/><polyline points="2,2 2,5 5,5"/></svg>
+        </button>
+      </div>
+      <span class="topbar-time" id="time-display">0:00.0</span>
+    </div>
+
+    <div class="topbar-right">
+      <button class="topbar-btn topbar-btn--primary" id="btn-copy" onclick="copyCode()">
+        <svg viewBox="0 0 14 14"><rect x="4" y="4" width="8" height="8" rx="1"/><path d="M10 4V2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h2"/></svg>
+        Copy GLSL
+      </button>
+    </div>
+  </header>
+
+  <!-- ═══ LEFT PANEL ═══ -->
+  <aside class="panel-left">
+    <!-- Add Effects -->
+    <div class="section">
+      <div class="section-header">
+        Add Layer
+        <span class="section-header-action" style="font-family:var(--font-mono);font-size:9px;opacity:0.5">⌘K</span>
+      </div>
+      <div class="add-effect-grid" id="add-grid"></div>
+    </div>
+
+    <!-- Effect Stack -->
+    <div class="section" style="flex:1;padding-bottom:0;">
+      <div class="section-header">
+        Effect Stack
+        <button class="section-header-action" onclick="clearAll()">Clear</button>
+      </div>
+      <div class="effect-stack" id="effect-stack"></div>
+    </div>
+
+    <!-- Presets -->
+    <div class="section">
+      <div class="section-header">Presets</div>
+      <div class="preset-grid" id="preset-grid"></div>
+    </div>
+  </aside>
+
+  <!-- ═══ CANVAS ═══ -->
+  <main class="canvas-area">
+    <canvas id="glcanvas"></canvas>
+    <div class="canvas-overlay">
+      <span class="canvas-stat" id="stat-fps">60 fps</span>
+    </div>
+  </main>
+
+  <!-- ═══ RIGHT PANEL ═══ -->
+  <aside class="panel-right">
+    <div class="section">
+      <div class="section-header">Background</div>
+      <div class="bg-control">
+        <span class="prop-label">colour</span>
+        <div class="prop-swatch" id="bg-swatch" style="background:#0a0a12" onclick="document.getElementById('bg-cp').click()"></div>
+        <span class="bg-hex" id="bg-hex">#0a0a12</span>
+        <input type="color" class="prop-color-input" id="bg-cp" value="#0a0a12" oninput="onBgColor(this.value)">
+      </div>
+    </div>
+
+    <div class="section" style="flex:1;">
+      <div class="section-header">Properties</div>
+      <div id="props-panel">
+        <div style="color:var(--text-muted);font-size:10px;padding:8px 0;">Select an effect to edit properties</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header">Output</div>
+      <div class="prop-row">
+        <span class="prop-label">resolution</span>
+        <span class="prop-value" id="out-res" style="width:auto;flex:1;text-align:left;">—</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══ STATUS BAR ═══ -->
+  <footer class="statusbar">
+    <div class="statusbar-item">
+      <div class="statusbar-dot statusbar-dot--live" id="status-dot"></div>
+      <span id="status-text">Live</span>
+    </div>
+    <div class="statusbar-item" id="status-effects">0 effects</div>
+    <div class="statusbar-error" id="status-error"></div>
+  </footer>
+</div>
+
+<!-- ═══ COMMAND PALETTE ═══ -->
+<div class="cmd-overlay" id="cmd-overlay" onclick="if(event.target===this)closePalette()">
+  <div class="cmd-palette">
+    <div class="cmd-input-wrap">
+      <input class="cmd-input" id="cmd-input" type="text" placeholder="Add a layer…" autocomplete="off" oninput="filterPalette(this.value)">
+    </div>
+    <div class="cmd-list" id="cmd-list"></div>
+  </div>
+</div>
+
+<script src="engine.js"></script>
+</body>
+</html>
