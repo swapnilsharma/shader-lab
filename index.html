@@ -29,10 +29,39 @@
     </div>
 
     <div class="topbar-right">
-      <button class="topbar-btn topbar-btn--primary" id="btn-copy" onclick="copyCode()">
-        <svg viewBox="0 0 14 14"><rect x="4" y="4" width="8" height="8" rx="1"/><path d="M10 4V2a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h2"/></svg>
-        Copy GLSL
-      </button>
+      <div class="export-wrap" id="export-wrap">
+        <button class="topbar-btn topbar-btn--primary" id="btn-export" onclick="toggleExportMenu()">
+          Export
+          <svg viewBox="0 0 10 6" style="width:8px;height:5px;margin-left:2px;"><polyline points="1,1 5,5 9,1" stroke-width="1.5"/></svg>
+        </button>
+        <div class="export-menu" id="export-menu">
+          <div class="export-item export-item--active" onclick="copyCode();closeExportMenu()">
+            <span class="export-check">✓</span>
+            <span>Shadertoy GLSL</span>
+          </div>
+          <div class="export-divider"></div>
+          <div class="export-item export-item--disabled">
+            <span class="export-check"></span>
+            <span>Three.js ShaderMaterial</span>
+            <span class="export-soon">Soon</span>
+          </div>
+          <div class="export-item export-item--disabled">
+            <span class="export-check"></span>
+            <span>Framer Component</span>
+            <span class="export-soon">Soon</span>
+          </div>
+          <div class="export-item export-item--disabled">
+            <span class="export-check"></span>
+            <span>Android GLSL ES 1.0</span>
+            <span class="export-soon">Soon</span>
+          </div>
+          <div class="export-item export-item--disabled">
+            <span class="export-check"></span>
+            <span>Flutter FragmentProgram</span>
+            <span class="export-soon">Soon</span>
+          </div>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -57,7 +86,7 @@
     </div>
 
     <!-- Presets -->
-    <div class="section">
+    <div class="section section--presets">
       <div class="section-header">Presets</div>
       <div class="preset-grid" id="preset-grid"></div>
     </div>
@@ -66,23 +95,47 @@
   <!-- ═══ CANVAS ═══ -->
   <main class="canvas-area">
     <canvas id="glcanvas"></canvas>
-    <div class="canvas-overlay">
-      <span class="canvas-stat" id="stat-fps">60 fps</span>
-    </div>
   </main>
 
   <!-- ═══ RIGHT PANEL ═══ -->
   <aside class="panel-right">
+    <!-- Frame section -->
     <div class="section">
-      <div class="section-header">Background</div>
-      <div class="bg-control">
-        <span class="prop-label">colour</span>
-        <div class="prop-swatch" id="bg-swatch" style="background:#0a0a12" onclick="document.getElementById('bg-cp').click()"></div>
-        <span class="bg-hex" id="bg-hex">#0a0a12</span>
-        <input type="color" class="prop-color-input" id="bg-cp" value="#0a0a12" oninput="onBgColor(this.value)">
+      <div class="section-header">Frame</div>
+      <div class="frame-row">
+        <div class="frame-dim">
+          <label class="frame-dim-label" for="frame-w">W</label>
+          <input class="frame-dim-input" id="frame-w" type="number" value="800" min="100" max="7680" onchange="onFrameChange()">
+        </div>
+        <span class="frame-x">×</span>
+        <div class="frame-dim">
+          <label class="frame-dim-label" for="frame-h">H</label>
+          <input class="frame-dim-input" id="frame-h" type="number" value="600" min="100" max="4320" onchange="onFrameChange()">
+        </div>
+        <span class="frame-unit">px</span>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">corner radius</span>
+        <input class="prop-slider" type="range" min="0" max="200" step="1" value="0" id="frame-radius" oninput="onFrameRadius(this.value)">
+        <span class="prop-value" id="frame-radius-val">0</span>
+        <span class="frame-unit-sm">px</span>
+      </div>
+      <div class="prop-row">
+        <span class="prop-label">background</span>
+        <div class="prop-swatch" id="bg-swatch" style="background:#0A0A0F" onclick="document.getElementById('bg-cp').click()"></div>
+        <span class="bg-hex" id="bg-hex">#0A0A0F</span>
+        <input type="color" class="prop-color-input" id="bg-cp" value="#0A0A0F" oninput="onBgColor(this.value)">
+      </div>
+      <div class="frame-sizes">
+        <button class="frame-size-chip" onclick="setFrameSize(800,600)">800×600</button>
+        <button class="frame-size-chip" onclick="setFrameSize(1920,1080)">1920×1080</button>
+        <button class="frame-size-chip" onclick="setFrameSize(1080,1080)">1080×1080</button>
+        <button class="frame-size-chip" onclick="setFrameSize(1080,1920)">1080×1920</button>
+        <button class="frame-size-chip" onclick="setFrameSize(390,844)">iPhone</button>
       </div>
     </div>
 
+    <!-- Properties -->
     <div class="section" style="flex:1;">
       <div class="section-header">Properties</div>
       <div id="props-panel">
@@ -90,11 +143,12 @@
       </div>
     </div>
 
+    <!-- Output -->
     <div class="section">
       <div class="section-header">Output</div>
       <div class="prop-row">
-        <span class="prop-label">resolution</span>
-        <span class="prop-value" id="out-res" style="width:auto;flex:1;text-align:left;">—</span>
+        <span class="prop-label">size</span>
+        <span class="prop-value" id="out-res" style="width:auto;flex:1;text-align:left;">800 × 600</span>
       </div>
     </div>
   </aside>
@@ -107,6 +161,10 @@
     </div>
     <div class="statusbar-item" id="status-effects">0 effects</div>
     <div class="statusbar-error" id="status-error"></div>
+    <div class="statusbar-right">
+      <span class="statusbar-item" id="status-fps">60 fps</span>
+      <span class="statusbar-item" id="status-dims">800 × 600</span>
+    </div>
   </footer>
 </div>
 
@@ -121,5 +179,7 @@
 </div>
 
 <script src="engine.js"></script>
+<script src="presets.js"></script>
+<script src="renderer.js"></script>
 </body>
 </html>

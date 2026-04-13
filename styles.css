@@ -203,6 +203,85 @@ html, body {
 }
 
 
+/* ================================================================
+   Export Dropdown
+   ================================================================ */
+
+.export-wrap {
+  position: relative;
+}
+
+.export-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  width: 220px;
+  background: var(--panel-bg);
+  border: 1px solid var(--border-rest);
+  border-radius: 4px;
+  box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  z-index: 200;
+  padding: 4px 0;
+}
+
+.export-menu.open {
+  display: block;
+}
+
+.export-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: background 80ms ease-out;
+}
+
+.export-item:hover {
+  background: var(--surface-bg);
+}
+
+.export-item--active {
+  color: var(--text-active);
+}
+
+.export-item--disabled {
+  color: var(--text-muted);
+  cursor: default;
+  opacity: 0.5;
+}
+
+.export-item--disabled:hover {
+  background: transparent;
+}
+
+.export-check {
+  width: 14px;
+  font-size: 10px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.export-soon {
+  margin-left: auto;
+  font-size: 9px;
+  color: var(--text-muted);
+  background: var(--deepest-bg);
+  padding: 1px 5px;
+  border-radius: 2px;
+  border: 1px solid var(--border-rest);
+}
+
+.export-divider {
+  height: 1px;
+  background: var(--divider);
+  margin: 4px 0;
+}
+
+
 /* --- Left Panel --- */
 .panel-left {
   grid-column: 1;
@@ -245,28 +324,13 @@ html, body {
   background: var(--canvas-ground);
   position: relative;
   overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .canvas-area canvas {
   display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.canvas-overlay {
-  position: absolute;
-  bottom: 8px;
-  right: 12px;
-  display: flex;
-  gap: 12px;
-  pointer-events: none;
-}
-
-.canvas-stat {
-  font-family: var(--font-mono);
-  font-size: 10px;
-  color: var(--text-muted);
-  opacity: 0.6;
 }
 
 
@@ -311,6 +375,16 @@ html, body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
+
+.statusbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .statusbar-dot {
@@ -375,6 +449,107 @@ html, body {
 
 
 /* ================================================================
+   Frame Panel (Right Panel)
+   ================================================================ */
+
+.frame-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.frame-dim {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.frame-dim-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--text-muted);
+  width: 14px;
+  flex-shrink: 0;
+}
+
+.frame-dim-input {
+  width: 100%;
+  height: 24px;
+  padding: 0 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-active);
+  background: var(--input-bg);
+  border: 1px solid var(--border-rest);
+  border-radius: 2px;
+  outline: none;
+  -moz-appearance: textfield;
+  transition: border-color 80ms ease-out;
+}
+
+.frame-dim-input::-webkit-inner-spin-button,
+.frame-dim-input::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+}
+
+.frame-dim-input:focus {
+  border-color: var(--border-selected);
+}
+
+.frame-dim-input:hover {
+  border-color: var(--border-hover);
+}
+
+.frame-x {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.frame-unit {
+  font-size: 9px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.frame-unit-sm {
+  font-size: 9px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  width: 16px;
+}
+
+.frame-sizes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.frame-size-chip {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 400;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1px solid var(--border-rest);
+  border-radius: 2px;
+  padding: 2px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 80ms ease-out, color 80ms ease-out;
+}
+
+.frame-size-chip:hover {
+  color: var(--text-primary);
+  border-color: var(--border-hover);
+}
+
+
+/* ================================================================
    Effect Cards (Left Panel)
    ================================================================ */
 
@@ -401,6 +576,19 @@ html, body {
   box-shadow: 0 0 0 1px var(--border-selected);
 }
 
+/* Drag reorder */
+.effect-card.dragging {
+  opacity: 0.4;
+}
+
+.effect-card.drag-over-top {
+  border-top: 2px solid var(--border-selected);
+}
+
+.effect-card.drag-over-bottom {
+  border-bottom: 2px solid var(--border-selected);
+}
+
 .effect-head {
   display: flex;
   align-items: center;
@@ -409,6 +597,31 @@ html, body {
   height: var(--row-height);
   cursor: pointer;
   user-select: none;
+}
+
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 10px;
+  height: 14px;
+  flex-shrink: 0;
+  cursor: grab;
+  opacity: 0.3;
+  transition: opacity 80ms ease-out;
+}
+
+.drag-handle:hover {
+  opacity: 0.8;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.drag-handle svg {
+  width: 10px;
+  height: 14px;
 }
 
 .effect-dot {
@@ -433,6 +646,50 @@ html, body {
   color: var(--text-muted);
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+.effect-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.effect-action-btn {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 80ms ease-out;
+  padding: 0;
+}
+
+.effect-head:hover .effect-action-btn {
+  opacity: 1;
+}
+
+.effect-action-btn:hover {
+  color: var(--text-primary);
+}
+
+.effect-action-btn svg {
+  width: 12px;
+  height: 12px;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  fill: none;
+}
+
+.effect-action-btn--remove:hover {
+  color: var(--error);
 }
 
 .effect-toggle {
@@ -467,32 +724,6 @@ html, body {
 .effect-toggle.on::after {
   transform: translateX(10px);
   background: var(--text-active);
-}
-
-.effect-remove {
-  width: 18px;
-  height: 18px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  cursor: pointer;
-  border-radius: 2px;
-  flex-shrink: 0;
-  font-size: 10px;
-  line-height: 1;
-  opacity: 0;
-  transition: opacity 80ms ease-out;
-}
-
-.effect-head:hover .effect-remove {
-  opacity: 1;
-}
-
-.effect-remove:hover {
-  color: var(--error);
 }
 
 .effect-chevron {
@@ -652,6 +883,24 @@ html, body {
    Preset Buttons
    ================================================================ */
 
+.section--presets .preset-grid {
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+.section--presets .preset-grid::-webkit-scrollbar {
+  width: 3px;
+}
+
+.section--presets .preset-grid::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.section--presets .preset-grid::-webkit-scrollbar-thumb {
+  background: var(--border-rest);
+  border-radius: 2px;
+}
+
 .preset-grid {
   display: flex;
   flex-wrap: wrap;
@@ -675,6 +924,11 @@ html, body {
 .preset-btn:hover {
   color: var(--text-primary);
   border-color: var(--border-hover);
+}
+
+.preset-btn.active {
+  border-color: var(--border-selected);
+  color: var(--text-primary);
 }
 
 .preset-btn--danger {
@@ -720,13 +974,6 @@ html, body {
 /* ================================================================
    Background Color Control
    ================================================================ */
-
-.bg-control {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: var(--row-height);
-}
 
 .bg-hex {
   font-family: var(--font-mono);
