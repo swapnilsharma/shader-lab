@@ -27,19 +27,7 @@ open index.html
 
 That's it. No `npm install`, no bundler, no dependencies. Works in any modern browser.
 
----
 
-## Interface
-
-| Area | Role |
-|---|---|
-| **Top bar** | Tool name, playback controls, timer, GLSL export |
-| **Left panel** | Add layers, manage effect stack, load presets |
-| **Canvas** | Live shader output — always the darkest, always the focus |
-| **Right panel** | Property inspector for the selected effect |
-| **Status bar** | FPS, effect count, shader compilation state |
-
-The design follows the visual language of professional creative tools — achromatic, dense, and receding. All colour and richness comes from your shader, not the UI.
 
 ---
 
