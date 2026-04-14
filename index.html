@@ -67,6 +67,14 @@
 
   <!-- ═══ LEFT PANEL ═══ -->
   <aside class="panel-left">
+    <!-- Image Drop Zone -->
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('img-input').click()">
+      <span class="drop-zone-icon">↑</span>
+      <span class="drop-zone-text" id="drop-zone-text">drop image or click to upload</span>
+      <button class="drop-zone-clear" id="drop-zone-clear" onclick="event.stopPropagation();clearBaseImage()" style="display:none;">✕</button>
+      <input type="file" id="img-input" accept="image/*" style="display:none" onchange="onImageUpload(this)">
+    </div>
+
     <!-- Add Effects -->
     <div class="section">
       <div class="section-header">
@@ -74,6 +82,9 @@
         <span class="section-header-action" style="font-family:var(--font-mono);font-size:9px;opacity:0.5">⌘K</span>
       </div>
       <div class="add-effect-grid" id="add-grid"></div>
+      <div class="add-divider"></div>
+      <div class="add-section-label">INTERACTIVE</div>
+      <div class="add-effect-grid" id="add-grid-interactive"></div>
     </div>
 
     <!-- Effect Stack -->
@@ -95,6 +106,7 @@
   <!-- ═══ CANVAS ═══ -->
   <main class="canvas-area">
     <canvas id="glcanvas"></canvas>
+    <div class="canvas-hint" id="canvas-hint">click to trigger</div>
   </main>
 
   <!-- ═══ RIGHT PANEL ═══ -->

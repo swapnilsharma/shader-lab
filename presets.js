@@ -175,4 +175,41 @@ const PRESETS = {
       gradeD(0.1, 0.3, 0.06),
     ]
   },
+  // --- Phase 2 presets ---
+  'orb void': {
+    bg: '#020008',
+    layers: [
+      { type:'orb', data:{
+        color:'#7733FF', colorr:0.467, colorg:0.2, colorb:1.0,
+        orb_clow:'#0A0022', orb_clowr:0.039, orb_clowg:0, orb_clowb:0.133,
+        orb_cmid:'#2211AA', orb_cmidr:0.133, orb_cmidg:0.067, orb_cmidb:0.667,
+        orb_chi:'#CCBBFF', orb_chir:0.8, orb_chig:0.733, orb_chib:1.0,
+        orb_rad:0.30, orb_warp:0.42
+      }},
+      vigD(0.55, 0.5),
+    ]
+  },
+  'orb solar': {
+    bg: '#000A02',
+    layers: [
+      { type:'orb', data:{
+        color:'#FF5500', colorr:1.0, colorg:0.333, colorb:0,
+        orb_clow:'#1A0400', orb_clowr:0.102, orb_clowg:0.016, orb_clowb:0,
+        orb_cmid:'#993300', orb_cmidr:0.6, orb_cmidg:0.2, orb_cmidb:0,
+        orb_chi:'#FFCC88', orb_chir:1.0, orb_chig:0.8, orb_chib:0.533,
+        orb_rad:0.27, orb_warp:0.50
+      }},
+      vigD(0.60, 0.45),
+    ]
+  },
+  'shockwave demo': {
+    bg: '#0C0C1A',
+    layers: [
+      warpD(0.28, 1.6, 0.07, 5),
+      waveD('#2255FF', 1.1, 0.32, 0.05, 0.5, 0.6, 0),
+      waveD('#8833FF', 0.7, 0.22, 0.03, 0.55, 0.7, 0),
+      { type:'shockwave', data:{ sw_speed:0.65, sw_width:0.038, sw_str:0.09, sw_ca:0.013 }},
+    ]
+  },
 };
+

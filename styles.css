@@ -1136,3 +1136,162 @@ html, body {
   background: rgba(136, 136, 136, 0.3);
   color: var(--text-active);
 }
+
+
+/* ================================================================
+   Phase 2 — Drop Zone
+   ================================================================ */
+
+.drop-zone {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 var(--panel-padding);
+  border-bottom: 1px solid var(--divider);
+  cursor: pointer;
+  transition: background 80ms ease-out;
+}
+
+.drop-zone:hover {
+  background: var(--surface-bg);
+}
+
+.drop-zone.drag-active {
+  background: var(--surface-bg);
+  border-color: var(--border-hover);
+}
+
+.drop-zone-icon {
+  font-size: 10px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.drop-zone-text {
+  font-size: 10px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.drop-zone-clear {
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 10px;
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+
+.drop-zone-clear:hover {
+  color: var(--error);
+}
+
+
+/* ================================================================
+   Phase 2 — Interactive Section Divider
+   ================================================================ */
+
+.add-divider {
+  height: 1px;
+  background: var(--divider);
+  margin: 6px 0;
+}
+
+.add-section-label {
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+  opacity: 0.6;
+}
+
+
+/* ================================================================
+   Phase 2 — Blend Mode Badge
+   ================================================================ */
+
+.blend-badge {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 500;
+  padding: 1px 4px;
+  border-radius: 2px;
+  cursor: pointer;
+  flex-shrink: 0;
+  user-select: none;
+  transition: color 80ms ease-out;
+  border: none;
+  background: transparent;
+}
+
+.blend-badge--nrm {
+  color: var(--border-rest);
+}
+
+.blend-badge--add {
+  color: var(--text-muted);
+}
+
+.blend-badge:hover {
+  color: var(--text-primary);
+}
+
+
+/* ================================================================
+   Phase 2 — Canvas Hint
+   ================================================================ */
+
+.canvas-hint {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-muted);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 600ms ease-out;
+}
+
+.canvas-hint.visible {
+  opacity: 0.35;
+}
+
+.canvas-area.crosshair canvas {
+  cursor: crosshair;
+}
+
+
+/* ================================================================
+   Phase 2 — Base Layer Card
+   ================================================================ */
+
+.effect-card--base .drag-handle {
+  visibility: hidden;
+}
+
+.effect-dot--base {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.effect-card--base .effect-actions {
+  display: none;
+}

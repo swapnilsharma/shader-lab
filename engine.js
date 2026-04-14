@@ -1,5 +1,5 @@
 // ================================================================
-// SHADER LAB — Engine (Core)
+// SHADER LAB — Engine (Core) — Phase 2
 // ================================================================
 
 const canvas = document.getElementById('glcanvas');
@@ -12,6 +12,20 @@ let frameCount = 0, lastFpsTime = performance.now(), currentFps = 60;
 let frameW = 800, frameH = 600, frameRadius = 0;
 let activePreset = null;
 let dragSrcId = null;
+
+// Phase 2 — Uniform infrastructure
+let mouseX = 0.5, mouseY = 0.5;
+let clickX = 0.5, clickY = 0.5;
+let clickStartTime = -999000; // effectively 999s ago
+
+// Phase 2 — Image state
+let baseImageTex = null;
+let hasBaseImage = false;
+let baseImageName = '';
+let noiseTex = null;
+
+// Interactive effect types
+const INTERACTIVE_TYPES = ['shockwave', 'glowring', 'buttonfx'];
 
 // --- Effect Definitions ---
 const WAVE_COLS = [[0.42,0.50,0.91],[0.91,0.48,0.42],[0.42,0.91,0.76],[0.91,0.82,0.42],[0.80,0.42,0.91]];
@@ -82,6 +96,46 @@ const DEFS = {
     { k:'botstr', t:'range', l:'bottom bright', min:0, max:2, step:0.01, def:1.0 },
     { k:'power', t:'range', l:'curve power', min:1, max:16, step:0.5, def:8 },
   ]},
+  // Phase 2 — Interactive
+  shockwave: { label: 'Shockwave', badge: 'radial pulse', interactive: true, controls: [
+    { k:'sw_speed', t:'range', l:'speed', min:0.2, max:2.0, step:0.05, def:0.65 },
+    { k:'sw_width', t:'range', l:'width', min:0.01, max:0.15, step:0.005, def:0.04 },
+    { k:'sw_str', t:'range', l:'strength', min:0.01, max:0.25, step:0.005, def:0.09 },
+    { k:'sw_ca', t:'range', l:'chromatic aberr.', min:0.0, max:0.04, step:0.001, def:0.014 },
+  ]},
+  glowring: { label: 'Glow Ring', badge: 'SDF wave pulse', interactive: true, controls: [
+    { k:'color', t:'color', l:'colour', def:'#4488FF' },
+    { k:'gr_w', t:'range', l:'box width', min:0.05, max:0.48, step:0.01, def:0.26 },
+    { k:'gr_h', t:'range', l:'box height', min:0.05, max:0.48, step:0.01, def:0.14 },
+    { k:'gr_r', t:'range', l:'corner radius', min:0.0, max:0.2, step:0.005, def:0.04 },
+    { k:'gr_falloff', t:'range', l:'glow falloff', min:1.0, max:20.0, step:0.5, def:7.0 },
+    { k:'gr_int', t:'range', l:'glow intensity', min:0.1, max:2.0, step:0.05, def:0.8 },
+    { k:'gr_spd', t:'range', l:'wave speed', min:0.1, max:2.0, step:0.05, def:0.4 },
+    { k:'gr_freq', t:'range', l:'wave frequency', min:5.0, max:40.0, step:1.0, def:18.0 },
+  ]},
+  buttonfx: { label: 'Button FX', badge: 'rays · crack', interactive: true, controls: [
+    { k:'bf_mode', t:'toggle', l:'crack mode', def:0 },
+    { k:'color', t:'color', l:'colour', def:'#FFE066' },
+    { k:'bf_raycount', t:'range', l:'ray count', min:4, max:24, step:1, def:12 },
+    { k:'bf_rotspd', t:'range', l:'rotation speed', min:0.0, max:3.0, step:0.1, def:0.4 },
+    { k:'bf_sharp', t:'range', l:'sharpness', min:1.0, max:14.0, step:0.5, def:5.0 },
+    { k:'bf_inner', t:'range', l:'inner radius', min:0.0, max:0.2, step:0.005, def:0.04 },
+    { k:'bf_falloff', t:'range', l:'falloff', min:1.0, max:14.0, step:0.5, def:5.5 },
+    { k:'bf_int', t:'range', l:'intensity', min:0.5, max:4.0, step:0.1, def:1.8 },
+    { k:'bf_decay', t:'range', l:'decay', min:1.0, max:10.0, step:0.5, def:4.5 },
+    { k:'bf_crackscale', t:'range', l:'crack scale', min:2.0, max:22.0, step:0.5, def:9.0 },
+    { k:'bf_crackw', t:'range', l:'crack width', min:0.01, max:0.1, step:0.005, def:0.032 },
+    { k:'bf_crackspd', t:'range', l:'crack speed', min:0.2, max:2.5, step:0.05, def:0.9 },
+  ]},
+  // Phase 2 — Orb
+  orb: { label: 'Orb', badge: 'SDF fluid sphere', controls: [
+    { k:'color', t:'color', l:'main colour', def:'#6644FF' },
+    { k:'orb_clow', t:'color', l:'low colour', def:'#001133' },
+    { k:'orb_cmid', t:'color', l:'mid colour', def:'#0055BB' },
+    { k:'orb_chi', t:'color', l:'high colour', def:'#AACCFF' },
+    { k:'orb_rad', t:'range', l:'radius', min:0.10, max:0.45, step:0.01, def:0.28 },
+    { k:'orb_warp', t:'range', l:'warp amount', min:0.0, max:0.8, step:0.01, def:0.36 },
+  ]},
 };
 
 // --- Helpers ---
@@ -129,12 +183,9 @@ function setFrameSize(w, h) {
   applyFrame();
 }
 function applyFrame() {
-  canvas.width = frameW;
-  canvas.height = frameH;
-  canvas.style.width = frameW + 'px';
-  canvas.style.height = frameH + 'px';
-  canvas.style.maxWidth = '100%';
-  canvas.style.maxHeight = '100%';
+  canvas.width = frameW; canvas.height = frameH;
+  canvas.style.width = frameW + 'px'; canvas.style.height = frameH + 'px';
+  canvas.style.maxWidth = '100%'; canvas.style.maxHeight = '100%';
   gl.viewport(0, 0, frameW, frameH);
   document.getElementById('out-res').textContent = `${frameW} × ${frameH}`;
   document.getElementById('status-dims').textContent = `${frameW} × ${frameH}`;
@@ -170,18 +221,13 @@ function togglePlay() {
   }
 }
 function restartTime() {
-  timeOffset = performance.now();
-  pausedAt = performance.now();
-  if (!playing) {
-    playing = true;
-    const btn = document.getElementById('btn-play');
-    btn.classList.add('active');
-    btn.innerHTML = '<svg viewBox="0 0 14 14"><polygon points="3,1 12,7 3,13" stroke="currentColor" fill="none"/></svg>';
-  }
+  timeOffset = performance.now(); pausedAt = performance.now();
+  if (!playing) { playing = true; const btn = document.getElementById('btn-play'); btn.classList.add('active'); btn.innerHTML = '<svg viewBox="0 0 14 14"><polygon points="3,1 12,7 3,13" stroke="currentColor" fill="none"/></svg>'; }
 }
 
 // --- Effect Management ---
 function addFx(type, data, on) {
+  if (!DEFS[type]) return;
   const id = ++eid;
   const d = data || defData(type);
   if (type === 'wave' && !data) {
@@ -192,7 +238,13 @@ function addFx(type, data, on) {
     d.pos = WAVE_POS[wc.length % WAVE_POS.length];
     d.spd = 0.4 + wc.length * 0.2; d.freq = 3 + wc.length * 1.5;
   }
-  effects.push({ id, type, on: on !== undefined ? on : true, data: d, open: true });
+  const entry = { id, type, on: on !== undefined ? on : true, data: d, blend: 'normal' };
+  // Base image always at position 0
+  if (effects.length && effects[0].type === '_baseimg') {
+    effects.splice(1, 0, entry);
+  } else {
+    effects.push(entry);
+  }
   selectedEffectId = id;
   renderUI(); needsRecompile = true;
 }
@@ -201,7 +253,7 @@ function addFxAfter(type, data, on, afterId) {
   const id = ++eid;
   const d = data || defData(type);
   const idx = effects.findIndex(e => e.id === afterId);
-  const entry = { id, type, on: on !== undefined ? on : true, data: d, open: true };
+  const entry = { id, type, on: on !== undefined ? on : true, data: d, blend: 'normal' };
   if (idx >= 0) effects.splice(idx + 1, 0, entry);
   else effects.push(entry);
   selectedEffectId = id;
@@ -209,6 +261,8 @@ function addFxAfter(type, data, on, afterId) {
 }
 
 function removeFx(id) {
+  const e = effects.find(e => e.id === id);
+  if (e && e.type === '_baseimg') { clearBaseImage(); return; }
   effects = effects.filter(e => e.id !== id);
   if (selectedEffectId === id) selectedEffectId = effects.length ? effects[effects.length-1].id : null;
   renderUI(); needsRecompile = true;
@@ -219,57 +273,117 @@ function toggleFx(id, btn) {
   e.on = !e.on; btn.classList.toggle('on', e.on); needsRecompile = true;
 }
 
-function selectEffect(id) {
-  selectedEffectId = id;
-  renderUI();
+function toggleBlend(id) {
+  const e = effects.find(e => e.id === id); if (!e) return;
+  e.blend = e.blend === 'add' ? 'normal' : 'add';
+  renderUI(); needsRecompile = true;
 }
 
+function selectEffect(id) { selectedEffectId = id; renderUI(); }
+
 function duplicateFx(id) {
-  const e = effects.find(e => e.id === id); if (!e) return;
+  const e = effects.find(e => e.id === id); if (!e || e.type === '_baseimg') return;
   const d = JSON.parse(JSON.stringify(e.data));
-  // Shift wave dot colour slightly for visual differentiation
   if (e.type === 'wave' && d.r !== undefined) {
-    d.r = Math.min(1, d.r + 0.12);
-    d.g = Math.min(1, d.g + 0.08);
-    d.b = Math.min(1, d.b - 0.05);
-    d.color = rgbToHex(d.r, d.g, d.b);
-    d.colorr = d.r; d.colorg = d.g; d.colorb = d.b;
+    d.r = Math.min(1, d.r + 0.12); d.g = Math.min(1, d.g + 0.08); d.b = Math.min(1, d.b - 0.05);
+    d.color = rgbToHex(d.r, d.g, d.b); d.colorr = d.r; d.colorg = d.g; d.colorb = d.b;
   }
   addFxAfter(e.type, d, e.on, id);
 }
 
 function clearAll() {
+  clearBaseImage();
   effects = []; eid = 0; selectedEffectId = null; activePreset = null;
   setBg('#0A0A0F'); renderUI(); needsRecompile = true;
 }
 
+// --- Image Upload ---
+function onImageUpload(input) {
+  if (!input.files || !input.files[0]) return;
+  loadBaseImage(input.files[0]);
+}
+
+function loadBaseImage(file) {
+  const img = new Image();
+  img.onload = () => {
+    // Upload to WebGL texture unit 0
+    if (!baseImageTex) baseImageTex = gl.createTexture();
+    gl.activeTexture(gl.TEXTURE0);
+    gl.bindTexture(gl.TEXTURE_2D, baseImageTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    hasBaseImage = true;
+    baseImageName = file.name.length > 24 ? file.name.slice(0, 22) + '…' : file.name;
+
+    // Update drop zone UI
+    document.getElementById('drop-zone-text').textContent = baseImageName;
+    document.getElementById('drop-zone-clear').style.display = 'flex';
+
+    // Insert base layer at position 0 if not already present
+    if (!effects.find(e => e.type === '_baseimg')) {
+      const id = ++eid;
+      effects.unshift({ id, type: '_baseimg', on: true, data: {}, blend: 'normal' });
+    }
+    renderUI(); needsRecompile = true;
+  };
+  img.src = URL.createObjectURL(file);
+}
+
+function clearBaseImage() {
+  hasBaseImage = false; baseImageName = '';
+  effects = effects.filter(e => e.type !== '_baseimg');
+  document.getElementById('drop-zone-text').textContent = 'drop image or click to upload';
+  document.getElementById('drop-zone-clear').style.display = 'none';
+  document.getElementById('img-input').value = '';
+  renderUI(); needsRecompile = true;
+}
+
+// Drop zone drag events
+const dropZone = document.getElementById('drop-zone');
+document.querySelector('.panel-left').addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-active'); });
+document.querySelector('.panel-left').addEventListener('dragleave', e => { if (!e.currentTarget.contains(e.relatedTarget)) dropZone.classList.remove('drag-active'); });
+document.querySelector('.panel-left').addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-active');
+  if (e.dataTransfer.files && e.dataTransfer.files[0] && e.dataTransfer.files[0].type.startsWith('image/')) {
+    loadBaseImage(e.dataTransfer.files[0]);
+  }
+});
+
+// --- Canvas Mouse/Click ---
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = (e.clientX - rect.left) / rect.width;
+  mouseY = 1.0 - (e.clientY - rect.top) / rect.height;
+});
+
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  clickX = (e.clientX - rect.left) / rect.width;
+  clickY = 1.0 - (e.clientY - rect.top) / rect.height;
+  clickStartTime = performance.now();
+  // Reset hint fade timer
+  lastClickTimeForHint = performance.now();
+});
+
+let lastClickTimeForHint = 0;
+
 // --- Drag Reorder ---
 function onDragStart(e, id) {
-  dragSrcId = id;
-  e.dataTransfer.effectAllowed = 'move';
-  e.dataTransfer.setData('text/plain', id);
-  setTimeout(() => {
-    const card = document.querySelector(`[data-eid="${id}"]`);
-    if (card) card.classList.add('dragging');
-  }, 0);
+  dragSrcId = id; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', id);
+  setTimeout(() => { const c = document.querySelector(`[data-eid="${id}"]`); if (c) c.classList.add('dragging'); }, 0);
 }
 function onDragEnd(e, id) {
   dragSrcId = null;
-  document.querySelectorAll('.effect-card').forEach(c => {
-    c.classList.remove('dragging', 'drag-over-top', 'drag-over-bottom');
-  });
+  document.querySelectorAll('.effect-card').forEach(c => c.classList.remove('dragging', 'drag-over-top', 'drag-over-bottom'));
 }
 function onDragOver(e, id) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = 'move';
-  const card = e.currentTarget;
-  const rect = card.getBoundingClientRect();
-  const mid = rect.top + rect.height / 2;
-  document.querySelectorAll('.effect-card').forEach(c => {
-    c.classList.remove('drag-over-top', 'drag-over-bottom');
-  });
-  if (e.clientY < mid) card.classList.add('drag-over-top');
-  else card.classList.add('drag-over-bottom');
+  e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+  const card = e.currentTarget, rect = card.getBoundingClientRect(), mid = rect.top + rect.height / 2;
+  document.querySelectorAll('.effect-card').forEach(c => c.classList.remove('drag-over-top', 'drag-over-bottom'));
+  if (e.clientY < mid) card.classList.add('drag-over-top'); else card.classList.add('drag-over-bottom');
 }
 function onDrop(e, targetId) {
   e.preventDefault();
@@ -277,11 +391,13 @@ function onDrop(e, targetId) {
   const srcIdx = effects.findIndex(x => x.id === dragSrcId);
   const tgtIdx = effects.findIndex(x => x.id === targetId);
   if (srcIdx < 0 || tgtIdx < 0) return;
+  // Don't allow moving base image or moving before it
+  if (effects[srcIdx].type === '_baseimg') return;
   const [moved] = effects.splice(srcIdx, 1);
-  const card = e.currentTarget;
-  const rect = card.getBoundingClientRect();
-  const mid = rect.top + rect.height / 2;
-  const insertIdx = e.clientY < mid ? tgtIdx : tgtIdx + (srcIdx < tgtIdx ? 0 : 1);
+  const card = e.currentTarget, rect = card.getBoundingClientRect(), mid = rect.top + rect.height / 2;
+  let insertIdx = e.clientY < mid ? tgtIdx : tgtIdx + (srcIdx < tgtIdx ? 0 : 1);
+  // Keep base image at 0
+  if (effects[0] && effects[0].type === '_baseimg' && insertIdx === 0) insertIdx = 1;
   effects.splice(insertIdx, 0, moved);
   dragSrcId = null;
   renderUI(); needsRecompile = true;
@@ -292,6 +408,8 @@ function renderUI() {
   renderEffectStack();
   renderPropsPanel();
   updateStatus();
+  updateCanvasCursor();
+  renderPresets();
 }
 
 const DRAG_ICON = '<svg viewBox="0 0 10 14" fill="currentColor" stroke="none"><circle cx="3" cy="2" r="1.2"/><circle cx="7" cy="2" r="1.2"/><circle cx="3" cy="7" r="1.2"/><circle cx="7" cy="7" r="1.2"/><circle cx="3" cy="12" r="1.2"/><circle cx="7" cy="12" r="1.2"/></svg>';
@@ -301,25 +419,49 @@ function renderEffectStack() {
   const el = document.getElementById('effect-stack');
   el.innerHTML = '';
   effects.forEach(e => {
-    const def = DEFS[e.type];
+    const isBase = e.type === '_baseimg';
+    const def = isBase ? { label: baseImageName || 'base image', badge: 'base image' } : DEFS[e.type];
+    if (!def) return;
     const card = document.createElement('div');
-    card.className = 'effect-card' + (e.id === selectedEffectId ? ' selected' : '');
+    card.className = 'effect-card' + (e.id === selectedEffectId ? ' selected' : '') + (isBase ? ' effect-card--base' : '');
     card.setAttribute('data-eid', e.id);
-    card.setAttribute('draggable', 'true');
-    card.addEventListener('dragstart', ev => onDragStart(ev, e.id));
-    card.addEventListener('dragend', ev => onDragEnd(ev, e.id));
-    card.addEventListener('dragover', ev => onDragOver(ev, e.id));
-    card.addEventListener('drop', ev => onDrop(ev, e.id));
-    const dotColor = e.type === 'wave' ? (e.data.color || '#aaa') : '';
-    const dotHtml = dotColor ? `<div class="effect-dot" style="background:${dotColor}"></div>` : '';
+    if (!isBase) {
+      card.setAttribute('draggable', 'true');
+      card.addEventListener('dragstart', ev => onDragStart(ev, e.id));
+      card.addEventListener('dragend', ev => onDragEnd(ev, e.id));
+      card.addEventListener('dragover', ev => onDragOver(ev, e.id));
+      card.addEventListener('drop', ev => onDrop(ev, e.id));
+    }
+
+    const isInteractive = DEFS[e.type] && DEFS[e.type].interactive;
+    let dotHtml;
+    if (isBase) {
+      dotHtml = '<div class="effect-dot--base"></div>';
+    } else if (isInteractive) {
+      dotHtml = '<span style="font-size:9px;flex-shrink:0;opacity:0.6">⚡</span>';
+    } else if (e.type === 'wave') {
+      dotHtml = `<div class="effect-dot" style="background:${e.data.color || '#aaa'}"></div>`;
+    } else if (e.type === 'orb') {
+      dotHtml = `<div class="effect-dot" style="background:${e.data.color || '#6644FF'}"></div>`;
+    } else {
+      dotHtml = '';
+    }
+
+    const blendBadge = isBase ? '' : `<button class="blend-badge blend-badge--${e.blend==='add'?'add':'nrm'}" onclick="event.stopPropagation();toggleBlend(${e.id})">${e.blend==='add'?'ADD':'NRM'}</button>`;
+
+    const actionsHtml = isBase
+      ? `<button class="effect-action-btn effect-action-btn--remove" onclick="event.stopPropagation();removeFx(${e.id})" title="Remove"><svg viewBox="0 0 12 12"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg></button>`
+      : `<div class="effect-actions">
+          <button class="effect-action-btn" onclick="event.stopPropagation();duplicateFx(${e.id})" title="Duplicate">${DUP_ICON}</button>
+          <button class="effect-action-btn effect-action-btn--remove" onclick="event.stopPropagation();removeFx(${e.id})" title="Remove"><svg viewBox="0 0 12 12"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg></button>
+        </div>`;
+
     card.innerHTML = `<div class="effect-head" onclick="selectEffect(${e.id})">
       <div class="drag-handle" onmousedown="event.stopPropagation()">${DRAG_ICON}</div>
       ${dotHtml}<span class="effect-name">${def.label}</span>
       <span class="effect-badge">${def.badge}</span>
-      <div class="effect-actions">
-        <button class="effect-action-btn" onclick="event.stopPropagation();duplicateFx(${e.id})" title="Duplicate">${DUP_ICON}</button>
-        <button class="effect-action-btn effect-action-btn--remove" onclick="event.stopPropagation();removeFx(${e.id})" title="Remove"><svg viewBox="0 0 12 12"><line x1="2" y1="2" x2="10" y2="10"/><line x1="10" y1="2" x2="2" y2="10"/></svg></button>
-      </div>
+      ${blendBadge}
+      ${actionsHtml}
       <button class="effect-toggle ${e.on?'on':''}" onclick="event.stopPropagation();toggleFx(${e.id},this)"></button>
     </div>`;
     el.appendChild(card);
@@ -329,11 +471,11 @@ function renderEffectStack() {
 function renderPropsPanel() {
   const panel = document.getElementById('props-panel');
   const e = effects.find(e => e.id === selectedEffectId);
-  if (!e) {
+  if (!e || e.type === '_baseimg') {
     panel.innerHTML = '<div style="color:var(--text-muted);font-size:10px;padding:8px 0;">Select an effect to edit properties</div>';
     return;
   }
-  const def = DEFS[e.type];
+  const def = DEFS[e.type]; if (!def) return;
   let html = `<div style="margin-bottom:8px;font-size:11px;font-weight:500;color:var(--text-active)">${def.label}</div>`;
   def.controls.forEach(c => { html += renderPropControl(e, c); });
   panel.innerHTML = html;
@@ -384,13 +526,37 @@ function onTog(id, key, btn) {
   needsRecompile = true;
 }
 function updateStatus() {
-  document.getElementById('status-effects').textContent = effects.length + ' effect' + (effects.length !== 1 ? 's' : '');
+  const count = effects.filter(e => e.type !== '_baseimg').length;
+  document.getElementById('status-effects').textContent = count + ' effect' + (count !== 1 ? 's' : '');
+}
+
+function updateCanvasCursor() {
+  const hasInteractive = effects.some(e => INTERACTIVE_TYPES.includes(e.type) && e.on);
+  const area = document.querySelector('.canvas-area');
+  const hint = document.getElementById('canvas-hint');
+  if (hasInteractive) {
+    area.classList.add('crosshair');
+    // Hint visibility based on time since last click
+    const sinceClick = performance.now() - lastClickTimeForHint;
+    if (sinceClick > 8000) hint.classList.add('visible');
+    else if (sinceClick < 4000) hint.classList.remove('visible');
+  } else {
+    area.classList.remove('crosshair');
+    hint.classList.remove('visible');
+  }
 }
 
 // --- Add Buttons ---
 function renderAddGrid() {
   const grid = document.getElementById('add-grid');
-  grid.innerHTML = Object.keys(DEFS).map(k =>
+  const mainEffects = Object.keys(DEFS).filter(k => !DEFS[k].interactive && k !== 'orb');
+  grid.innerHTML = mainEffects.map(k =>
+    `<button class="add-btn" onclick="addFx('${k}')">${DEFS[k].label}</button>`
+  ).join('') + `<button class="add-btn" onclick="addFx('orb')">Orb</button>`;
+
+  const igrid = document.getElementById('add-grid-interactive');
+  const interactiveEffects = Object.keys(DEFS).filter(k => DEFS[k].interactive);
+  igrid.innerHTML = interactiveEffects.map(k =>
     `<button class="add-btn" onclick="addFx('${k}')">${DEFS[k].label}</button>`
   ).join('');
 }
@@ -410,9 +576,7 @@ function openPalette() {
   const input = document.getElementById('cmd-input');
   input.value = ''; filterPalette(''); input.focus();
 }
-function closePalette() {
-  document.getElementById('cmd-overlay').classList.remove('open');
-}
+function closePalette() { document.getElementById('cmd-overlay').classList.remove('open'); }
 function filterPalette(query) {
   const list = document.getElementById('cmd-list');
   const q = query.toLowerCase();
@@ -427,37 +591,21 @@ function filterPalette(query) {
     </div>`
   ).join('');
 }
-
 document.addEventListener('keydown', e => {
-  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-    e.preventDefault();
-    const ov = document.getElementById('cmd-overlay');
-    ov.classList.contains('open') ? closePalette() : openPalette();
-  }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') { e.preventDefault(); const ov = document.getElementById('cmd-overlay'); ov.classList.contains('open') ? closePalette() : openPalette(); }
   if (e.key === 'Escape') closePalette();
-  if (document.getElementById('cmd-overlay').classList.contains('open') && e.key === 'Enter') {
-    const a = document.querySelector('.cmd-item.active') || document.querySelector('.cmd-item');
-    if (a) a.click();
-  }
+  if (document.getElementById('cmd-overlay').classList.contains('open') && e.key === 'Enter') { const a = document.querySelector('.cmd-item.active') || document.querySelector('.cmd-item'); if (a) a.click(); }
 });
 
 // --- Export Dropdown ---
-function toggleExportMenu() {
-  document.getElementById('export-menu').classList.toggle('open');
-}
-function closeExportMenu() {
-  document.getElementById('export-menu').classList.remove('open');
-}
-document.addEventListener('click', e => {
-  if (!e.target.closest('.export-wrap')) closeExportMenu();
-});
-
+function toggleExportMenu() { document.getElementById('export-menu').classList.toggle('open'); }
+function closeExportMenu() { document.getElementById('export-menu').classList.remove('open'); }
+document.addEventListener('click', e => { if (!e.target.closest('.export-wrap')) closeExportMenu(); });
 function copyCode() {
   const src = buildFrag(true);
   navigator.clipboard.writeText(src).then(() => {
     const b = document.getElementById('btn-export');
-    const orig = b.innerHTML;
-    b.textContent = 'Copied!';
+    const orig = b.innerHTML; b.textContent = 'Copied!';
     setTimeout(() => { b.innerHTML = orig; }, 1500);
   });
 }
@@ -466,12 +614,16 @@ function copyCode() {
 function loadPreset(name) {
   const preset = PRESETS[name]; if (!preset) return;
   effects = []; eid = 0; selectedEffectId = null; activePreset = name;
+  if (hasBaseImage) clearBaseImage();
   setBg(preset.bg);
   preset.layers.forEach(l => {
     const d = Object.assign({}, l.data);
     if (l.type === 'wave' && d.color) {
       const [r,g,b] = hexToRgb(d.color);
-      d.r = r; d.g = g; d.b = b;
+      d.r = r; d.g = g; d.b = b; d.colorr = r; d.colorg = g; d.colorb = b;
+    }
+    if ((l.type === 'glowring' || l.type === 'buttonfx' || l.type === 'orb') && d.color) {
+      const [r,g,b] = hexToRgb(d.color);
       d.colorr = r; d.colorg = g; d.colorb = b;
     }
     addFx(l.type, d, true);
@@ -480,9 +632,7 @@ function loadPreset(name) {
   renderUI(); needsRecompile = true;
 }
 
-// --- Randomized Default ---
 function loadRandom() {
   const keys = Object.keys(PRESETS);
-  const pick = keys[Math.floor(Math.random() * keys.length)];
-  loadPreset(pick);
+  loadPreset(keys[Math.floor(Math.random() * keys.length)]);
 }
