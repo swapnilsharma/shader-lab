@@ -89,7 +89,16 @@ function fmt(v, step) {
 function defaultProperties(type) {
   switch(type) {
     case 'solid':        return { color: '#3B3B6B' };
-    case 'gradient':     return { seed: 42, speed: 1.0, freqX: 0.9, freqY: 6.0, angle: 105, amplitude: 2.1, softness: 0.74, blend: 0.54, color0: '#FF0055', color1: '#0088FF', color2: '#FFCC00', color3: '#AA44FF' };
+    case 'gradient':     return {
+      seed: 42, speed: 1.0, freqX: 0.9, freqY: 6.0, angle: 105,
+      amplitude: 2.1, softness: 0.74, blend: 0.54, scale: 1.0,
+      stops: [
+        { position: 0.0,  color: '#FF0055' },
+        { position: 0.33, color: '#0088FF' },
+        { position: 0.66, color: '#FFCC00' },
+        { position: 1.0,  color: '#AA44FF' }
+      ]
+    };
     case 'mesh-gradient':return { seed: 12, speed: 0.3, scale: 0.42, turbAmp: 0.6, turbFreq: 0.1, turbIter: 7, waveFreq: 3.8, distBias: 0.0, exposure: 1.1, contrast: 1.1, saturation: 1.0, color0: '#00001A', color1: '#2962FF', color2: '#40BCFF', color3: '#FFB8B5', color4: '#FFC14F' };
     case 'image':        return { fit: 'cover' };
     case 'noise-warp':   return { str: 0.5, scale: 2.0, wspd: 0.12, oct: 4 };
@@ -119,8 +128,34 @@ function defaultLayerName(type) {
   return NAMES[type] || type;
 }
 
+function migrateGradientProps(props, override) {
+  // If override carried the old color0..color3 format, prefer those over default stops
+  const hasOldColors = override && (override.color0 || override.color1 || override.color2 || override.color3);
+  const hasStops = override && Array.isArray(override.stops);
+  if (!hasStops && hasOldColors) {
+    const raw = [override.color0, override.color1, override.color2, override.color3].filter(c => typeof c === 'string');
+    if (raw.length >= 2) {
+      props.stops = raw.map((c, i) => ({ position: i / (raw.length - 1), color: c }));
+    }
+  }
+  delete props.color0; delete props.color1; delete props.color2; delete props.color3;
+  if (!Array.isArray(props.stops) || props.stops.length < 2) {
+    props.stops = [
+      { position: 0, color: '#FF0055' },
+      { position: 1, color: '#0088FF' }
+    ];
+  }
+  // Sanitise stop positions
+  props.stops = props.stops
+    .map(s => ({ position: Math.max(0, Math.min(1, parseFloat(s.position ?? 0))), color: s.color || '#ffffff' }))
+    .sort((a, b) => a.position - b.position);
+  if (props.scale == null) props.scale = 1.0;
+}
+
 // ── Layer CRUD ─────────────────────────────────────────────────
 function createLayer(type, propsOverride) {
+  const props = Object.assign({}, defaultProperties(type), propsOverride || {});
+  if (type === 'gradient') migrateGradientProps(props, propsOverride);
   return {
     id: ++layerIdCounter,
     type,
@@ -128,7 +163,7 @@ function createLayer(type, propsOverride) {
     visible: true,
     opacity: 1.0,
     blendMode: 'normal',
-    properties: Object.assign({}, defaultProperties(type), propsOverride || {})
+    properties: props
   };
 }
 
@@ -205,6 +240,7 @@ function toggleLayerVisibility(id) {
 
 function selectLayer(id) {
   selectedLayerId = id;
+  selectedStopIdx = 0;
   renderLeftPanel();
   renderRightPanel();
   const fr = document.getElementById('frame-row');
@@ -432,6 +468,7 @@ function renderLeftPanel() {
     row.addEventListener('dragover',  e => onDragOver(e, l.id));
     row.addEventListener('drop',      e => onDrop(e, l.id));
     row.addEventListener('click', () => selectLayer(l.id));
+    row.addEventListener('contextmenu', e => { selectLayer(l.id); openCtxMenu(e, l.id); });
 
     const visClass = l.visible ? 'on' : '';
     row.innerHTML = `
@@ -542,18 +579,16 @@ function renderTypeControls(l) {
 
     case 'gradient':
       return [
+        renderStopsStrip(l),
         renderSlider(id,'seed','Seed',p.seed||42,0,999,1),
         renderSlider(id,'speed','Speed',p.speed||1.0,0.05,4.0,0.05),
         renderSlider(id,'freqX','Freq X',p.freqX||0.9,0.1,5.0,0.1),
         renderSlider(id,'freqY','Freq Y',p.freqY||6.0,0.1,10.0,0.1),
         renderSlider(id,'angle','Angle',p.angle||0,0,360,1),
+        renderSlider(id,'scale','Scale',p.scale!=null?p.scale:1.0,0.1,4.0,0.01),
         renderSlider(id,'amplitude','Amplitude',p.amplitude||2.1,0.5,5.0,0.05),
         renderSlider(id,'softness','Softness',p.softness||0.74,0.1,2.0,0.01),
         renderSlider(id,'blend','Blend',p.blend||0.54,0.0,1.0,0.01),
-        renderColorRow(id,'color0',p.color0||'#FF0055','Color 1'),
-        renderColorRow(id,'color1',p.color1||'#0088FF','Color 2'),
-        renderColorRow(id,'color2',p.color2||'#FFCC00','Color 3'),
-        renderColorRow(id,'color3',p.color3||'#AA44FF','Color 4'),
       ].join('');
 
     case 'mesh-gradient':
@@ -714,6 +749,71 @@ function wireFrameZone() {
   if (hi) hi.addEventListener('change', () => onFrameHChange(hi.value));
 }
 
+// ── Gradient Stops State ───────────────────────────────────────
+let selectedStopIdx = 0;
+let stopSelectionActive = false;
+
+document.addEventListener('mousedown', e => {
+  if (!e.target.closest('[data-stops-lid]')) stopSelectionActive = false;
+}, true);
+
+function interpolateStopColor(stops, t) {
+  const sorted = [...stops].sort((a, b) => a.position - b.position);
+  t = Math.max(0, Math.min(1, t));
+  if (t <= sorted[0].position) return sorted[0].color;
+  if (t >= sorted[sorted.length-1].position) return sorted[sorted.length-1].color;
+  for (let i = 0; i < sorted.length - 1; i++) {
+    const a = sorted[i], b = sorted[i+1];
+    if (t >= a.position && t <= b.position) {
+      const mu = (t - a.position) / Math.max(b.position - a.position, 0.00001);
+      const [ar,ag,ab] = hexToRgb(a.color);
+      const [br,bg,bb] = hexToRgb(b.color);
+      return rgbToHex(ar+(br-ar)*mu, ag+(bg-ag)*mu, ab+(bb-ab)*mu);
+    }
+  }
+  return sorted[0].color;
+}
+
+function cssGradientFromStops(stops) {
+  const sorted = [...stops].sort((a, b) => a.position - b.position);
+  const parts = sorted.map(s => `${s.color} ${(s.position*100).toFixed(2)}%`);
+  return `linear-gradient(to right, ${parts.join(', ')})`;
+}
+
+function renderStopsStrip(l) {
+  const id = l.id;
+  const stops = l.properties.stops || [];
+  const canAdd = stops.length < 6;
+  const canRemove = stops.length > 2;
+  const sel = Math.min(selectedStopIdx, stops.length - 1);
+  const selStop = stops[sel];
+  const bgCss = cssGradientFromStops(stops);
+  const thumbs = stops.map((s, i) => {
+    const selCls = i === sel ? ' selected' : '';
+    const xBtn = (i === sel && canRemove)
+      ? `<div class="stops-thumb-x" data-stop-x="${i}" title="Remove stop (⌫)">×</div>`
+      : '';
+    return `<div class="stops-thumb${selCls}" data-stop-idx="${i}" style="left:${(s.position*100).toFixed(3)}%;background:${s.color};">${xBtn}</div>`;
+  }).join('');
+  const selHex = selStop ? selStop.color : '#ffffff';
+  const selPos = selStop ? Math.round(selStop.position * 100) : 0;
+  return `<div class="stops-block" data-stops-lid="${id}">
+    <div class="rp-zone-sublabel" style="font-size:9px;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.06em;">COLOR STOPS <span style="opacity:0.7">${stops.length}/6</span></div>
+    <div class="stops-strip-wrap">
+      <div class="stops-strip${canAdd ? '' : ' at-max'}" id="stops-strip-${id}" title="${canAdd ? 'Click to add a stop' : 'Maximum 6 stops'}">
+        <div class="stops-gradient" style="background:${bgCss};"></div>
+      </div>
+      <div class="stops-thumb-layer" id="stops-thumbs-${id}">${thumbs}</div>
+    </div>
+    <div class="stops-info-row">
+      <div class="swatch" id="stops-selswatch-${id}" style="background:${selHex}" onclick="document.getElementById('stops-selcp-${id}').click()"></div>
+      <span class="swatch-hex" id="stops-selhex-${id}">${selHex}</span>
+      <span style="color:var(--text-secondary);">pos ${selPos}%</span>
+      <input type="color" class="color-input-hidden" id="stops-selcp-${id}" value="${selHex}">
+    </div>
+  </div>`;
+}
+
 // ── Control Renderers ──────────────────────────────────────────
 function renderSlider(layerId, key, label, val, min, max, step) {
   const vid = `v-${layerId}-${key}`;
@@ -746,8 +846,120 @@ function renderToggle(layerId, key, label, val) {
   </div>`;
 }
 
+function wireStopsStrip(l) {
+  if (l.type !== 'gradient') return;
+  const id = l.id;
+  const strip = document.getElementById(`stops-strip-${id}`);
+  const thumbLayer = document.getElementById(`stops-thumbs-${id}`);
+  if (!strip || !thumbLayer) return;
+
+  const clamp01 = v => Math.max(0, Math.min(1, v));
+  const getPosFromEvent = (e) => {
+    const rect = strip.getBoundingClientRect();
+    return clamp01((e.clientX - rect.left) / Math.max(1, rect.width));
+  };
+  const refresh = () => { renderRightPanel(); needsRecompile = true; };
+
+  // Click on strip background → add stop
+  strip.addEventListener('mousedown', (e) => {
+    if (e.target !== strip && e.target.parentElement !== strip) return; // ignore clicks on thumbs
+    const stops = l.properties.stops;
+    if (stops.length >= 6) return;
+    const pos = getPosFromEvent(e);
+    const col = interpolateStopColor(stops, pos);
+    stops.push({ position: pos, color: col });
+    stops.sort((a, b) => a.position - b.position);
+    const newIdx = stops.findIndex(s => s.position === pos && s.color === col);
+    selectedStopIdx = newIdx >= 0 ? newIdx : 0;
+    stopSelectionActive = true;
+    needsRecompile = true;
+    snapshot();
+    renderRightPanel();
+  });
+
+  // Per-thumb handlers
+  thumbLayer.querySelectorAll('.stops-thumb').forEach(thumb => {
+    const idx = parseInt(thumb.dataset.stopIdx);
+    thumb.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+      // Clicking the × button removes
+      if (e.target.classList && e.target.classList.contains('stops-thumb-x')) {
+        e.preventDefault();
+        if (l.properties.stops.length <= 2) return;
+        l.properties.stops.splice(idx, 1);
+        selectedStopIdx = Math.min(idx, l.properties.stops.length - 1);
+        needsRecompile = true;
+        snapshot();
+        renderRightPanel();
+        return;
+      }
+      // Select stop
+      selectedStopIdx = idx;
+      stopSelectionActive = true;
+      renderRightPanel();
+
+      // Drag to reposition
+      const stops = l.properties.stops;
+      const startX = e.clientX;
+      const startPos = stops[idx].position;
+      const dragStop = stops[idx];
+      let moved = false;
+      const onMove = (me) => {
+        const rect = strip.getBoundingClientRect();
+        const dx = (me.clientX - startX) / Math.max(1, rect.width);
+        dragStop.position = clamp01(startPos + dx);
+        moved = true;
+        // Don't re-sort during drag — keep reference; re-sort + renderUI on mouseup
+        needsRecompile = true;
+        // Live-update the thumb's position without full re-render:
+        const t = thumbLayer.querySelector(`.stops-thumb[data-stop-idx="${idx}"]`);
+        if (t) t.style.left = (dragStop.position * 100).toFixed(3) + '%';
+        const gEl = strip.querySelector('.stops-gradient');
+        if (gEl) gEl.style.background = cssGradientFromStops(stops);
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        if (moved) {
+          // Re-sort and update selectedStopIdx to the same stop
+          const marker = dragStop;
+          stops.sort((a, b) => a.position - b.position);
+          selectedStopIdx = stops.indexOf(marker);
+          if (selectedStopIdx < 0) selectedStopIdx = 0;
+          snapshot();
+          renderRightPanel();
+        }
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  });
+
+  // Color picker for selected stop
+  const cp = document.getElementById(`stops-selcp-${id}`);
+  if (cp) {
+    cp.addEventListener('input', () => {
+      const s = l.properties.stops[selectedStopIdx];
+      if (!s) return;
+      s.color = cp.value;
+      // Update UI live without full re-render
+      const sw = document.getElementById(`stops-selswatch-${id}`);
+      if (sw) sw.style.background = cp.value;
+      const hx = document.getElementById(`stops-selhex-${id}`);
+      if (hx) hx.textContent = cp.value;
+      const thumb = thumbLayer.querySelector(`.stops-thumb[data-stop-idx="${selectedStopIdx}"]`);
+      if (thumb) thumb.style.background = cp.value;
+      const gEl = strip.querySelector('.stops-gradient');
+      if (gEl) gEl.style.background = cssGradientFromStops(l.properties.stops);
+      needsRecompile = true;
+    });
+    cp.addEventListener('change', () => snapshot());
+  }
+}
+
 function wirePropertiesZone(l) {
   const panel = document.getElementById('panel-right');
+  wireStopsStrip(l);
 
   // Wire opacity slider (transform zone)
   const opSlider = document.getElementById('rp-opacity');
@@ -912,18 +1124,117 @@ function loadBlank() {
   snapshot();
 }
 
+// ── Platform + Shortcut Symbols ────────────────────────────────
+const IS_MAC = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+const MOD_SYM = IS_MAC ? '⌘' : 'Ctrl';
+const SHORTCUTS = {
+  addlayer: MOD_SYM + 'K',
+  undo:     MOD_SYM + 'Z',
+  redo:     MOD_SYM + '⇧Z',
+  save:     MOD_SYM + 'S',
+  open:     MOD_SYM + 'O',
+  export:   MOD_SYM + 'E',
+  dup:      MOD_SYM + 'D'
+};
+
+function renderShortcutHints() {
+  document.querySelectorAll('[data-shortcut]').forEach(el => {
+    const key = el.dataset.shortcut;
+    if (SHORTCUTS[key]) el.textContent = SHORTCUTS[key];
+  });
+  // Titles
+  const u1 = document.getElementById('btn-undo');  if (u1)  u1.title  = 'Undo (' + SHORTCUTS.undo + ')';
+  const u2 = document.getElementById('btn-redo');  if (u2)  u2.title  = 'Redo (' + SHORTCUTS.redo + ')';
+  const bs = document.getElementById('btn-save');  if (bs)  bs.title  = 'Save .frakt (' + SHORTCUTS.save + ')';
+  const bo = document.getElementById('btn-open');  if (bo)  bo.title  = 'Open .frakt (' + SHORTCUTS.open + ')';
+  const be = document.getElementById('btn-export');if (be)  be.title  = 'Export GLSL (' + SHORTCUTS.export + ')';
+  const bp = document.getElementById('btn-play');  if (bp)  bp.title  = 'Play / Pause (Space)';
+  const ba = document.getElementById('btn-add-layer'); if (ba) ba.title = 'Add layer (' + SHORTCUTS.addlayer + ')';
+}
+
+function isTypingInField() {
+  const a = document.activeElement;
+  if (!a) return false;
+  const tag = (a.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return true;
+  if (a.isContentEditable) return true;
+  return false;
+}
+
+function closeAllOverlays() {
+  let closed = false;
+  const mo = document.getElementById('modal-overlay');
+  if (mo && !mo.classList.contains('hidden')) { closeModal(); closed = true; }
+  const co = document.getElementById('confirm-overlay');
+  if (co && !co.classList.contains('hidden')) { closeConfirm(false); closed = true; }
+  if (!layerPopover.classList.contains('hidden')) { closeLayerPopover(); closed = true; }
+  if (!ctxMenu.classList.contains('hidden')) { closeCtxMenu(); closed = true; }
+  return closed;
+}
+
 // ── Keyboard Handlers ──────────────────────────────────────────
 document.addEventListener('keydown', e => {
+  // Escape: close overlays/menus (always allowed, even in inputs — blur-first)
   if (e.key === 'Escape') {
-    if (!document.getElementById('modal-overlay').classList.contains('hidden')) { closeModal(); return; }
-    if (!document.getElementById('confirm-overlay').classList.contains('hidden')) { closeConfirm(false); return; }
-    if (!layerPopover.classList.contains('hidden')) { closeLayerPopover(); return; }
-    if (!ctxMenu.classList.contains('hidden')) { closeCtxMenu(); return; }
+    if (isTypingInField()) { document.activeElement.blur(); return; }
+    closeAllOverlays();
+    return;
   }
-  if ((e.key === 'Enter') && !document.getElementById('confirm-overlay').classList.contains('hidden')) { e.preventDefault(); closeConfirm(true); }
-  if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
-  if ((e.metaKey || e.ctrlKey) && (e.key === 'Z' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
-  if ((e.metaKey || e.ctrlKey) && e.key === 'y') { e.preventDefault(); redo(); return; }
+  // Confirm dialog: Enter = OK
+  if ((e.key === 'Enter') && !document.getElementById('confirm-overlay').classList.contains('hidden')) {
+    e.preventDefault(); closeConfirm(true); return;
+  }
+
+  const mod = e.metaKey || e.ctrlKey;
+
+  // Cmd+Z / Cmd+Shift+Z / Cmd+Y — undo/redo (allow even if a field is focused — don't interfere with editing? Actually skip if typing)
+  if (mod && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) { if (isTypingInField()) return; e.preventDefault(); undo(); return; }
+  if (mod && ((e.key === 'Z') || (e.key === 'z' && e.shiftKey))) { if (isTypingInField()) return; e.preventDefault(); redo(); return; }
+  if (mod && e.key === 'y') { if (isTypingInField()) return; e.preventDefault(); redo(); return; }
+
+  // All subsequent shortcuts need no typing-in-field
+  if (isTypingInField()) return;
+
+  // Cmd+K — open Add Layer popover
+  if (mod && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    if (layerPopover.classList.contains('hidden')) openLayerPopover();
+    else closeLayerPopover();
+    return;
+  }
+  // Cmd+S — save .frakt
+  if (mod && (e.key === 's' || e.key === 'S')) { e.preventDefault(); saveFraktFile(); return; }
+  // Cmd+O — open .frakt
+  if (mod && (e.key === 'o' || e.key === 'O')) { e.preventDefault(); openFraktFile(); return; }
+  // Cmd+E — export GLSL
+  if (mod && (e.key === 'e' || e.key === 'E')) { e.preventDefault(); copyCode(); return; }
+  // Cmd+D — duplicate selected layer
+  if (mod && (e.key === 'd' || e.key === 'D')) {
+    if (typeof selectedLayerId === 'number') { e.preventDefault(); duplicateLayer(selectedLayerId); }
+    return;
+  }
+  // Space — toggle play/pause
+  if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
+  // Delete / Backspace — remove selected stop (if a gradient stop is actively selected), else delete selected layer
+  if (e.key === 'Delete' || e.key === 'Backspace') {
+    const l = typeof selectedLayerId === 'number' ? layers.find(ll => ll.id === selectedLayerId) : null;
+    if (stopSelectionActive && l && l.type === 'gradient' &&
+        l.properties.stops && l.properties.stops.length > 2 &&
+        selectedStopIdx >= 0 && selectedStopIdx < l.properties.stops.length) {
+      e.preventDefault();
+      l.properties.stops.splice(selectedStopIdx, 1);
+      selectedStopIdx = Math.min(selectedStopIdx, l.properties.stops.length - 1);
+      needsRecompile = true;
+      snapshot();
+      renderRightPanel();
+      return;
+    }
+    if (typeof selectedLayerId === 'number') {
+      e.preventDefault();
+      removeLayerConfirm(selectedLayerId);
+    }
+    return;
+  }
 });
 
 // Close modal on overlay click
@@ -933,6 +1244,7 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
 
 // ── Frame Row ──────────────────────────────────────────────────
 document.getElementById('frame-row').addEventListener('click', () => selectLayer('frame'));
+document.getElementById('frame-row').addEventListener('contextmenu', e => e.preventDefault());
 
 // ── Editable Filename ──────────────────────────────────────────
 (function wireFileName() {
@@ -962,8 +1274,102 @@ document.getElementById('frame-row').addEventListener('click', () => selectLayer
   });
 })();
 
+// ── Toast ──────────────────────────────────────────────────────
+let _toastTimer = null;
+function showToast(msg, isError) {
+  const t = document.getElementById('toast'); if (!t) return;
+  t.textContent = msg;
+  t.classList.toggle('toast--error', !!isError);
+  t.classList.remove('hidden'); t.classList.add('visible');
+  if (_toastTimer) clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => {
+    t.classList.remove('visible');
+    setTimeout(() => { t.classList.add('hidden'); t.classList.remove('toast--error'); }, 300);
+  }, 2000);
+}
+
+// ── Save / Open .frakt ─────────────────────────────────────────
+const KNOWN_LAYER_TYPES = new Set([
+  'solid','gradient','mesh-gradient','image',
+  'noise-warp','wave','liquid','grain','chromatic-aberration',
+  'vignette','color-grade','posterize','pixelate','scanlines'
+]);
+
+function saveFraktFile() {
+  const data = {
+    version: '1',
+    name: fileName,
+    createdAt: new Date().toISOString(),
+    canvas: { width: frameState.w, height: frameState.h, background: frameState.bg },
+    layers: layers.map(l => ({
+      type: l.type,
+      name: l.name,
+      visible: !!l.visible,
+      opacity: l.opacity,
+      blendMode: l.blendMode,
+      properties: JSON.parse(JSON.stringify(l.properties || {}))
+    }))
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `${fileName || 'untitled'}.frakt`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showToast(`Saved ${fileName || 'untitled'}.frakt`);
+}
+
+function openFraktFile() {
+  const inp = document.getElementById('frakt-input');
+  if (inp) { inp.value = ''; inp.click(); }
+}
+
+function onFraktUpload(input) {
+  const f = input && input.files && input.files[0]; if (!f) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    try {
+      const data = JSON.parse(reader.result);
+      if (!data || data.version == null || !Array.isArray(data.layers)) throw new Error('schema');
+      const incoming = data.layers.filter(l => l && KNOWN_LAYER_TYPES.has(l.type));
+
+      closeAllOverlays();
+      layers = []; layerIdCounter = 0; selectedLayerId = null;
+      if (data.canvas && typeof data.canvas === 'object') {
+        if (typeof data.canvas.width === 'number')  frameState.w = data.canvas.width;
+        if (typeof data.canvas.height === 'number') frameState.h = data.canvas.height;
+        if (typeof data.canvas.background === 'string') frameState.bg = data.canvas.background;
+      }
+      incoming.forEach(l => {
+        const layer = createLayer(l.type, l.properties || {});
+        if (l.name) layer.name = l.name;
+        if (typeof l.visible === 'boolean') layer.visible = l.visible;
+        if (typeof l.opacity === 'number') layer.opacity = l.opacity;
+        if (typeof l.blendMode === 'string') layer.blendMode = l.blendMode;
+        layers.push(layer);
+      });
+      if (typeof data.name === 'string' && data.name.trim()) {
+        fileName = data.name.trim();
+        const lbl = document.getElementById('topbar-file-label');
+        if (lbl) lbl.textContent = fileName;
+      }
+      if (layers.length) selectedLayerId = layers[0].id;
+      applyFrame();
+      history = []; historyIdx = -1;
+      renderUI(); needsRecompile = true;
+      snapshot();
+      showToast(`Opened ${fileName}.frakt`);
+    } catch (err) {
+      showToast('Failed to load file. Invalid .frakt format.', true);
+    }
+  };
+  reader.onerror = () => showToast('Failed to load file. Invalid .frakt format.', true);
+  reader.readAsText(f);
+}
+
 // ── Boot ───────────────────────────────────────────────────────
 noiseTex = initNoiseTex(gl);
 applyFrame();
 openModal();
+renderShortcutHints();
 requestAnimationFrame(frame);

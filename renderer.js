@@ -50,15 +50,42 @@ function isUVPrep(t)  { return UV_PREP_TYPES.has(t); }
 // ── Uniform name helpers ───────────────────────────────────────
 function u(prefix, id, k) { return `u_${prefix}_${id}_${k}`; }
 
+// ── GLSL: stops sampler function (multi-stop gradient lookup) ──
+function glslGrStopsFn(id) {
+  const cnt = u('gr',id,'cnt');
+  const col = u('gr',id,'col');
+  const pos = u('gr',id,'pos');
+  return `vec3 grSample_${id}(float t){
+  t=clamp(t,0.0,1.0);
+  vec3 result=${col}[0];
+  int n=${cnt};
+  for(int i=0;i<5;i++){
+    if(i+1>=n) break;
+    float a=${pos}[i];
+    float b=${pos}[i+1];
+    if(t>=a && t<=b){
+      float mu=(t-a)/max(b-a,0.00001);
+      result=mix(${col}[i],${col}[i+1],mu);
+    }
+  }
+  for(int j=0;j<6;j++){
+    if(j>=n) break;
+    if(j==n-1 && t>=${pos}[j]) result=${col}[j];
+  }
+  return result;
+}\n`;
+}
+
 // ── GLSL: gradient content function (waveGradient algorithm) ───
 function glslGradientFn(id) {
   const p = k => u('gr',id,k);
-  return `vec3 contentFn_${id}(vec2 puv){
+  return glslGrStopsFn(id) + `vec3 contentFn_${id}(vec2 puv){
+  float grScl=${p('scl')};
+  puv=(puv-0.5)/max(grScl,0.001)+0.5;
   float wg_seed=${p('seed')};float wg_speed=${p('spd')};
   float wg_freqX=${p('fqx')};float wg_freqY=${p('fqy')};
   float wg_angle=${p('ang')};float wg_amplitude=${p('amp')};
   float wg_softness=${p('sft')};float wg_blend=${p('bld')};
-  vec3 wg_c0=${p('c0')},wg_c1=${p('c1')},wg_c2=${p('c2')},wg_c3=${p('c3')};
   vec3 col=vec3(0.0);
   float wgt=u_t*wg_speed;
   vec2 wg_tuv=puv-0.5;
@@ -92,8 +119,10 @@ function glslGradientFn(id) {
   float wg_lr2=10.0+cos(wg_seed*2.47)*20.0;
   float wg_rc1=cos(radians(wg_lr1)),wg_rs1=sin(radians(wg_lr1));
   float wg_rc2=cos(radians(wg_lr2)),wg_rs2=sin(radians(wg_lr2));
-  vec3 wg_l1=mix(wg_c0,wg_c2,smoothstep(-0.3,0.3,(mat2(wg_rc1,-wg_rs1,wg_rs1,wg_rc1)*wg_bUV).x));
-  vec3 wg_l2=mix(wg_c3,wg_c1,smoothstep(-0.3,0.3,(mat2(wg_rc2,-wg_rs2,wg_rs2,wg_rc2)*wg_bUV).x));
+  float wg_t1=clamp((mat2(wg_rc1,-wg_rs1,wg_rs1,wg_rc1)*wg_bUV).x+0.5,0.0,1.0);
+  float wg_t2=clamp((mat2(wg_rc2,-wg_rs2,wg_rs2,wg_rc2)*wg_bUV).x+0.5,0.0,1.0);
+  vec3 wg_l1=grSample_${id}(wg_t1);
+  vec3 wg_l2=grSample_${id}(wg_t2);
   col=mix(wg_l1,wg_l2,smoothstep(0.3,-0.3,wg_bUV.y));
   col=mix(col,col*col+0.5*sqrt(col),0.3);
   return col;
@@ -181,8 +210,10 @@ function glslUniformDecls(layers) {
       case 'solid':
         s += `uniform vec3 ${u('sl',id,'c')};\n`; break;
       case 'gradient':
-        s += `uniform float ${u('gr',id,'seed')},${u('gr',id,'spd')},${u('gr',id,'fqx')},${u('gr',id,'fqy')},${u('gr',id,'ang')},${u('gr',id,'amp')},${u('gr',id,'sft')},${u('gr',id,'bld')};\n`;
-        s += `uniform vec3 ${u('gr',id,'c0')},${u('gr',id,'c1')},${u('gr',id,'c2')},${u('gr',id,'c3')};\n`; break;
+        s += `uniform float ${u('gr',id,'seed')},${u('gr',id,'spd')},${u('gr',id,'fqx')},${u('gr',id,'fqy')},${u('gr',id,'ang')},${u('gr',id,'amp')},${u('gr',id,'sft')},${u('gr',id,'bld')},${u('gr',id,'scl')};\n`;
+        s += `uniform vec3 ${u('gr',id,'col')}[6];\n`;
+        s += `uniform float ${u('gr',id,'pos')}[6];\n`;
+        s += `uniform int ${u('gr',id,'cnt')};\n`; break;
       case 'mesh-gradient':
         s += `uniform float ${u('mg',id,'seed')},${u('mg',id,'spd')},${u('mg',id,'sc')},${u('mg',id,'ta')},${u('mg',id,'tf')},${u('mg',id,'ti')},${u('mg',id,'wf')},${u('mg',id,'db')},${u('mg',id,'ex')},${u('mg',id,'co')},${u('mg',id,'sa')};\n`;
         s += `uniform vec3 ${u('mg',id,'c0')},${u('mg',id,'c1')},${u('mg',id,'c2')},${u('mg',id,'c3')},${u('mg',id,'c4')};\n`; break;
@@ -363,17 +394,29 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         glCtx.uniform3f(ul(u('sl',id,'c')), r, g, b); break;
       }
       case 'gradient': {
-        glCtx.uniform1f(ul(u('gr',id,'seed')),p.seed||42);
-        glCtx.uniform1f(ul(u('gr',id,'spd')), p.speed||1.0);
-        glCtx.uniform1f(ul(u('gr',id,'fqx')), p.freqX||0.9);
-        glCtx.uniform1f(ul(u('gr',id,'fqy')), p.freqY||6.0);
-        glCtx.uniform1f(ul(u('gr',id,'ang')), p.angle||105);
-        glCtx.uniform1f(ul(u('gr',id,'amp')), p.amplitude||2.1);
-        glCtx.uniform1f(ul(u('gr',id,'sft')), p.softness||0.74);
-        glCtx.uniform1f(ul(u('gr',id,'bld')), p.blend||0.54);
-        const c0=hexToRgb(p.color0||'#FF0055'),c1=hexToRgb(p.color1||'#0088FF'),c2=hexToRgb(p.color2||'#FFCC00'),c3=hexToRgb(p.color3||'#AA44FF');
-        glCtx.uniform3f(ul(u('gr',id,'c0')),...c0);glCtx.uniform3f(ul(u('gr',id,'c1')),...c1);
-        glCtx.uniform3f(ul(u('gr',id,'c2')),...c2);glCtx.uniform3f(ul(u('gr',id,'c3')),...c3);
+        glCtx.uniform1f(ul(u('gr',id,'seed')), p.seed     != null ? p.seed      : 42);
+        glCtx.uniform1f(ul(u('gr',id,'spd')),  p.speed    != null ? p.speed     : 1.0);
+        glCtx.uniform1f(ul(u('gr',id,'fqx')),  p.freqX    != null ? p.freqX     : 0.9);
+        glCtx.uniform1f(ul(u('gr',id,'fqy')),  p.freqY    != null ? p.freqY     : 6.0);
+        glCtx.uniform1f(ul(u('gr',id,'ang')),  p.angle    != null ? p.angle     : 105);
+        glCtx.uniform1f(ul(u('gr',id,'amp')),  p.amplitude!= null ? p.amplitude : 2.1);
+        glCtx.uniform1f(ul(u('gr',id,'sft')),  p.softness != null ? p.softness  : 0.74);
+        glCtx.uniform1f(ul(u('gr',id,'bld')),  p.blend    != null ? p.blend     : 0.54);
+        glCtx.uniform1f(ul(u('gr',id,'scl')),  p.scale    != null ? p.scale     : 1.0);
+        let stops = (Array.isArray(p.stops) && p.stops.length >= 2) ? p.stops
+                  : [{position:0,color:'#FF0055'},{position:1,color:'#0088FF'}];
+        const count = Math.min(6, stops.length);
+        const colData = new Float32Array(6*3);
+        const posData = new Float32Array(6);
+        for (let i = 0; i < 6; i++) {
+          const src = i < count ? stops[i] : stops[count-1];
+          const [r,g,bb] = hexToRgb(src.color || '#000000');
+          colData[i*3+0] = r; colData[i*3+1] = g; colData[i*3+2] = bb;
+          posData[i] = i < count ? Math.max(0, Math.min(1, (src.position != null ? src.position : i/Math.max(1,count-1)))) : 1.0;
+        }
+        glCtx.uniform3fv(ul(u('gr',id,'col')), colData);
+        glCtx.uniform1fv(ul(u('gr',id,'pos')), posData);
+        glCtx.uniform1i (ul(u('gr',id,'cnt')), count);
         break;
       }
       case 'mesh-gradient': {
@@ -443,8 +486,10 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         break;
       }
       case 'chromatic-aberration': {
-        glCtx.uniform1f(ul(u('ca',id,'sp')), p.spread||0.006);
-        glCtx.uniform1f(ul(u('ca',id,'an')), (p.angle||0)*Math.PI/180);
+        const spread = p.spread != null ? p.spread : 0.006;
+        const angle  = p.angle  != null ? p.angle  : 0;
+        glCtx.uniform1f(ul(u('ca',id,'sp')), spread);
+        glCtx.uniform1f(ul(u('ca',id,'an')), angle * Math.PI / 180);
         break;
       }
       case 'vignette': {
