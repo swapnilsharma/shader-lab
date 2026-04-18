@@ -1,215 +1,162 @@
 // ================================================================
-// SHADER LAB — Preset Definitions
+// SHADER LAB — Presets v3 (Layer Stack Format)
 // ================================================================
-// Each preset: { bg: '#hex', layers: [{ type, data }] }
-// Wave data needs: color, freq, amp, spd, pos, edge, angle
-// Color Grade: contrast/sat/bright are OFFSETS from 1.0/1.0/0.0 base
-
-function waveD(color, freq, amp, spd, pos, edge, angle) {
-  const [r,g,b] = hexToRgb(color);
-  return { type:'wave', data:{ color, colorr:r, colorg:g, colorb:b, r, g, b, freq, amp, spd, pos, edge, angle:angle||0 }};
-}
-function warpD(str, scale, wspd, oct) {
-  return { type:'warp', data:{ str, scale, wspd, oct:oct||4 }};
-}
-function grainD(amount, anim, streak, sangle, slen) {
-  return { type:'grain', data:{ amount, size:1.0, anim:anim?1:0, streak:streak?1:0, sangle:sangle||90, slen:slen||6 }};
-}
-function vigD(str, soft) {
-  return { type:'vignette', data:{ str, soft }};
-}
-function gradeD(contrast, sat, bright, hue) {
-  return { type:'colorgrade', data:{ contrast:1.0+(contrast||0), sat:1.0+(sat||0), bright:bright||0, hue:hue||0 }};
-}
-function scanD(count, dark, soft, scroll, scrollspd) {
-  return { type:'scanlines', data:{ count, dark, soft, scroll:scroll?1:0, scrollspd:scrollspd||0.3 }};
-}
-function barrelD(str, zoom) {
-  return { type:'barrel', data:{ str, zoom }};
-}
-function chromaD(spread, angle) {
-  return { type:'chroma', data:{ spread, angle:angle||0 }};
-}
-function pixelD(size) {
-  return { type:'pixelate', data:{ size }};
-}
-function dirgradD(topstr, botstr, power) {
-  return { type:'dirgradient', data:{ topstr, botstr, power }};
-}
+// Each preset: { bg: '#hex', layers: [{ type, name, properties, opacity?, blendMode? }] }
+// Layers are ordered top-to-bottom in the panel (index 0 = topmost).
+// IDs are assigned at runtime by engine.js.
 
 const PRESETS = {
-  watercolour: {
-    bg: '#F5F0E8',
-    layers: [
-      warpD(0.6, 1.8, 0.12, 5),
-      waveD('#E8A0D0', 1.2, 0.35, 0.08, 0.45, 0.7, 0),
-      waveD('#A0C8F0', 0.8, 0.28, -0.06, 0.55, 0.8, 0),
-      vigD(0.3, 0.8),
-      gradeD(0.05, 0.15, 0.05),
-    ]
-  },
-  crt: {
-    bg: '#000308',
-    layers: [
-      dirgradD(0.3, 0.5, 2.2),
-      waveD('#00FF88', 18.0, 0.012, 0.6, 0.5, 0.05, 90),
-      scanD(180, 0.55, 0.15, true, 0.3),
-      barrelD(0.18, 1.06),
-      chromaD(0.006, 0),
-      vigD(0.7, 0.4),
-      gradeD(0, -0.3, -0.1),
-    ]
-  },
-  waterfall: {
-    bg: '#020818',
-    layers: [
-      waveD('#0066FF', 3.5, 0.55, -0.9, 0.5, 0.15, 90),
-      waveD('#00CCFF', 7.0, 0.25, -1.4, 0.5, 0.08, 88),
-      warpD(0.25, 2.0, 0.3, 4),
-      chromaD(0.004, 90),
-      gradeD(0.2, 0.3, 0),
-    ]
-  },
-  minimal: {
-    bg: '#080808',
-    layers: [
-      waveD('#FFFFFF', 12.0, 0.018, 0.15, 0.5, 0.03, 35),
-      waveD('#FFFFFF', 7.0, 0.008, -0.08, 0.5, 0.02, 35),
-      vigD(0.6, 0.5),
-    ]
-  },
   aurora: {
     bg: '#020D08',
     layers: [
-      warpD(0.9, 0.8, 0.06, 6),
-      waveD('#00FFB3', 1.4, 0.6, 0.07, 0.45, 0.55, 12),
-      waveD('#7B2FFF', 0.9, 0.45, 0.04, 0.55, 0.65, -8),
-      waveD('#00CFFF', 2.1, 0.3, 0.11, 0.5, 0.5, 5),
-      vigD(0.5, 0.6),
-      gradeD(0.15, 0.4, -0.05),
+      { type: 'grain',        name: 'Grain',        properties: { amount: 0.12, size: 1.0, animated: 1, streak: 0, sangle: 90, slen: 6 } },
+      { type: 'color-grade',  name: 'Color Grade',  properties: { contrast: 1.15, sat: 1.4, bright: -0.05, hue: 0 } },
+      { type: 'noise-warp',   name: 'Noise Warp',   properties: { str: 0.9, scale: 0.8, wspd: 0.06, oct: 6 } },
+      { type: 'mesh-gradient',name: 'Mesh Gradient',properties: {
+        seed: 42, speed: 0.07, scale: 0.42, turbAmp: 0.9, turbFreq: 0.1, turbIter: 7,
+        waveFreq: 3.8, distBias: 0.0, exposure: 1.1, contrast: 1.1, saturation: 1.0,
+        color0: '#020D08', color1: '#00FFB3', color2: '#7B2FFF', color3: '#00CFFF', color4: '#020D08'
+      }}
     ]
   },
-  ember: {
-    bg: '#0A0200',
-    layers: [
-      warpD(1.2, 1.2, 0.18, 5),
-      waveD('#FF4400', 2.2, 0.5, 0.22, 0.45, 0.3, 4),
-      waveD('#FFAA00', 3.8, 0.35, 0.3, 0.55, 0.2, -3),
-      waveD('#FF0055', 1.4, 0.28, 0.14, 0.5, 0.45, 8),
-      grainD(0.06, true),
-      gradeD(0.3, 0.5, -0.1),
-    ]
-  },
-  holo: {
-    bg: '#F0F5FF',
-    layers: [
-      warpD(0.45, 1.4, 0.09, 4),
-      waveD('#A0F0FF', 2.8, 0.42, 0.08, 0.45, 0.55, 20),
-      waveD('#FFB0F0', 1.9, 0.38, -0.06, 0.55, 0.6, -15),
-      waveD('#B8FFD0', 3.5, 0.28, 0.12, 0.5, 0.5, 10),
-      chromaD(0.003, 45),
-      gradeD(-0.05, 0.25, 0.08),
-    ]
-  },
-  vhs: {
-    bg: '#0D0812',
-    layers: [
-      grainD(0.18, true, true, 90, 6),
-      waveD('#FF00CC', 0.6, 0.04, 0.35, 0.5, 0.02, 90),
-      scanD(240, 0.35, 0.2, false),
-      chromaD(0.012, 0),
-      barrelD(0.06, 1.02),
-      gradeD(0.1, -0.15, -0.05),
-    ]
-  },
-  plasma: {
-    bg: '#05000F',
-    layers: [
-      warpD(1.4, 0.9, 0.2, 6),
-      waveD('#FF00FF', 3.2, 0.55, 0.18, 0.45, 0.25, 15),
-      waveD('#00FFFF', 2.1, 0.48, -0.14, 0.55, 0.3, -10),
-      waveD('#FFFF00', 4.5, 0.3, 0.25, 0.5, 0.2, 5),
-      gradeD(0.35, 0.6, 0),
-    ]
-  },
+
   silk: {
     bg: '#08001A',
     layers: [
-      warpD(0.35, 2.2, 0.05, 3),
-      waveD('#9B30FF', 2.0, 0.5, 0.06, 0.42, 0.45, 25),
-      waveD('#FF3090', 1.4, 0.42, -0.04, 0.58, 0.5, -20),
-      waveD('#30B0FF', 3.0, 0.25, 0.09, 0.5, 0.4, 10),
-      gradeD(0.2, 0.4, -0.08),
+      { type: 'grain',    name: 'Grain', properties: { amount: 0.06, size: 1.0, animated: 1, streak: 0, sangle: 90, slen: 6 } },
+      { type: 'wave',     name: 'Wave',  properties: { color: '#FF3090', freq: 2.0, amp: 0.5, spd: 0.06, pos: 0.5, edge: 0.45, angle: 25 } },
+      { type: 'gradient', name: 'Gradient', properties: {
+        seed: 22, speed: 0.05, freqX: 0.9, freqY: 4.0, angle: 25, amplitude: 1.5, softness: 0.8, blend: 0.5,
+        color0: '#08001A', color1: '#9B30FF', color2: '#FF3090', color3: '#30B0FF'
+      }}
     ]
   },
-  glitch: {
-    bg: '#000000',
+
+  plasma: {
+    bg: '#05000F',
     layers: [
-      warpD(2.0, 3.5, 0.4, 2),
-      waveD('#00FFCC', 14.0, 0.06, 0.8, 0.5, 0.02, 90),
-      chromaD(0.022, 0),
-      pixelD(6),
-      scanD(150, 0.2, 0.3, true, 0.5),
-      gradeD(0.4, 0.2, 0),
+      { type: 'chromatic-aberration', name: 'Chromatic Aberration', properties: { spread: 0.008, angle: 0 } },
+      { type: 'noise-warp',   name: 'Noise Warp',   properties: { str: 1.4, scale: 0.9, wspd: 0.2, oct: 6 } },
+      { type: 'liquid',       name: 'Liquid',       opacity: 0.6, properties: {
+        seed: 15, speed: 0.25, scale: 0.6, turbAmp: 1.0, turbFreq: 0.1, turbIter: 5,
+        waveFreq: 3.0, distBias: 0.0, exposure: 1.0, saturation: 1.2,
+        color0: '#05000F', color1: '#FF00FF', color2: '#00FFFF', color3: '#FFFF00', color4: '#05000F'
+      }},
+      { type: 'mesh-gradient', name: 'Mesh Gradient', properties: {
+        seed: 85, speed: 0.18, scale: 0.9, turbAmp: 1.4, turbFreq: 0.08, turbIter: 6,
+        waveFreq: 4.0, distBias: 0.0, exposure: 1.2, contrast: 1.35, saturation: 1.6,
+        color0: '#05000F', color1: '#FF00FF', color2: '#00FFFF', color3: '#FFFF00', color4: '#05000F'
+      }}
     ]
   },
+
+  ember: {
+    bg: '#0A0200',
+    layers: [
+      { type: 'color-grade', name: 'Color Grade', properties: { contrast: 1.3, sat: 1.5, bright: -0.1, hue: 0 } },
+      { type: 'noise-warp',  name: 'Noise Warp',  properties: { str: 1.2, scale: 1.2, wspd: 0.18, oct: 5 } },
+      { type: 'gradient',    name: 'Gradient',    properties: {
+        seed: 7, speed: 0.22, freqX: 1.2, freqY: 5.0, angle: 4, amplitude: 2.0, softness: 0.7, blend: 0.6,
+        color0: '#0A0200', color1: '#FF4400', color2: '#FFAA00', color3: '#FF0055'
+      }}
+    ]
+  },
+
+  holo: {
+    bg: '#F0F5FF',
+    layers: [
+      { type: 'grain',                 name: 'Grain',                 properties: { amount: 0.04, size: 1.0, animated: 1, streak: 0, sangle: 90, slen: 6 } },
+      { type: 'chromatic-aberration',  name: 'Chromatic Aberration',  properties: { spread: 0.003, angle: 45 } },
+      { type: 'wave',                  name: 'Wave',                  properties: { color: '#A0F0FF', freq: 2.8, amp: 0.42, spd: 0.08, pos: 0.45, edge: 0.55, angle: 20 } },
+      { type: 'gradient',              name: 'Gradient',              properties: {
+        seed: 33, speed: 0.09, freqX: 1.0, freqY: 3.5, angle: 15, amplitude: 1.4, softness: 0.85, blend: 0.55,
+        color0: '#F0F5FF', color1: '#A0F0FF', color2: '#FFB0F0', color3: '#B8FFD0'
+      }}
+    ]
+  },
+
   cosmos: {
     bg: '#00000A',
     layers: [
-      warpD(0.5, 0.4, 0.015, 6),
-      waveD('#1A00FF', 0.7, 0.35, 0.02, 0.45, 0.7, 30),
-      waveD('#8800FF', 0.4, 0.28, 0.015, 0.55, 0.8, -20),
-      grainD(0.22, true),
-      vigD(0.8, 0.3),
-      gradeD(0.25, 0.5, -0.15),
+      { type: 'color-grade', name: 'Color Grade', properties: { contrast: 1.25, sat: 1.5, bright: -0.15, hue: 0 } },
+      { type: 'vignette',    name: 'Vignette',    properties: { str: 0.8, soft: 0.3 } },
+      { type: 'grain',       name: 'Grain',       properties: { amount: 0.22, size: 1.0, animated: 1, streak: 0, sangle: 90, slen: 6 } },
+      { type: 'noise-warp',  name: 'Noise Warp',  properties: { str: 0.5, scale: 0.4, wspd: 0.015, oct: 6 } },
+      { type: 'solid',       name: 'Solid',       properties: { color: '#00000A' } }
     ]
   },
+
+  glitch: {
+    bg: '#000000',
+    layers: [
+      { type: 'scanlines',             name: 'Scanlines',             properties: { count: 150, dark: 0.2, soft: 0.3, scroll: 1, scrollspd: 0.5 } },
+      { type: 'chromatic-aberration',  name: 'Chromatic Aberration',  properties: { spread: 0.022, angle: 0 } },
+      { type: 'posterize',             name: 'Posterize',             properties: { bands: 5, mix: 0.8, c1: '#00FFCC', c2: '#007755', c3: '#004433', c4: '#001111' } },
+      { type: 'gradient',              name: 'Gradient',              properties: {
+        seed: 99, speed: 0.8, freqX: 3.5, freqY: 7.0, angle: 90, amplitude: 2.5, softness: 0.4, blend: 0.6,
+        color0: '#000000', color1: '#00FFCC', color2: '#004422', color3: '#000000'
+      }}
+    ]
+  },
+
   sunrise: {
     bg: '#FFF5E0',
     layers: [
-      dirgradD(0.2, 0.8, 1.8),
-      waveD('#FF6600', 1.0, 0.5, 0.05, 0.5, 0.7, 0),
-      waveD('#FF0080', 0.6, 0.35, 0.03, 0.55, 0.8, 5),
-      waveD('#FFE000', 1.8, 0.3, 0.08, 0.45, 0.65, -5),
-      warpD(0.2, 2.0, 0.04, 3),
-      gradeD(0.1, 0.3, 0.06),
+      { type: 'color-grade', name: 'Color Grade', properties: { contrast: 1.1, sat: 1.3, bright: 0.06, hue: 0 } },
+      { type: 'wave',        name: 'Wave',        properties: { color: '#FF6600', freq: 1.0, amp: 0.5, spd: 0.05, pos: 0.5, edge: 0.7, angle: 0 } },
+      { type: 'gradient',    name: 'Gradient',    properties: {
+        seed: 55, speed: 0.06, freqX: 0.8, freqY: 4.0, angle: 0, amplitude: 1.4, softness: 0.9, blend: 0.5,
+        color0: '#FFF5E0', color1: '#FF6600', color2: '#FF0080', color3: '#FFE000'
+      }}
     ]
   },
-  // --- Phase 2 presets ---
-  'orb void': {
-    bg: '#020008',
+
+  minimal: {
+    bg: '#080808',
     layers: [
-      { type:'orb', data:{
-        color:'#7733FF', colorr:0.467, colorg:0.2, colorb:1.0,
-        orb_clow:'#0A0022', orb_clowr:0.039, orb_clowg:0, orb_clowb:0.133,
-        orb_cmid:'#2211AA', orb_cmidr:0.133, orb_cmidg:0.067, orb_cmidb:0.667,
-        orb_chi:'#CCBBFF', orb_chir:0.8, orb_chig:0.733, orb_chib:1.0,
-        orb_rad:0.30, orb_warp:0.42
+      { type: 'grain',    name: 'Grain',    properties: { amount: 0.05, size: 1.0, animated: 1, streak: 0, sangle: 90, slen: 6 } },
+      { type: 'gradient', name: 'Gradient', properties: {
+        seed: 11, speed: 0.12, freqX: 4.0, freqY: 3.5, angle: 35, amplitude: 0.8, softness: 1.2, blend: 0.4,
+        color0: '#080808', color1: '#FFFFFF', color2: '#888888', color3: '#080808'
+      }}
+    ]
+  },
+
+  watercolour: {
+    bg: '#F5F0E8',
+    layers: [
+      { type: 'color-grade', name: 'Color Grade', properties: { contrast: 1.05, sat: 1.15, bright: 0.05, hue: 0 } },
+      { type: 'grain',       name: 'Grain',       properties: { amount: 0.04, size: 1.0, animated: 0, streak: 0, sangle: 90, slen: 6 } },
+      { type: 'liquid',      name: 'Liquid',      opacity: 0.5, properties: {
+        seed: 12, speed: 0.1, scale: 0.5, turbAmp: 0.6, turbFreq: 0.1, turbIter: 7,
+        waveFreq: 3.8, distBias: 0.0, exposure: 1.0, saturation: 0.9,
+        color0: '#F5F0E8', color1: '#E8A0D0', color2: '#A0C8F0', color3: '#F5F0E8', color4: '#F5F0E8'
       }},
-      vigD(0.55, 0.5),
+      { type: 'image', name: 'Image', properties: { fit: 'cover' } }
     ]
   },
-  'orb solar': {
-    bg: '#000A02',
+
+  vhs: {
+    bg: '#0D0812',
     layers: [
-      { type:'orb', data:{
-        color:'#FF5500', colorr:1.0, colorg:0.333, colorb:0,
-        orb_clow:'#1A0400', orb_clowr:0.102, orb_clowg:0.016, orb_clowb:0,
-        orb_cmid:'#993300', orb_cmidr:0.6, orb_cmidg:0.2, orb_cmidb:0,
-        orb_chi:'#FFCC88', orb_chir:1.0, orb_chig:0.8, orb_chib:0.533,
-        orb_rad:0.27, orb_warp:0.50
-      }},
-      vigD(0.60, 0.45),
+      { type: 'scanlines',            name: 'Scanlines',            properties: { count: 240, dark: 0.35, soft: 0.2, scroll: 0, scrollspd: 0.3 } },
+      { type: 'chromatic-aberration', name: 'Chromatic Aberration', properties: { spread: 0.012, angle: 0 } },
+      { type: 'grain',                name: 'Grain',                properties: { amount: 0.18, size: 1.0, animated: 1, streak: 1, sangle: 90, slen: 6 } },
+      { type: 'vignette',             name: 'Vignette',             properties: { str: 0.7, soft: 0.4 } },
+      { type: 'solid',                name: 'Solid',                properties: { color: '#0D0812' } }
     ]
   },
-  'shockwave demo': {
-    bg: '#0C0C1A',
+
+  crt: {
+    bg: '#000308',
     layers: [
-      warpD(0.28, 1.6, 0.07, 5),
-      waveD('#2255FF', 1.1, 0.32, 0.05, 0.5, 0.6, 0),
-      waveD('#8833FF', 0.7, 0.22, 0.03, 0.55, 0.7, 0),
-      { type:'shockwave', data:{ sw_speed:0.65, sw_width:0.038, sw_str:0.09, sw_ca:0.013 }},
+      { type: 'scanlines',  name: 'Scanlines',  properties: { count: 180, dark: 0.55, soft: 0.15, scroll: 1, scrollspd: 0.3 } },
+      { type: 'vignette',   name: 'Vignette',   properties: { str: 0.7, soft: 0.4 } },
+      { type: 'color-grade',name: 'Color Grade',properties: { contrast: 1.0, sat: 0.7, bright: -0.1, hue: 0 } },
+      { type: 'solid',      name: 'Solid',      properties: { color: '#000308' } }
     ]
-  },
+  }
 };
 
+// Modal gallery presets (7 cards shown on startup)
+const MODAL_PRESETS = ['aurora', 'silk', 'plasma', 'ember', 'holo', 'cosmos', 'glitch'];
