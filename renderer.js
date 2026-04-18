@@ -223,7 +223,7 @@ function glslEffectInline(l) {
   switch(l.type) {
     case 'wave': {
       const f=u('wv',id,'f'),a=u('wv',id,'a'),s=u('wv',id,'s'),p=u('wv',id,'p'),e=u('wv',id,'e'),ang=u('wv',id,'ang'),c=u('wv',id,'c');
-      return `  {\n    vec2 ruv=rot2(wuv-0.5,${ang})+0.5;\n    float wave=sin(ruv.x*${f}*6.2832+u_t*${s})*${a};\n    float wm=smoothstep(${e},0.0,abs(ruv.y-(${p}+wave))-${e}*0.3);\n    col=clamp(col+${c}*wm*u_op_${id},0.0,1.0);\n  }\n`;
+      return `  {\n    vec2 ruv=rot2(wuv-0.5,${ang})+0.5;\n    float wave=sin(ruv.x*${f}*6.2832+u_t*${s})*${a};\n    float wm=smoothstep(${e},0.0,abs(ruv.y-(${p}+wave))-${e}*0.3)*u_op_${id};\n    col=clamp(mix(col,${c},wm),0.0,1.0);\n  }\n`;
     }
     case 'liquid': {
       return `  {\n    vec3 lq_orig=col;\n    vec2 puv=wuv;\n${glslLiquidBody('lq',id)}\n    col=mix(lq_orig,lq_result,u_op_${id});\n  }\n`;
@@ -605,13 +605,15 @@ function stopAllMiniRenderers() {
   miniRenderers = [];
 }
 
-// ── Export (Shadertoy-style stub) ─────────────────────────────
+// ── Export ────────────────────────────────────────────────────
 function copyCode() {
-  const src = buildFragFromLayers(layers, frameState);
-  navigator.clipboard.writeText(src).then(() => {
-    const b = document.getElementById('btn-export');
-    if (!b) return;
-    const orig = b.textContent; b.textContent = 'Copied!';
-    setTimeout(() => { b.textContent = orig; }, 1500);
-  });
+  const src  = buildFragFromLayers(layers, frameState);
+  const name = (typeof fileName !== 'undefined' && fileName.trim()) ? fileName.trim() : 'shader';
+  const blob = new Blob([src], { type: 'text/plain' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = name + '.glsl'; a.click();
+  URL.revokeObjectURL(url);
+  const b = document.getElementById('btn-export');
+  if (b) { const orig = b.textContent; b.textContent = 'Saved!'; setTimeout(() => { b.textContent = orig; }, 1500); }
 }

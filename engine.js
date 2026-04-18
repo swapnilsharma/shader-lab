@@ -8,6 +8,7 @@ let layers = [];           // Array<LayerObject>, index 0 = topmost in panel
 let layerIdCounter = 0;
 let selectedLayerId = null;
 let frameState = { bg: '#111111', w: 800, h: 600, radius: 0 };
+let fileName = 'untitled';
 let playing = true;
 let timeOffset = performance.now();
 let pausedAt = performance.now();
@@ -423,7 +424,7 @@ function renderLeftPanel() {
   stack.innerHTML = '';
   layers.forEach(l => {
     const row = document.createElement('div');
-    row.className = 'layer-row' + (l.id === selectedLayerId ? ' selected' : '') + (l.visible ? '' : ' hidden');
+    row.className = 'layer-row' + (l.id === selectedLayerId ? ' selected' : '') + (l.visible ? '' : ' layer-hidden');
     row.setAttribute('data-lid', l.id);
     row.setAttribute('draggable', 'true');
     row.addEventListener('dragstart', e => onDragStart(e, l.id));
@@ -462,11 +463,42 @@ function renderRightPanel() {
   const l = layers.find(l => l.id === selectedLayerId);
   if (!l) { panel.innerHTML = `<div style="padding:20px 12px;color:var(--text-secondary);font-size:10px;">Select a layer to edit</div>`; return; }
 
-  let html = '';
+  const icon = isContentLayer(l.type) ? '◼' : '◈';
+  const typeName = l.type.replace(/-/g, ' ');
+  let html = `<div class="rp-header">
+    <span class="rp-header-icon">${icon}</span>
+    <div class="rp-header-text">
+      <span class="rp-header-name" id="rp-header-name" title="Click to rename">${l.name}</span>
+      <span class="rp-header-type">${typeName}</span>
+    </div>
+  </div>`;
   if (isContentLayer(l.type)) html += renderTransformZone(l);
   html += renderPropertiesZone(l);
   panel.innerHTML = html;
   wirePropertiesZone(l);
+  wireRpHeaderName(l);
+}
+
+function wireRpHeaderName(l) {
+  const span = document.getElementById('rp-header-name');
+  if (!span) return;
+  span.addEventListener('click', () => {
+    const inp = document.createElement('input');
+    inp.className = 'rp-header-name-input';
+    inp.value = l.name;
+    span.replaceWith(inp);
+    inp.focus(); inp.select();
+    const commit = () => {
+      const v = inp.value.trim() || l.name;
+      if (v !== l.name) { l.name = v; snapshot(); }
+      renderLeftPanel(); renderRightPanel();
+    };
+    inp.addEventListener('blur', commit);
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') inp.blur();
+      if (e.key === 'Escape') { inp.value = l.name; inp.blur(); }
+    });
+  });
 }
 
 function renderUI() {
@@ -742,6 +774,35 @@ function wirePropertiesZone(l) {
       if (vEl) vEl.textContent = fmt(sl.value, sl.step);
     });
     sl.addEventListener('change', () => snapshot());
+    // Click on value → inline edit
+    const vEl = document.getElementById(vid);
+    if (vEl) vEl.addEventListener('click', () => {
+      const prevText = vEl.textContent;
+      const inp = document.createElement('input');
+      inp.type = 'text'; inp.className = 'ctrl-value-input';
+      inp.value = prevText;
+      vEl.replaceWith(inp); inp.focus(); inp.select();
+      let committed = false;
+      const commit = () => {
+        if (committed) return; committed = true;
+        const raw = parseFloat(inp.value);
+        const clamped = isNaN(raw) ? parseFloat(sl.value) : Math.min(parseFloat(sl.max), Math.max(parseFloat(sl.min), raw));
+        updateLayerProp(l.id, key, clamped);
+        snapshot();
+        renderRightPanel(); // re-renders & re-wires the whole panel
+      };
+      const cancel = () => {
+        if (committed) return; committed = true;
+        const span = document.createElement('span');
+        span.id = vid; span.className = 'ctrl-value'; span.textContent = prevText;
+        inp.replaceWith(span);
+      };
+      inp.addEventListener('blur', commit);
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') inp.blur();
+        if (e.key === 'Escape') { committed = true; cancel(); }
+      });
+    });
   });
 
   // Wire color inputs — live update on input, snapshot on close (change)
@@ -872,6 +933,34 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
 
 // ── Frame Row ──────────────────────────────────────────────────
 document.getElementById('frame-row').addEventListener('click', () => selectLayer('frame'));
+
+// ── Editable Filename ──────────────────────────────────────────
+(function wireFileName() {
+  const label = document.getElementById('topbar-file-label');
+  if (!label) return;
+  label.addEventListener('click', () => {
+    const inp = document.createElement('input');
+    inp.className = 'topbar-file-input';
+    inp.value = fileName;
+    label.replaceWith(inp); inp.focus(); inp.select();
+    let done = false;
+    const commit = () => {
+      if (done) return; done = true;
+      const v = inp.value.trim() || fileName;
+      fileName = v;
+      const span = document.createElement('span');
+      span.id = 'topbar-file-label'; span.className = 'topbar-file';
+      span.title = 'Click to rename'; span.textContent = fileName;
+      inp.replaceWith(span);
+      wireFileName(); // re-attach listener
+    };
+    inp.addEventListener('blur', commit);
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Enter') inp.blur();
+      if (e.key === 'Escape') { done = true; inp.value = fileName; inp.blur(); wireFileName(); }
+    });
+  });
+})();
 
 // ── Boot ───────────────────────────────────────────────────────
 noiseTex = initNoiseTex(gl);
