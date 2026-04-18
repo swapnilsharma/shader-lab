@@ -22,6 +22,54 @@ let baseImageName = '';
 // Drag state
 let dragSrcId = null;
 
+// ── History (Undo / Redo) ──────────────────────────────────────
+let history = [];
+let historyIdx = -1;
+const HISTORY_MAX = 20;
+
+function syncUndoButtons() {
+  const u = document.getElementById('btn-undo');
+  const r = document.getElementById('btn-redo');
+  if (u) u.disabled = historyIdx <= 0;
+  if (r) r.disabled = historyIdx >= history.length - 1;
+}
+
+function snapshot() {
+  const state = {
+    layers: JSON.parse(JSON.stringify(layers)),
+    bg: frameState.bg,
+    sel: selectedLayerId
+  };
+  history = history.slice(0, historyIdx + 1);
+  history.push(state);
+  if (history.length > HISTORY_MAX) history.shift();
+  historyIdx = history.length - 1;
+  syncUndoButtons();
+}
+
+function restoreSnapshot(state) {
+  layers = JSON.parse(JSON.stringify(state.layers));
+  frameState.bg = state.bg;
+  layerIdCounter = layers.reduce((m, l) => Math.max(m, l.id), 0);
+  selectedLayerId = layers.find(l => l.id === state.sel) ? state.sel : (layers[0]?.id || null);
+  renderUI();
+  needsRecompile = true;
+}
+
+function undo() {
+  if (historyIdx <= 0) return;
+  historyIdx--;
+  restoreSnapshot(history[historyIdx]);
+  syncUndoButtons();
+}
+
+function redo() {
+  if (historyIdx >= history.length - 1) return;
+  historyIdx++;
+  restoreSnapshot(history[historyIdx]);
+  syncUndoButtons();
+}
+
 // ── Helpers ────────────────────────────────────────────────────
 function hexToRgb(h) {
   h = (h || '#000000').replace('#', '');
@@ -89,12 +137,14 @@ function addLayer(type) {
   selectedLayerId = layer.id;
   renderUI(); needsRecompile = true;
   closeLayerPopover();
+  snapshot();
 }
 
 function removeLayer(id) {
   layers = layers.filter(l => l.id !== id);
   if (selectedLayerId === id) selectedLayerId = layers.length ? layers[0].id : null;
   renderUI(); needsRecompile = true;
+  snapshot();
 }
 
 async function removeLayerConfirm(id) {
@@ -110,6 +160,7 @@ function duplicateLayer(id) {
   layers.splice(idx, 0, copy);
   selectedLayerId = copy.id;
   renderUI(); needsRecompile = true;
+  snapshot();
 }
 
 function renameLayer(id) {
@@ -121,7 +172,11 @@ function renameLayer(id) {
   inp.value = l.name;
   row.replaceWith(inp);
   inp.select();
-  const finish = () => { l.name = inp.value.trim() || l.name; renderLeftPanel(); };
+  const finish = () => {
+    const newName = inp.value.trim() || l.name;
+    if (newName !== l.name) { l.name = newName; snapshot(); }
+    renderLeftPanel();
+  };
   inp.addEventListener('blur', finish);
   inp.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === 'Escape') inp.blur(); });
 }
@@ -130,18 +185,21 @@ function moveLayerToTop(id) {
   const idx = layers.findIndex(l => l.id === id); if (idx <= 0) return;
   layers.unshift(layers.splice(idx, 1)[0]);
   renderUI(); needsRecompile = true;
+  snapshot();
 }
 
 function moveLayerToBottom(id) {
   const idx = layers.findIndex(l => l.id === id); if (idx < 0 || idx === layers.length-1) return;
   layers.push(layers.splice(idx, 1)[0]);
   renderUI(); needsRecompile = true;
+  snapshot();
 }
 
 function toggleLayerVisibility(id) {
   const l = layers.find(l => l.id === id); if (!l) return;
   l.visible = !l.visible;
   renderLeftPanel(); needsRecompile = true;
+  snapshot();
 }
 
 function selectLayer(id) {
@@ -168,6 +226,7 @@ function updateLayerBlend(id, value) {
   const l = layers.find(l => l.id === id); if (!l) return;
   l.blendMode = value;
   needsRecompile = true;
+  snapshot();
 }
 
 // ── Frame ──────────────────────────────────────────────────────
@@ -349,6 +408,7 @@ function onDrop(e, targetId) {
   layers.splice(ins, 0, moved);
   dragSrcId = null;
   renderUI(); needsRecompile = true;
+  snapshot();
 }
 
 // ── SVG Icons ─────────────────────────────────────────────────
@@ -610,7 +670,7 @@ function renderFrameZone() {
     <div class="ctrl-color-row">
       <div class="swatch" id="bg-swatch" style="background:${fs.bg}" onclick="document.getElementById('bg-cp').click()"></div>
       <span class="swatch-hex">${fs.bg}</span>
-      <input type="color" class="color-input-hidden" id="bg-cp" value="${fs.bg}" oninput="onBgColor(this.value);document.getElementById('bg-swatch').style.background=this.value;document.querySelector('#panel-right .swatch-hex').textContent=this.value;">
+      <input type="color" class="color-input-hidden" id="bg-cp" value="${fs.bg}" oninput="onBgColor(this.value);document.getElementById('bg-swatch').style.background=this.value;document.querySelector('#panel-right .swatch-hex').textContent=this.value;" onchange="snapshot();">
     </div>
   </div>`;
 }
@@ -665,13 +725,14 @@ function wirePropertiesZone(l) {
       updateLayerOpacity(l.id, opSlider.value);
       if (opVal) opVal.textContent = Math.round(opSlider.value*100)+'%';
     });
+    opSlider.addEventListener('change', () => snapshot());
   }
 
   // Wire blend select
   const blendSel = document.getElementById('rp-blend');
   if (blendSel) blendSel.addEventListener('change', () => updateLayerBlend(l.id, blendSel.value));
 
-  // Wire range sliders
+  // Wire range sliders — live update on input, snapshot on mouseup (change)
   panel.querySelectorAll('.ctrl-slider[data-lid]').forEach(sl => {
     const key = sl.dataset.key;
     const vid = sl.dataset.vid;
@@ -680,9 +741,10 @@ function wirePropertiesZone(l) {
       const vEl = document.getElementById(vid);
       if (vEl) vEl.textContent = fmt(sl.value, sl.step);
     });
+    sl.addEventListener('change', () => snapshot());
   });
 
-  // Wire color inputs
+  // Wire color inputs — live update on input, snapshot on close (change)
   panel.querySelectorAll('input[type=color][data-lid]').forEach(cp => {
     const key = cp.dataset.key;
     const did = cp.dataset.did;
@@ -693,6 +755,7 @@ function wirePropertiesZone(l) {
       const hex = cp.closest('.ctrl-color-row')?.querySelector('.swatch-hex');
       if (hex) hex.textContent = cp.value;
     });
+    cp.addEventListener('change', () => snapshot());
   });
 
   // Wire toggles
@@ -705,6 +768,7 @@ function wirePropertiesZone(l) {
         updateLayerProp(l.id, key, val);
         offBtn.classList.toggle('active', val === 0);
         onBtn.classList.toggle('active',  val === 1);
+        snapshot();
       });
     });
   });
@@ -773,14 +837,18 @@ function loadPreset(name) {
     layers.push(layer);
   });
   if (layers.length) selectedLayerId = layers[0].id;
+  history = []; historyIdx = -1;
   renderUI(); needsRecompile = true;
+  snapshot();
 }
 
 function loadBlank() {
   closeModal();
   layers = []; layerIdCounter = 0; selectedLayerId = null;
   frameState.bg = '#111111';
+  history = []; historyIdx = -1;
   renderUI(); needsRecompile = true;
+  snapshot();
 }
 
 // ── Keyboard Handlers ──────────────────────────────────────────
@@ -792,7 +860,9 @@ document.addEventListener('keydown', e => {
     if (!ctxMenu.classList.contains('hidden')) { closeCtxMenu(); return; }
   }
   if ((e.key === 'Enter') && !document.getElementById('confirm-overlay').classList.contains('hidden')) { e.preventDefault(); closeConfirm(true); }
-  if ((e.metaKey || e.ctrlKey) && e.key === 'z') { /* undo stub */ }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); undo(); return; }
+  if ((e.metaKey || e.ctrlKey) && (e.key === 'Z' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); redo(); return; }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'y') { e.preventDefault(); redo(); return; }
 });
 
 // Close modal on overlay click

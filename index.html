@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Shader Lab</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
 </head>
 <body>
 
@@ -71,6 +72,13 @@
       <span class="topbar-time" id="topbar-time">0:00.0</span>
     </div>
     <div class="topbar-right">
+      <button class="tb-btn" id="btn-undo" onclick="undo()" title="Undo (⌘Z)" disabled>
+        <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7a4 4 0 1 0 1-3.2"/><polyline points="1,2.5 3,6.5 6.5,5"/></svg>
+      </button>
+      <button class="tb-btn" id="btn-redo" onclick="redo()" title="Redo (⌘⇧Z)" disabled>
+        <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 7a4 4 0 1 1-1-3.2"/><polyline points="13,2.5 11,6.5 7.5,5"/></svg>
+      </button>
+      <div class="tb-sep"></div>
       <button class="tb-btn" onclick="openModal()" title="Open preset gallery">Presets</button>
       <button class="tb-btn tb-btn--primary" onclick="copyCode()" title="Export to Shadertoy">Export</button>
     </div>

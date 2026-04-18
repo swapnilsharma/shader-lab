@@ -80,6 +80,8 @@ svg { display: block; }
   border: 1px solid var(--border-hover);
 }
 .tb-btn--primary:hover { background: #2e2e2e; }
+.tb-btn:disabled { opacity: 0.28; cursor: default; pointer-events: none; }
+.tb-sep { width: 1px; height: 14px; background: var(--border); margin: 0 2px; }
 
 /* ── App Body ── */
 .app-body {
@@ -228,7 +230,7 @@ svg { display: block; }
   width: 80px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .ctrl-slider {
-  flex: 1; height: 4px; -webkit-appearance: none;
+  flex: 1; min-width: 0; height: 4px; -webkit-appearance: none;
   background: #2a2a2a; border-radius: 2px; cursor: pointer;
 }
 .ctrl-slider::-webkit-slider-thumb {
@@ -238,7 +240,7 @@ svg { display: block; }
 .ctrl-slider::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; }
 .ctrl-value {
   font-family: var(--font-mono); font-size: 9px; color: var(--text-primary);
-  min-width: 30px; text-align: right; cursor: text;
+  min-width: 30px; flex-shrink: 0; text-align: right; cursor: text;
   padding: 1px 0;
 }
 .ctrl-value:hover { color: #ccc; }
