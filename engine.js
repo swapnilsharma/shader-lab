@@ -1784,24 +1784,41 @@ function loadBlank() {
 const IS_MAC = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const MOD_SYM = IS_MAC ? '⌘' : 'Ctrl';
 const SHORTCUTS = {
-  addlayer: MOD_SYM + 'K',
+  palette:  MOD_SYM + 'K',
+  insert:   'N',
+  capture:  'P',
   undo:     MOD_SYM + 'Z',
   redo:     MOD_SYM + '⇧Z',
-  new:      MOD_SYM + 'N',
+  new:      MOD_SYM + 'X',
   save:     MOD_SYM + 'S',
   open:     MOD_SYM + 'O',
-  export:   MOD_SYM + 'E',
-  capture:  MOD_SYM + 'P',
-  dup:      MOD_SYM + 'D'
+  export:   MOD_SYM + '⇧E',
+  dup:      MOD_SYM + 'D',
+  // legacy alias — kept for any remaining data-shortcut="addlayer" references
+  addlayer: 'N'
 };
 
-// ── Topbar Menus (File + Export dropdowns) ─────────────────────
+// ── Topbar Menus (File + Edit + Export dropdowns) ──────────────
+const TOPBAR_MENU_IDS = ['menu-file', 'menu-edit', 'menu-export'];
+function anyMenuOpen() {
+  return TOPBAR_MENU_IDS.some(id => {
+    const m = document.getElementById(id);
+    return m && !m.classList.contains('hidden');
+  });
+}
 function closeMenus(except) {
-  ['menu-file', 'menu-export'].forEach(id => {
+  TOPBAR_MENU_IDS.forEach(id => {
     if (id === except) return;
     const m = document.getElementById(id);
     if (m) m.classList.add('hidden');
   });
+}
+function openMenu(name) {
+  const id = 'menu-' + name;
+  const m = document.getElementById(id);
+  if (!m) return;
+  closeMenus(id);
+  m.classList.remove('hidden');
 }
 function toggleMenu(event, name) {
   if (event) event.stopPropagation();
@@ -1814,6 +1831,14 @@ function toggleMenu(event, name) {
 }
 document.addEventListener('click', e => {
   if (!e.target.closest('.tb-menu-wrap')) closeMenus(null);
+});
+
+// Hover-switch: when any menu is open, hovering another trigger switches to it
+document.querySelectorAll('.tb-menu-wrap[data-menu]').forEach(wrap => {
+  const name = wrap.dataset.menu;
+  wrap.addEventListener('mouseenter', () => {
+    if (anyMenuOpen()) openMenu(name);
+  });
 });
 
 // ── New Scene ──────────────────────────────────────────────────
@@ -1894,7 +1919,26 @@ async function exportGLSLShadertoy() {
       if (a === 'export-raw')       exportRawGLSL();
     });
   });
+  const med = document.getElementById('menu-edit');
+  if (med) med.querySelectorAll('.tb-menu-item').forEach(it => {
+    it.addEventListener('click', e => {
+      e.stopPropagation();
+      const a = it.dataset.act;
+      closeMenus(null);
+      if (a === 'undo')      undo();
+      if (a === 'redo')      redo();
+      if (a === 'rename')    startRenameFile();
+      if (a === 'duplicate') { if (typeof selectedLayerId === 'number') duplicateLayer(selectedLayerId); }
+      if (a === 'delete')    { if (typeof selectedLayerId === 'number') removeLayerConfirm(selectedLayerId); }
+      if (a === 'palette')   openPalette();
+    });
+  });
 })();
+
+function startRenameFile() {
+  const lbl = document.getElementById('topbar-file-label');
+  if (lbl) lbl.click();
+}
 
 function renderShortcutHints() {
   document.querySelectorAll('[data-shortcut]').forEach(el => {
@@ -1922,6 +1966,8 @@ function isTypingInField() {
 
 function closeAllOverlays() {
   let closed = false;
+  const po = document.getElementById('cmd-overlay');
+  if (po && !po.classList.contains('hidden')) { closePalette(); closed = true; }
   const mo = document.getElementById('modal-overlay');
   if (mo && !mo.classList.contains('hidden')) { closeModal(); closed = true; }
   const co = document.getElementById('confirm-overlay');
@@ -1930,12 +1976,174 @@ function closeAllOverlays() {
   if (no && !no.classList.contains('hidden')) { closeNameDialog(null); closed = true; }
   if (!layerPopover.classList.contains('hidden')) { closeLayerPopover(); closed = true; }
   if (!ctxMenu.classList.contains('hidden')) { closeCtxMenu(); closed = true; }
-  ['menu-file', 'menu-export'].forEach(id => {
+  TOPBAR_MENU_IDS.forEach(id => {
     const m = document.getElementById(id);
     if (m && !m.classList.contains('hidden')) { m.classList.add('hidden'); closed = true; }
   });
   return closed;
 }
+
+// ── Command Palette ────────────────────────────────────────────
+const CMD_LAYER_TYPES = [
+  ['solid','Solid'],['gradient','Gradient'],['mesh-gradient','Mesh Gradient'],
+  ['image','Image'],['wave','Wave'],['rectangle','Rectangle'],['circle','Circle']
+];
+const CMD_EFFECT_TYPES = [
+  ['noise-warp','Noise Warp'],['liquid','Liquid'],['ripple','Ripple'],['grain','Grain'],
+  ['chromatic-aberration','Chromatic Aberration'],['vignette','Vignette'],
+  ['color-grade','Color Grade'],['duotone','Duotone'],['bloom','Bloom'],
+  ['posterize','Posterize'],['pixelate','Pixelate'],['scanlines','Scanlines']
+];
+
+function buildCommands() {
+  const hasSel = typeof selectedLayerId === 'number';
+  const cmds = [];
+  // File
+  cmds.push({ group: 'File',  label: 'New scene',          shortcut: SHORTCUTS.new,     keywords: 'new reset clear',         run: newScene });
+  cmds.push({ group: 'File',  label: 'Open .frakt file',   shortcut: SHORTCUTS.open,    keywords: 'open load import',        run: openFraktFile });
+  cmds.push({ group: 'File',  label: 'Save .frakt file',   shortcut: SHORTCUTS.save,    keywords: 'save write',              run: saveFraktFile });
+  cmds.push({ group: 'File',  label: 'Rename file',                                    keywords: 'rename title name',        run: startRenameFile });
+  cmds.push({ group: 'File',  label: 'Take snapshot (PNG)',shortcut: SHORTCUTS.capture, keywords: 'capture screenshot png image export', run: captureCanvasPNG });
+  cmds.push({ group: 'File',  label: 'Share Frakt',                                    keywords: 'share link',               run: () => showToast('Coming soon') });
+  // Edit
+  cmds.push({ group: 'Edit',  label: 'Undo',               shortcut: SHORTCUTS.undo,    keywords: 'back',                    run: undo });
+  cmds.push({ group: 'Edit',  label: 'Redo',               shortcut: SHORTCUTS.redo,    keywords: 'forward',                 run: redo });
+  if (hasSel) {
+    cmds.push({ group: 'Edit', label: 'Duplicate selected layer', shortcut: SHORTCUTS.dup, keywords: 'copy clone',            run: () => duplicateLayer(selectedLayerId) });
+    cmds.push({ group: 'Edit', label: 'Delete selected layer',    shortcut: '⌫',           keywords: 'remove trash',           run: () => removeLayerConfirm(selectedLayerId) });
+    cmds.push({ group: 'Edit', label: 'Move selected layer to top',                         keywords: 'front top',             run: () => moveLayerToTop(selectedLayerId) });
+    cmds.push({ group: 'Edit', label: 'Move selected layer to bottom',                      keywords: 'back bottom',           run: () => moveLayerToBottom(selectedLayerId) });
+  }
+  // Export
+  cmds.push({ group: 'Export', label: 'Export GLSL / Shadertoy',                          keywords: 'export glsl shader shadertoy', run: exportGLSLShadertoy });
+  cmds.push({ group: 'Export', label: 'Export Raw GLSL',                                   keywords: 'export glsl raw',         run: exportRawGLSL });
+  // Insert Layer
+  CMD_LAYER_TYPES.forEach(([t, n]) => cmds.push({ group: 'Insert Layer', label: n, keywords: 'add ' + t, run: () => addLayer(t) }));
+  // Insert Effect
+  CMD_EFFECT_TYPES.forEach(([t, n]) => cmds.push({ group: 'Insert Effect', label: n, keywords: 'add effect ' + t, run: () => addLayer(t) }));
+  // View
+  cmds.push({ group: 'View', label: 'Open preset gallery',                                 keywords: 'presets gallery start',    run: openModal });
+  cmds.push({ group: 'View', label: 'Select Frame',                                        keywords: 'canvas background',        run: () => selectLayer('frame') });
+  return cmds;
+}
+
+let _paletteCmds = [];
+let _paletteFiltered = [];
+let _paletteSelIdx = 0;
+
+function openPalette() {
+  closeAllOverlays();
+  _paletteCmds = buildCommands();
+  const ov = document.getElementById('cmd-overlay');
+  const inp = document.getElementById('cmd-search');
+  if (!ov || !inp) return;
+  ov.classList.remove('hidden');
+  inp.value = '';
+  filterPalette('');
+  setTimeout(() => inp.focus(), 0);
+}
+function closePalette() {
+  const ov = document.getElementById('cmd-overlay');
+  if (ov) ov.classList.add('hidden');
+}
+function togglePalette() {
+  const ov = document.getElementById('cmd-overlay');
+  if (!ov) return;
+  if (ov.classList.contains('hidden')) openPalette();
+  else closePalette();
+}
+
+function scorePaletteMatch(cmd, q) {
+  if (!q) return 1;
+  const hay = (cmd.label + ' ' + cmd.group + ' ' + (cmd.keywords || '')).toLowerCase();
+  const parts = q.toLowerCase().split(/\s+/).filter(Boolean);
+  let score = 0;
+  for (const p of parts) {
+    const idx = hay.indexOf(p);
+    if (idx === -1) return 0;
+    score += (idx === 0 ? 10 : (hay.split(' ').some(w => w.startsWith(p)) ? 5 : 1));
+  }
+  return score;
+}
+
+function filterPalette(q) {
+  const scored = _paletteCmds
+    .map(c => ({ c, s: scorePaletteMatch(c, q) }))
+    .filter(x => x.s > 0);
+  if (q) scored.sort((a, b) => b.s - a.s);
+  _paletteFiltered = scored.map(x => x.c);
+  _paletteSelIdx = 0;
+  renderPalette();
+}
+
+function renderPalette() {
+  const list = document.getElementById('cmd-list');
+  if (!list) return;
+  if (!_paletteFiltered.length) {
+    list.innerHTML = '<div class="cmd-empty">No matching actions</div>';
+    return;
+  }
+  let html = '';
+  let lastGroup = null;
+  _paletteFiltered.forEach((c, i) => {
+    if (c.group !== lastGroup) {
+      html += `<div class="cmd-group-label">${c.group}</div>`;
+      lastGroup = c.group;
+    }
+    const sc = c.shortcut ? `<span class="cmd-item-sc">${c.shortcut}</span>` : '';
+    const sel = i === _paletteSelIdx ? ' selected' : '';
+    html += `<div class="cmd-item${sel}" data-idx="${i}"><span class="cmd-item-label">${c.label}</span>${sc}</div>`;
+  });
+  list.innerHTML = html;
+  // Scroll selected into view
+  const selEl = list.querySelector('.cmd-item.selected');
+  if (selEl) selEl.scrollIntoView({ block: 'nearest' });
+  // Click handlers
+  list.querySelectorAll('.cmd-item').forEach(el => {
+    el.addEventListener('mouseenter', () => {
+      _paletteSelIdx = parseInt(el.dataset.idx, 10);
+      list.querySelectorAll('.cmd-item.selected').forEach(x => x.classList.remove('selected'));
+      el.classList.add('selected');
+    });
+    el.addEventListener('click', () => runPaletteCmd(parseInt(el.dataset.idx, 10)));
+  });
+}
+
+function runPaletteCmd(idx) {
+  const c = _paletteFiltered[idx];
+  if (!c) return;
+  closePalette();
+  try { c.run(); } catch (err) { console.error('[palette] cmd failed', err); }
+}
+
+(function wirePalette() {
+  const ov = document.getElementById('cmd-overlay');
+  const inp = document.getElementById('cmd-search');
+  if (!ov || !inp) return;
+  inp.addEventListener('input', () => filterPalette(inp.value));
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (_paletteFiltered.length) {
+        _paletteSelIdx = (_paletteSelIdx + 1) % _paletteFiltered.length;
+        renderPalette();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (_paletteFiltered.length) {
+        _paletteSelIdx = (_paletteSelIdx - 1 + _paletteFiltered.length) % _paletteFiltered.length;
+        renderPalette();
+      }
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      runPaletteCmd(_paletteSelIdx);
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      closePalette();
+    }
+  });
+  ov.addEventListener('click', e => { if (e.target === ov) closePalette(); });
+})();
 
 // ── Keyboard Handlers ──────────────────────────────────────────
 document.addEventListener('keydown', e => {
@@ -1957,30 +2165,39 @@ document.addEventListener('keydown', e => {
   if (mod && ((e.key === 'Z') || (e.key === 'z' && e.shiftKey))) { if (isTypingInField()) return; e.preventDefault(); redo(); return; }
   if (mod && e.key === 'y') { if (isTypingInField()) return; e.preventDefault(); redo(); return; }
 
+  // Cmd+K — open Command Palette (allowed from anywhere, even inside the palette itself to toggle)
+  if (mod && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    togglePalette();
+    return;
+  }
+
   // All subsequent shortcuts need no typing-in-field
   if (isTypingInField()) return;
 
-  // Cmd+K — open Add Layer popover
-  if (mod && (e.key === 'k' || e.key === 'K')) {
-    e.preventDefault();
-    if (layerPopover.classList.contains('hidden')) openLayerPopover();
-    else closeLayerPopover();
-    return;
-  }
   // Cmd+S — save .frakt
   if (mod && (e.key === 's' || e.key === 'S')) { e.preventDefault(); saveFraktFile(); return; }
   // Cmd+O — open .frakt
   if (mod && (e.key === 'o' || e.key === 'O')) { e.preventDefault(); openFraktFile(); return; }
-  // Cmd+N — new scene
-  if (mod && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); newScene(); return; }
-  // Cmd+E — open Export dropdown
-  if (mod && (e.key === 'e' || e.key === 'E')) { e.preventDefault(); toggleMenu(null, 'export'); return; }
-  // Cmd+P — capture canvas as PNG @2x
-  if (mod && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); captureCanvasPNG(); return; }
+  // Cmd+X — new scene
+  if (mod && (e.key === 'x' || e.key === 'X')) { e.preventDefault(); newScene(); return; }
+  // Cmd+Shift+E — open Export dropdown
+  if (mod && e.shiftKey && (e.key === 'e' || e.key === 'E')) { e.preventDefault(); toggleMenu(null, 'export'); return; }
   // Cmd+D — duplicate selected layer
   if (mod && (e.key === 'd' || e.key === 'D')) {
     if (typeof selectedLayerId === 'number') { e.preventDefault(); duplicateLayer(selectedLayerId); }
     return;
+  }
+
+  // Plain shortcuts (no modifiers) — N insert, P snapshot
+  if (!mod && !e.altKey && !e.shiftKey) {
+    if (e.key === 'n' || e.key === 'N') {
+      e.preventDefault();
+      if (layerPopover.classList.contains('hidden')) openLayerPopover();
+      else closeLayerPopover();
+      return;
+    }
+    if (e.key === 'p' || e.key === 'P') { e.preventDefault(); captureCanvasPNG(); return; }
   }
   // Delete / Backspace — remove selected stop (if a gradient stop is actively selected), else delete selected layer
   if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -2013,7 +2230,7 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
 document.getElementById('frame-row').addEventListener('click', () => selectLayer('frame'));
 document.getElementById('frame-row').addEventListener('contextmenu', e => e.preventDefault());
 
-// ── Editable Filename ──────────────────────────────────────────
+// ── Editable Filename (name is editable; .frakt suffix is fixed) ─
 (function wireFileName() {
   const label = document.getElementById('topbar-file-label');
   if (!label) return;
@@ -2023,20 +2240,29 @@ document.getElementById('frame-row').addEventListener('contextmenu', e => e.prev
     inp.value = fileName;
     label.replaceWith(inp); inp.focus(); inp.select();
     let done = false;
+    const restore = (val) => {
+      const span = document.createElement('span');
+      span.id = 'topbar-file-label';
+      span.className = 'topbar-file';
+      span.title = 'Click to rename';
+      span.textContent = val;
+      inp.replaceWith(span);
+      wireFileName();
+    };
     const commit = () => {
       if (done) return; done = true;
       const v = inp.value.trim() || fileName;
       fileName = v;
-      const span = document.createElement('span');
-      span.id = 'topbar-file-label'; span.className = 'topbar-file';
-      span.title = 'Click to rename'; span.textContent = fileName;
-      inp.replaceWith(span);
-      wireFileName(); // re-attach listener
+      restore(fileName);
     };
     inp.addEventListener('blur', commit);
     inp.addEventListener('keydown', e => {
-      if (e.key === 'Enter') inp.blur();
-      if (e.key === 'Escape') { done = true; inp.value = fileName; inp.blur(); wireFileName(); }
+      if (e.key === 'Enter') { e.preventDefault(); inp.blur(); }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        done = true;
+        restore(fileName);
+      }
     });
   });
 })();
