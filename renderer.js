@@ -31,7 +31,22 @@ float hash2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float vnoise(vec2 p){vec2 i=floor(p),f=fract(p),u2=f*f*(3.0-2.0*f);return mix(mix(hash2(i),hash2(i+vec2(1,0)),u2.x),mix(hash2(i+vec2(0,1)),hash2(i+vec2(1,1)),u2.x),u2.y);}
 float fbm(vec2 p,float oct){float v=0.0,a=0.5;for(int i=0;i<8;i++){if(float(i)>=oct)break;v+=vnoise(p)*a;p*=2.0;a*=0.5;}return v;}
 vec2 rot2(vec2 p,float a){float c=cos(a),s2=sin(a);return vec2(p.x*c-p.y*s2,p.x*s2+p.y*c);}
+vec3 bmScreen(vec3 b,vec3 s){return 1.0-(1.0-b)*(1.0-s);}
+vec3 bmOverlay(vec3 b,vec3 s){return mix(2.0*b*s,1.0-2.0*(1.0-b)*(1.0-s),step(vec3(0.5),b));}
 `;
+
+// ── JS helper: blend-mode GLSL expression ──────────────────────
+function glslBlend(mode, bg, fg) {
+  switch (mode) {
+    case 'multiply': return `(${bg}*${fg})`;
+    case 'screen':   return `bmScreen(${bg},${fg})`;
+    case 'overlay':  return `bmOverlay(${bg},${fg})`;
+    case 'add':      return `clamp(${bg}+${fg},0.0,1.0)`;
+    case 'lighten':  return `max(${bg},${fg})`;
+    case 'darken':   return `min(${bg},${fg})`;
+    default:         return fg;
+  }
+}
 
 // ── Hex helper ────────────────────────────────────────────────
 function hexToRgb(h) {
@@ -41,11 +56,15 @@ function hexToRgb(h) {
 }
 
 // ── Layer type classifiers ─────────────────────────────────────
-const CONTENT_TYPES = new Set(['solid','gradient','mesh-gradient','image']);
+// Wave, rectangle, circle are content layers but emit their own inline blend
+// (they write directly to `col`) rather than returning a color via contentFn_*.
+const CONTENT_TYPES = new Set(['solid','gradient','mesh-gradient','image','wave','rectangle','circle']);
+const CONTENT_TYPES_WITH_FN = new Set(['solid','gradient','mesh-gradient','image']);
 const UV_PREP_TYPES = new Set(['noise-warp','pixelate']);
 
-function isContent(t) { return CONTENT_TYPES.has(t); }
-function isUVPrep(t)  { return UV_PREP_TYPES.has(t); }
+function isContent(t)       { return CONTENT_TYPES.has(t); }
+function isContentWithFn(t) { return CONTENT_TYPES_WITH_FN.has(t); }
+function isUVPrep(t)        { return UV_PREP_TYPES.has(t); }
 
 // ── Uniform name helpers ───────────────────────────────────────
 function u(prefix, id, k) { return `u_${prefix}_${id}_${k}`; }
@@ -220,12 +239,20 @@ function glslUniformDecls(layers) {
       case 'image':
         break; // uses shared uImage, uHasImage, uImgAr
       case 'noise-warp':
-        s += `uniform float ${u('nw',id,'str')},${u('nw',id,'sc')},${u('nw',id,'sp')},${u('nw',id,'oc')};\n`; break;
+        s += `uniform float ${u('nw',id,'str')},${u('nw',id,'sc')},${u('nw',id,'sp')},${u('nw',id,'oc')},${u('nw',id,'ang')};\n`; break;
       case 'pixelate':
         s += `uniform float ${u('px',id,'s')};\n`; break;
       case 'wave':
         s += `uniform float ${u('wv',id,'f')},${u('wv',id,'a')},${u('wv',id,'s')},${u('wv',id,'p')},${u('wv',id,'e')},${u('wv',id,'ang')};\n`;
         s += `uniform vec3 ${u('wv',id,'c')};\n`; break;
+      case 'rectangle':
+        s += `uniform float ${u('rc',id,'x')},${u('rc',id,'y')},${u('rc',id,'w')},${u('rc',id,'h')},${u('rc',id,'r')},${u('rc',id,'fm')},${u('rc',id,'cnt')},${u('rc',id,'bl')};\n`;
+        s += `uniform vec3 ${u('rc',id,'c')};\n`;
+        s += `uniform vec3 ${u('rc',id,'cols')}[6];\n`; break;
+      case 'circle':
+        s += `uniform float ${u('ci',id,'x')},${u('ci',id,'y')},${u('ci',id,'w')},${u('ci',id,'h')},${u('ci',id,'fm')},${u('ci',id,'cnt')},${u('ci',id,'bl')};\n`;
+        s += `uniform vec3 ${u('ci',id,'c')};\n`;
+        s += `uniform vec3 ${u('ci',id,'cols')}[6];\n`; break;
       case 'liquid':
         s += `uniform float ${u('lq',id,'seed')},${u('lq',id,'spd')},${u('lq',id,'sc')},${u('lq',id,'ta')},${u('lq',id,'tf')},${u('lq',id,'ti')},${u('lq',id,'wf')},${u('lq',id,'db')},${u('lq',id,'ex')},${u('lq',id,'co')},${u('lq',id,'sa')};\n`;
         s += `uniform vec3 ${u('lq',id,'c0')},${u('lq',id,'c1')},${u('lq',id,'c2')},${u('lq',id,'c3')},${u('lq',id,'c4')};\n`; break;
@@ -248,14 +275,76 @@ function glslUniformDecls(layers) {
   return s;
 }
 
+// ── GLSL: inline-content fill (wave / rectangle / circle) ──────
+// Emits GLSL that declares `vec3 fillC;` and `float _mask;` in the current
+// scope. The walk loop handles attached-effect scoping + blend composite.
+function glslShapeFill(l) {
+  const id = l.id;
+  switch (l.type) {
+    case 'wave': {
+      const f=u('wv',id,'f'),a=u('wv',id,'a'),sp=u('wv',id,'s'),pos=u('wv',id,'p'),e=u('wv',id,'e'),ang=u('wv',id,'ang'),c=u('wv',id,'c');
+      return `    vec2 ruv=rot2(wuv-0.5,${ang})+0.5;
+    float wave=sin(ruv.x*${f}*6.2832+u_t*${sp})*${a};
+    float _mask=smoothstep(${e},0.0,abs(ruv.y-(${pos}+wave))-${e}*0.3);
+    vec3 fillC=${c};
+`;
+    }
+    case 'rectangle': {
+      const xU=u('rc',id,'x'),yU=u('rc',id,'y'),wU=u('rc',id,'w'),hU=u('rc',id,'h'),rU=u('rc',id,'r'),fmU=u('rc',id,'fm'),blU=u('rc',id,'bl'),cU=u('rc',id,'c'),cntU=u('rc',id,'cnt'),colsU=u('rc',id,'cols');
+      return `    vec2 pp=wuv*u_res;
+    vec2 c=u_res*0.5+vec2(${xU},${yU});
+    vec2 hs=vec2(${wU},${hU})*0.5;
+    float r=clamp(${rU},0.0,min(hs.x,hs.y));
+    vec2 d=abs(pp-c)-hs+vec2(r);
+    float sdf=length(max(d,0.0))+min(max(d.x,d.y),0.0)-r;
+    float bl=max(${blU},1.0);
+    float _mask=1.0-smoothstep(-bl,bl,sdf);
+    vec3 fillC=${cU};
+    if(${fmU}>0.5){
+      float ncnt=max(${cntU},2.0);
+      float tg=clamp((pp.y-(c.y-hs.y))/(2.0*hs.y),0.0,1.0);
+      float ft=tg*(ncnt-1.0);
+      float fi0=floor(ft);
+      float fi1=min(fi0+1.0,ncnt-1.0);
+      float mu=ft-fi0;
+      vec3 ca=${colsU}[0],cb=${colsU}[0];
+      for(int k=0;k<6;k++){ float fk=float(k); if(fk==fi0) ca=${colsU}[k]; if(fk==fi1) cb=${colsU}[k]; }
+      fillC=mix(ca,cb,mu);
+    }
+`;
+    }
+    case 'circle': {
+      const xU=u('ci',id,'x'),yU=u('ci',id,'y'),wU=u('ci',id,'w'),hU=u('ci',id,'h'),fmU=u('ci',id,'fm'),blU=u('ci',id,'bl'),cU=u('ci',id,'c'),cntU=u('ci',id,'cnt'),colsU=u('ci',id,'cols');
+      return `    vec2 pp=wuv*u_res;
+    vec2 c=u_res*0.5+vec2(${xU},${yU});
+    vec2 hs=vec2(${wU},${hU})*0.5;
+    vec2 q=(pp-c)/max(hs,vec2(0.5));
+    float r=max(min(hs.x,hs.y),0.5);
+    float sdf=(length(q)-1.0)*r;
+    float bl=max(${blU},1.0);
+    float _mask=1.0-smoothstep(-bl,bl,sdf);
+    vec3 fillC=${cU};
+    if(${fmU}>0.5){
+      float ncnt=max(${cntU},2.0);
+      float tg=clamp((pp.y-(c.y-hs.y))/(2.0*hs.y),0.0,1.0);
+      float ft=tg*(ncnt-1.0);
+      float fi0=floor(ft);
+      float fi1=min(fi0+1.0,ncnt-1.0);
+      float mu=ft-fi0;
+      vec3 ca=${colsU}[0],cb=${colsU}[0];
+      for(int k=0;k<6;k++){ float fk=float(k); if(fk==fi0) ca=${colsU}[k]; if(fk==fi1) cb=${colsU}[k]; }
+      fillC=mix(ca,cb,mu);
+    }
+`;
+    }
+  }
+  return '';
+}
+
 // ── GLSL: effect inline body ───────────────────────────────────
 function glslEffectInline(l) {
   const id = l.id;
   switch(l.type) {
-    case 'wave': {
-      const f=u('wv',id,'f'),a=u('wv',id,'a'),s=u('wv',id,'s'),p=u('wv',id,'p'),e=u('wv',id,'e'),ang=u('wv',id,'ang'),c=u('wv',id,'c');
-      return `  {\n    vec2 ruv=rot2(wuv-0.5,${ang})+0.5;\n    float wave=sin(ruv.x*${f}*6.2832+u_t*${s})*${a};\n    float wm=smoothstep(${e},0.0,abs(ruv.y-(${p}+wave))-${e}*0.3)*u_op_${id};\n    col=clamp(mix(col,${c},wm),0.0,1.0);\n  }\n`;
-    }
     case 'liquid': {
       return `  {\n    vec3 lq_orig=col;\n    vec2 puv=wuv;\n${glslLiquidBody('lq',id)}\n    col=mix(lq_orig,lq_result,u_op_${id});\n  }\n`;
     }
@@ -284,20 +373,24 @@ function glslEffectInline(l) {
 }
 
 // ── Build Fragment Shader ──────────────────────────────────────
-// Stack-respecting compositing: effect layers only affect layers BELOW them.
-// Architecture: single fragment shader, layers walked bottom-to-top, effects
-// applied inline to the running `col` accumulator. CA is baked into each
-// content layer's sampling using the sum of offsets from CAs above it in the
-// stack. (UV-prep types — noise-warp, pixelate — are still global; upgrading
-// to true per-layer image-space effects would require ping-pong FBOs.)
+// Stack-respecting compositing: every effect (UV-prep + CA + color-transform)
+// only affects layers BELOW it in the stack. Single fragment shader; layers
+// are walked bottom→top and each content/effect block computes its own local
+// `wuv` by applying only the noise-warp/pixelate layers above it.
 function buildFragFromLayers(layers, frameState) {
   const vis = (layers || []).filter(l => l.visible !== false && l.type !== 'frame');
 
-  const contentLayers  = vis.filter(l => isContent(l.type));
-  const nwLayers       = vis.filter(l => l.type === 'noise-warp');
-  const pixelLayers    = vis.filter(l => l.type === 'pixelate');
+  // Flatten attached effects so uniform decls / setters treat them as effect layers.
+  const attachedEffects = [];
+  vis.forEach(l => {
+    if (isContent(l.type) && Array.isArray(l.effects)) {
+      l.effects.forEach(ae => { if (ae.visible !== false) attachedEffects.push(ae); });
+    }
+  });
 
-  // For each content layer: the CA layers above it in the stack (lower index).
+  const contentLayers = vis.filter(l => isContent(l.type));
+
+  // For each content layer: CA layers above it in the stack (lower index).
   const caAboveByContent = {};
   vis.forEach((l, i) => {
     if (isContent(l.type)) {
@@ -312,7 +405,7 @@ function buildFragFromLayers(layers, frameState) {
   s += 'uniform vec2 u_res;\nuniform float u_t;\n';
   if (hasImage) s += 'uniform sampler2D uImage;\nuniform float uHasImage;\nuniform float uImgAr;\n';
 
-  s += glslUniformDecls(vis);
+  s += glslUniformDecls([...vis, ...attachedEffects]);
   s += GLSL_HELPERS;
 
   contentLayers.forEach(l => {
@@ -320,51 +413,86 @@ function buildFragFromLayers(layers, frameState) {
     else if (l.type === 'gradient')      s += glslGradientFn(l.id);
     else if (l.type === 'mesh-gradient') s += glslMeshGradientFn(l.id);
     else if (l.type === 'image')         s += glslImageFn(l.id);
+    // 'wave', 'rectangle', 'circle' are handled inline in the walk below.
   });
+
+  // Emit GLSL that declares `vec2 wuv` for the block at stack index `idx`,
+  // applying pixelate + noise-warp from all layers ABOVE that index.
+  function emitUvAbove(idx) {
+    let out = '    vec2 wuv=uv;\n';
+    const above = vis.slice(0, idx);
+    const pix = above.filter(l => l.type === 'pixelate');
+    const nws = above.filter(l => l.type === 'noise-warp');
+    pix.forEach(l => {
+      const sz = u('px', l.id, 's');
+      out += `    wuv=floor(wuv*(u_res/${sz}))/(u_res/${sz});\n`;
+    });
+    if (nws.length) {
+      out += '    vec2 nwSrc=wuv;\n';
+      nws.forEach(l => {
+        const id=l.id, str=u('nw',id,'str'), sc=u('nw',id,'sc'), sp=u('nw',id,'sp'), oc=u('nw',id,'oc'), ang=u('nw',id,'ang');
+        out += `    {\n      vec2 nwDrift=vec2(cos(${ang}),sin(${ang}))*t*${sp};\n`;
+        out += `      wuv+=${str}*vec2(fbm(nwSrc*${sc}+nwDrift,${oc})-0.5,fbm(nwSrc*${sc}+nwDrift+vec2(5.2,1.3),${oc})-0.5);\n    }\n`;
+      });
+    }
+    return out;
+  }
 
   s += 'void main(){\n';
   s += '  vec2 uv=gl_FragCoord.xy/u_res;\n  float t=u_t;\n  vec2 rawuv=uv;\n';
 
-  pixelLayers.forEach(l => {
-    s += `  uv=floor(uv*(u_res/${u('px',l.id,'s')}))/(u_res/${u('px',l.id,'s')});\n`;
-  });
-
-  if (nwLayers.length) {
-    s += '  vec2 wuv=uv;\n';
-    nwLayers.forEach(l => {
-      const id=l.id, str=u('nw',id,'str'), sc=u('nw',id,'sc'), sp=u('nw',id,'sp'), oc=u('nw',id,'oc');
-      s += `  wuv+=${str}*vec2(fbm(uv*${sc}+vec2(0.0,t*${sp}),${oc})-0.5,fbm(uv*${sc}+vec2(5.2,1.3+t*${sp}),${oc})-0.5);\n`;
-    });
-  } else {
-    s += '  vec2 wuv=uv;\n';
-  }
-
-  // Per-CA direction vectors (cos*spread, sin*spread)
+  // Per-CA direction vectors (depend only on CA uniforms; safe at main scope).
   vis.filter(l => l.type === 'chromatic-aberration').forEach(l => {
     s += `  vec2 ca_d_${l.id}=vec2(cos(${u('ca',l.id,'an')}),sin(${u('ca',l.id,'an')}))*${u('ca',l.id,'sp')};\n`;
   });
 
   s += `  vec3 col=vec3(${bgR.toFixed(4)},${bgG.toFixed(4)},${bgB.toFixed(4)});\n`;
 
-  // Walk bottom→top. UV-prep and CA are handled above / baked into content; skip here.
+  // Walk bottom→top. UV-prep/CA layers contribute via the "above" lookups only.
   [...vis].reverse().forEach(l => {
     if (l.type === 'noise-warp' || l.type === 'pixelate' || l.type === 'chromatic-aberration') return;
 
-    if (isContent(l.type)) {
-      const op = `u_op_${l.id}`;
+    const idx = vis.indexOf(l);
+    s += '  {\n';
+    s += emitUvAbove(idx);
+
+    const op = `u_op_${l.id}`;
+    const mode = l.blendMode || 'normal';
+    const aes = (isContent(l.type) && Array.isArray(l.effects))
+      ? l.effects.filter(ae => ae.visible !== false) : [];
+
+    const emitAttached = (target) => {
+      if (!aes.length) return '';
+      let out = `    {\n      vec3 _cbak=col;\n      col=${target};\n`;
+      aes.forEach(ae => { out += glslEffectInline(ae); });
+      out += `      ${target}=col;\n      col=_cbak;\n    }\n`;
+      return out;
+    };
+
+    if (isContentWithFn(l.type)) {
       const cas = caAboveByContent[l.id] || [];
       if (cas.length > 0) {
         const sumX = cas.map(c => `ca_d_${c.id}.x`).join('+');
         const sumY = cas.map(c => `ca_d_${c.id}.y`).join('+');
-        s += `  {\n    vec2 _cad=vec2(${sumX},${sumY});\n`;
+        s += `    vec2 _cad=vec2(${sumX},${sumY});\n`;
         s += `    vec3 lR=contentFn_${l.id}(wuv+_cad),lG=contentFn_${l.id}(wuv),lB=contentFn_${l.id}(wuv-_cad);\n`;
-        s += `    col=mix(col,vec3(lR.r,lG.g,lB.b),${op});\n  }\n`;
+        s += `    vec3 lc=vec3(lR.r,lG.g,lB.b);\n`;
       } else {
-        s += `  {\n    vec3 lc=contentFn_${l.id}(wuv);col=mix(col,lc,${op});\n  }\n`;
+        s += `    vec3 lc=contentFn_${l.id}(wuv);\n`;
       }
+      s += emitAttached('lc');
+      s += `    col=mix(col,${glslBlend(mode, 'col', 'lc')},${op});\n`;
+    } else if (l.type === 'wave' || l.type === 'rectangle' || l.type === 'circle') {
+      s += '  {\n'; // extra scope so fillC/_mask don't collide across shapes
+      s += glslShapeFill(l);
+      s += emitAttached('fillC');
+      s += `    col=mix(col,${glslBlend(mode, 'col', 'fillC')},_mask*${op});\n`;
+      s += '  }\n';
     } else {
+      // Color-transform effect.
       s += glslEffectInline(l);
     }
+    s += '  }\n';
   });
 
   s += '  gl_FragColor=vec4(clamp(col,0.0,1.0),1.0);\n}\n';
@@ -393,7 +521,16 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
   if (nt) glCtx.bindTexture(glCtx.TEXTURE_2D, nt);
 
   const vis = (layerArr || []).filter(l => l.visible !== false && l.type !== 'frame');
+
+  // Flatten attached effects so they receive uniforms alongside top-level layers.
+  const attachedEffects = [];
   vis.forEach(l => {
+    if (isContent(l.type) && Array.isArray(l.effects)) {
+      l.effects.forEach(ae => { if (ae.visible !== false) attachedEffects.push(ae); });
+    }
+  });
+
+  [...vis, ...attachedEffects].forEach(l => {
     const id = l.id;
     const p = l.properties || {};
     const op = l.opacity !== undefined ? l.opacity : 1.0;
@@ -455,6 +592,7 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         glCtx.uniform1f(ul(u('nw',id,'sc')),  p.scale||2.0);
         glCtx.uniform1f(ul(u('nw',id,'sp')),  p.wspd||0.12);
         glCtx.uniform1f(ul(u('nw',id,'oc')),  p.oct||4);
+        glCtx.uniform1f(ul(u('nw',id,'ang')), ((p.angle != null ? p.angle : 90)) * Math.PI / 180);
         break;
       }
       case 'pixelate': {
@@ -469,6 +607,49 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         glCtx.uniform1f(ul(u('wv',id,'e')),   p.edge||0.06);
         glCtx.uniform1f(ul(u('wv',id,'ang')), (p.angle||0)*Math.PI/180);
         glCtx.uniform3f(ul(u('wv',id,'c')),   r, g, b);
+        break;
+      }
+      case 'rectangle': {
+        const [r,g,b] = hexToRgb(p.color || '#E8E8E8');
+        glCtx.uniform1f(ul(u('rc',id,'x')), p.x != null ? p.x : 0);
+        glCtx.uniform1f(ul(u('rc',id,'y')), p.y != null ? p.y : 0);
+        glCtx.uniform1f(ul(u('rc',id,'w')), Math.max(1, p.w || 200));
+        glCtx.uniform1f(ul(u('rc',id,'h')), Math.max(1, p.h || 200));
+        glCtx.uniform1f(ul(u('rc',id,'r')), Math.max(0, p.radius || 0));
+        glCtx.uniform1f(ul(u('rc',id,'fm')), (p.fillMode === 'gradient') ? 1.0 : 0.0);
+        glCtx.uniform1f(ul(u('rc',id,'bl')), Math.max(0, p.blur || 0));
+        glCtx.uniform3f(ul(u('rc',id,'c')), r, g, b);
+        const stops = Array.isArray(p.stops) && p.stops.length >= 2 ? p.stops : [{color:'#FF0055'},{color:'#0088FF'}];
+        const n = Math.min(6, stops.length);
+        const colsArr = new Float32Array(6*3);
+        for (let i = 0; i < 6; i++) {
+          const src = i < n ? stops[i] : stops[n-1];
+          const [rr, gg, bb] = hexToRgb(src.color || '#ffffff');
+          colsArr[i*3] = rr; colsArr[i*3+1] = gg; colsArr[i*3+2] = bb;
+        }
+        glCtx.uniform3fv(ul(u('rc',id,'cols')), colsArr);
+        glCtx.uniform1f(ul(u('rc',id,'cnt')), n);
+        break;
+      }
+      case 'circle': {
+        const [r,g,b] = hexToRgb(p.color || '#E8E8E8');
+        glCtx.uniform1f(ul(u('ci',id,'x')), p.x != null ? p.x : 0);
+        glCtx.uniform1f(ul(u('ci',id,'y')), p.y != null ? p.y : 0);
+        glCtx.uniform1f(ul(u('ci',id,'w')), Math.max(1, p.w || 200));
+        glCtx.uniform1f(ul(u('ci',id,'h')), Math.max(1, p.h || 200));
+        glCtx.uniform1f(ul(u('ci',id,'fm')), (p.fillMode === 'gradient') ? 1.0 : 0.0);
+        glCtx.uniform1f(ul(u('ci',id,'bl')), Math.max(0, p.blur || 0));
+        glCtx.uniform3f(ul(u('ci',id,'c')), r, g, b);
+        const stops = Array.isArray(p.stops) && p.stops.length >= 2 ? p.stops : [{color:'#FF0055'},{color:'#0088FF'}];
+        const n = Math.min(6, stops.length);
+        const colsArr = new Float32Array(6*3);
+        for (let i = 0; i < 6; i++) {
+          const src = i < n ? stops[i] : stops[n-1];
+          const [rr, gg, bb] = hexToRgb(src.color || '#ffffff');
+          colsArr[i*3] = rr; colsArr[i*3+1] = gg; colsArr[i*3+2] = bb;
+        }
+        glCtx.uniform3fv(ul(u('ci',id,'cols')), colsArr);
+        glCtx.uniform1f(ul(u('ci',id,'cnt')), n);
         break;
       }
       case 'liquid': {
@@ -605,6 +786,7 @@ function frame(now) {
 
   if (needsRecompile) { needsRecompile = false; compile(); }
   if (prog) { setU(t); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); }
+  if (typeof updateShapeOutline === 'function') updateShapeOutline();
   requestAnimationFrame(frame);
 }
 
@@ -664,14 +846,27 @@ function stopAllMiniRenderers() {
 }
 
 // ── Export ────────────────────────────────────────────────────
-function copyCode() {
+async function copyCode() {
+  const defaultName = (typeof fileName !== 'undefined' && fileName.trim()) ? fileName.trim() : 'shader';
+  const chosen = await showNameDialog({
+    title: 'Export GLSL',
+    defaultName,
+    ext: '.glsl',
+    okLabel: 'Export'
+  });
+  if (!chosen) return;
   const src  = buildFragFromLayers(layers, frameState);
-  const name = (typeof fileName !== 'undefined' && fileName.trim()) ? fileName.trim() : 'shader';
   const blob = new Blob([src], { type: 'text/plain' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
-  a.href = url; a.download = name + '.glsl'; a.click();
+  a.href = url; a.download = chosen + '.glsl'; a.click();
   URL.revokeObjectURL(url);
   const b = document.getElementById('btn-export');
-  if (b) { const orig = b.textContent; b.textContent = 'Saved!'; setTimeout(() => { b.textContent = orig; }, 1500); }
+  if (b) {
+    const span = b.querySelector('span:first-child');
+    if (span) {
+      const orig = span.textContent; span.textContent = 'Saved!';
+      setTimeout(() => { span.textContent = orig; }, 1500);
+    }
+  }
 }

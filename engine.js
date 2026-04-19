@@ -93,16 +93,18 @@ function defaultProperties(type) {
       seed: 42, speed: 1.0, freqX: 0.9, freqY: 6.0, angle: 105,
       amplitude: 2.1, softness: 0.74, blend: 0.54, scale: 1.0,
       stops: [
-        { position: 0.0,  color: '#FF0055' },
-        { position: 0.33, color: '#0088FF' },
-        { position: 0.66, color: '#FFCC00' },
-        { position: 1.0,  color: '#AA44FF' }
+        { color: '#FF0055' },
+        { color: '#0088FF' },
+        { color: '#FFCC00' },
+        { color: '#AA44FF' }
       ]
     };
     case 'mesh-gradient':return { seed: 12, speed: 0.3, scale: 0.42, turbAmp: 0.15, turbFreq: 0.1, turbIter: 7, waveFreq: 3.8, distBias: 0.0, exposure: 1.1, contrast: 1.1, saturation: 1.0, color0: '#1a1a2e', color1: '#16213e', color2: '#0f3460', color3: '#533483', color4: '#e94560' };
     case 'image':        return { fit: 'cover' };
-    case 'noise-warp':   return { str: 0.5, scale: 2.0, wspd: 0.12, oct: 4 };
+    case 'noise-warp':   return { str: 0.5, scale: 2.0, wspd: 0.12, oct: 4, angle: 90 };
     case 'wave':         return { color: '#6B7FE8', freq: 4.0, amp: 0.15, spd: 0.6, pos: 0.5, edge: 0.06, angle: 0 };
+    case 'rectangle':    return { x: 0, y: 0, w: 300, h: 200, radius: 0, blur: 0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}] };
+    case 'circle':       return { x: 0, y: 0, w: 240, h: 240, blur: 0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}] };
     case 'liquid':       return { seed: 12, speed: 0.3, scale: 0.42, turbAmp: 0.6, turbFreq: 0.1, turbIter: 7, waveFreq: 3.8, distBias: 0.0, exposure: 1.1, contrast: 1.1, saturation: 1.0, color0: '#00001A', color1: '#2962FF', color2: '#40BCFF', color3: '#FFB8B5', color4: '#FFC14F' };
     case 'grain':        return { amount: 0.08, size: 1.0, animated: 1, streak: 0, sangle: 90, slen: 6 };
     case 'chromatic-aberration': return { spread: 0.006, angle: 0 };
@@ -115,7 +117,7 @@ function defaultProperties(type) {
   }
 }
 
-const CONTENT_TYPES_ENGINE = new Set(['solid','gradient','mesh-gradient','image']);
+const CONTENT_TYPES_ENGINE = new Set(['solid','gradient','mesh-gradient','image','wave','rectangle','circle']);
 function isContentLayer(type) { return CONTENT_TYPES_ENGINE.has(type); }
 
 function layerIcon(type) {
@@ -124,31 +126,26 @@ function layerIcon(type) {
 }
 
 function defaultLayerName(type) {
-  const NAMES = { solid:'Solid', gradient:'Gradient', 'mesh-gradient':'Mesh Gradient', image:'Image', 'noise-warp':'Noise Warp', wave:'Wave', liquid:'Liquid', grain:'Grain', 'chromatic-aberration':'Chromatic Aberration', vignette:'Vignette', 'color-grade':'Color Grade', posterize:'Posterize', pixelate:'Pixelate', scanlines:'Scanlines' };
+  const NAMES = { solid:'Solid', gradient:'Gradient', 'mesh-gradient':'Mesh Gradient', image:'Image', 'noise-warp':'Noise Warp', wave:'Wave', rectangle:'Rectangle', circle:'Circle', liquid:'Liquid', grain:'Grain', 'chromatic-aberration':'Chromatic Aberration', vignette:'Vignette', 'color-grade':'Color Grade', posterize:'Posterize', pixelate:'Pixelate', scanlines:'Scanlines' };
   return NAMES[type] || type;
 }
 
 function migrateGradientProps(props, override) {
-  // If override carried the old color0..color3 format, prefer those over default stops
+  // Legacy color0..color3 → stops
   const hasOldColors = override && (override.color0 || override.color1 || override.color2 || override.color3);
   const hasStops = override && Array.isArray(override.stops);
   if (!hasStops && hasOldColors) {
     const raw = [override.color0, override.color1, override.color2, override.color3].filter(c => typeof c === 'string');
-    if (raw.length >= 2) {
-      props.stops = raw.map((c, i) => ({ position: i / (raw.length - 1), color: c }));
-    }
+    if (raw.length >= 2) props.stops = raw.map(c => ({ color: c }));
   }
   delete props.color0; delete props.color1; delete props.color2; delete props.color3;
   if (!Array.isArray(props.stops) || props.stops.length < 2) {
-    props.stops = [
-      { position: 0, color: '#FF0055' },
-      { position: 1, color: '#0088FF' }
-    ];
+    props.stops = [{ color: '#FF0055' }, { color: '#0088FF' }];
   }
-  // Sanitise stop positions
+  // Stops are now position-less (evenly distributed). Drop any legacy position field.
   props.stops = props.stops
-    .map(s => ({ position: Math.max(0, Math.min(1, parseFloat(s.position ?? 0))), color: s.color || '#ffffff' }))
-    .sort((a, b) => a.position - b.position);
+    .slice(0, 6)
+    .map(s => ({ color: (s && s.color) || '#ffffff' }));
   if (props.scale == null) props.scale = 1.0;
 }
 
@@ -156,7 +153,7 @@ function migrateGradientProps(props, override) {
 function createLayer(type, propsOverride) {
   const props = Object.assign({}, defaultProperties(type), propsOverride || {});
   if (type === 'gradient') migrateGradientProps(props, propsOverride);
-  return {
+  const layer = {
     id: ++layerIdCounter,
     type,
     name: defaultLayerName(type),
@@ -165,6 +162,54 @@ function createLayer(type, propsOverride) {
     blendMode: 'normal',
     properties: props
   };
+  if (isContentLayer(type)) layer.effects = [];
+  return layer;
+}
+
+// ── Per-layer Effects (attached to content layers) ─────────────
+const PER_LAYER_EFFECT_TYPES = ['grain','color-grade','vignette','posterize','scanlines'];
+let selectedAttachedEffect = {}; // layerId → attachedEffectId (for expanded inline props)
+
+function addAttachedEffect(layerId, type) {
+  const l = layers.find(x => x.id === layerId); if (!l) return;
+  l.effects = l.effects || [];
+  const ae = {
+    id: ++layerIdCounter,
+    type,
+    name: defaultLayerName(type),
+    visible: true,
+    opacity: 1.0,
+    properties: Object.assign({}, defaultProperties(type))
+  };
+  l.effects.unshift(ae);
+  selectedAttachedEffect[layerId] = ae.id;
+  needsRecompile = true;
+  renderRightPanel();
+  closeEffectPopover();
+  snapshot();
+}
+
+function removeAttachedEffect(layerId, aeId) {
+  const l = layers.find(x => x.id === layerId); if (!l || !l.effects) return;
+  l.effects = l.effects.filter(e => e.id !== aeId);
+  if (selectedAttachedEffect[layerId] === aeId) delete selectedAttachedEffect[layerId];
+  needsRecompile = true;
+  renderRightPanel();
+  snapshot();
+}
+
+function toggleAttachedEffectVisible(layerId, aeId) {
+  const l = layers.find(x => x.id === layerId); if (!l || !l.effects) return;
+  const ae = l.effects.find(e => e.id === aeId); if (!ae) return;
+  ae.visible = !ae.visible;
+  needsRecompile = true;
+  renderRightPanel();
+  snapshot();
+}
+
+function selectAttachedEffect(layerId, aeId) {
+  selectedAttachedEffect[layerId] = selectedAttachedEffect[layerId] === aeId ? null : aeId;
+  renderRightPanel();
 }
 
 function addLayer(type) {
@@ -193,6 +238,9 @@ function duplicateLayer(id) {
   if (idx < 0) return;
   const orig = layers[idx];
   const copy = { ...orig, id: ++layerIdCounter, name: orig.name + ' copy', properties: JSON.parse(JSON.stringify(orig.properties)) };
+  if (Array.isArray(orig.effects)) {
+    copy.effects = orig.effects.map(ae => ({ ...ae, id: ++layerIdCounter, properties: JSON.parse(JSON.stringify(ae.properties || {})) }));
+  }
   layers.splice(idx, 0, copy);
   selectedLayerId = copy.id;
   renderUI(); needsRecompile = true;
@@ -367,6 +415,43 @@ document.getElementById('confirm-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('confirm-overlay')) closeConfirm(false);
 });
 
+// ── Name Dialog ────────────────────────────────────────────────
+let nameResolve = null;
+function showNameDialog({ title = 'Save as', defaultName = 'untitled', ext = '.frakt', okLabel = 'Save' } = {}) {
+  return new Promise(resolve => {
+    nameResolve = resolve;
+    document.getElementById('name-title').textContent = title;
+    document.getElementById('name-ext').textContent = ext;
+    document.getElementById('name-ok').textContent = okLabel;
+    const inp = document.getElementById('name-input');
+    inp.value = defaultName;
+    document.getElementById('name-overlay').classList.remove('hidden');
+    setTimeout(() => { inp.focus(); inp.select(); }, 0);
+  });
+}
+function closeNameDialog(result) {
+  document.getElementById('name-overlay').classList.add('hidden');
+  if (nameResolve) { nameResolve(result); nameResolve = null; }
+}
+document.getElementById('name-ok').addEventListener('click', () => {
+  const v = document.getElementById('name-input').value.trim();
+  closeNameDialog(v || null);
+});
+document.getElementById('name-cancel').addEventListener('click', () => closeNameDialog(null));
+document.getElementById('name-overlay').addEventListener('click', e => {
+  if (e.target === document.getElementById('name-overlay')) closeNameDialog(null);
+});
+document.getElementById('name-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const v = e.target.value.trim();
+    closeNameDialog(v || null);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    closeNameDialog(null);
+  }
+});
+
 // ── Context Menu ───────────────────────────────────────────────
 let ctxTargetId = null;
 const ctxMenu = document.getElementById('ctx-menu');
@@ -415,6 +500,26 @@ layerPopover.querySelectorAll('.pop-item').forEach(item => {
 });
 document.addEventListener('click', e => {
   if (!e.target.closest('#layer-popover') && !e.target.closest('#btn-add-layer')) closeLayerPopover();
+});
+
+// ── Attached Effect Popover (per-layer) ────────────────────────
+const effectPopover = document.getElementById('effect-popover');
+let effectPopoverLayerId = null;
+function openEffectPopover(anchorEl, layerId) {
+  const r = anchorEl.getBoundingClientRect();
+  effectPopover.style.left = (r.right - 160) + 'px';
+  effectPopover.style.top  = (r.bottom + 4) + 'px';
+  effectPopover.classList.remove('hidden');
+  effectPopoverLayerId = layerId;
+}
+function closeEffectPopover() { effectPopover.classList.add('hidden'); effectPopoverLayerId = null; }
+effectPopover.querySelectorAll('.pop-item').forEach(item => {
+  item.addEventListener('click', () => {
+    if (effectPopoverLayerId != null) addAttachedEffect(effectPopoverLayerId, item.dataset.aeType);
+  });
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('#effect-popover') && !e.target.closest('.btn-add-effect')) closeEffectPopover();
 });
 
 // ── Drag Reorder ───────────────────────────────────────────────
@@ -511,9 +616,11 @@ function renderRightPanel() {
   </div>`;
   if (isContentLayer(l.type)) html += renderTransformZone(l);
   html += renderPropertiesZone(l);
+  if (isContentLayer(l.type)) html += renderEffectsZone(l);
   panel.innerHTML = html;
   wirePropertiesZone(l);
   wireRpHeaderName(l);
+  if (isContentLayer(l.type)) wireEffectsZone(l);
 }
 
 function wireRpHeaderName(l) {
@@ -541,7 +648,103 @@ function wireRpHeaderName(l) {
 function renderUI() {
   renderLeftPanel();
   renderRightPanel();
+  updateShapeOutline();
 }
+
+// ── Shape canvas interaction ───────────────────────────────────
+function getSelectedShape() {
+  const l = layers.find(l => l.id === selectedLayerId);
+  if (!l || (l.type !== 'rectangle' && l.type !== 'circle')) return null;
+  if (l.visible === false) return null;
+  return l;
+}
+
+function updateShapeOutline() {
+  const out = document.getElementById('shape-outline');
+  const canvasEl = document.getElementById('glcanvas');
+  if (!out || !canvasEl) return;
+  const l = getSelectedShape();
+  if (!l) { out.classList.add('hidden'); canvasEl.classList.remove('shape-target'); return; }
+  const rect = canvasEl.getBoundingClientRect();
+  const area = document.getElementById('canvas-area').getBoundingClientRect();
+  if (rect.width <= 0 || canvasEl.width <= 0) { out.classList.add('hidden'); return; }
+  const scale = rect.width / canvasEl.width;
+  const cx = (rect.left - area.left) + rect.width / 2;
+  const cy = (rect.top  - area.top)  + rect.height / 2;
+  const p = l.properties;
+  const w = (p.w || 200) * scale;
+  const h = (p.h || 200) * scale;
+  const left = cx + (p.x || 0) * scale - w / 2;
+  const top  = cy - (p.y || 0) * scale - h / 2;
+  out.style.left = left + 'px';
+  out.style.top  = top + 'px';
+  out.style.width = w + 'px';
+  out.style.height = h + 'px';
+  out.style.borderRadius = l.type === 'circle' ? '50%' : (((p.radius || 0) * scale) + 'px');
+  out.classList.remove('hidden');
+  canvasEl.classList.add('shape-target');
+}
+
+window.addEventListener('resize', () => updateShapeOutline());
+
+(function wireShapeDrag() {
+  const canvasEl = document.getElementById('glcanvas');
+  if (!canvasEl) return;
+  let drag = null;
+  const pxFromMouse = (e) => {
+    const rect = canvasEl.getBoundingClientRect();
+    const sx = canvasEl.width / Math.max(1, rect.width);
+    const sy = canvasEl.height / Math.max(1, rect.height);
+    const mx = (e.clientX - rect.left) * sx - canvasEl.width / 2;
+    const my = (e.clientY - rect.top)  * sy - canvasEl.height / 2;
+    return { mx, my };
+  };
+  const hitTest = (l, mx, my) => {
+    const p = l.properties;
+    const dx = mx - (p.x || 0);
+    const dy = my + (p.y || 0);
+    const hw = Math.max(0.5, (p.w || 1) / 2);
+    const hh = Math.max(0.5, (p.h || 1) / 2);
+    if (l.type === 'rectangle') return Math.abs(dx) <= hw && Math.abs(dy) <= hh;
+    if (l.type === 'circle')    return (dx*dx)/(hw*hw) + (dy*dy)/(hh*hh) <= 1;
+    return false;
+  };
+
+  canvasEl.addEventListener('mousedown', (e) => {
+    const l = getSelectedShape();
+    if (!l) return;
+    const { mx, my } = pxFromMouse(e);
+    if (!hitTest(l, mx, my)) return;
+    e.preventDefault();
+    drag = { l, startMx: mx, startMy: my, startX: l.properties.x || 0, startY: l.properties.y || 0 };
+    canvasEl.classList.add('shape-dragging');
+  });
+
+  window.addEventListener('mousemove', (e) => {
+    if (!drag) return;
+    const { mx, my } = pxFromMouse(e);
+    drag.l.properties.x = Math.round(drag.startX + (mx - drag.startMx));
+    drag.l.properties.y = Math.round(drag.startY - (my - drag.startMy));
+    needsRecompile = false; // pure uniform update
+    updateShapeOutline();
+    // Live-update the sliders in the right panel if visible
+    const xSl = document.getElementById(`s-${drag.l.id}-x`);
+    const ySl = document.getElementById(`s-${drag.l.id}-y`);
+    const xV = document.getElementById(`v-${drag.l.id}-x`);
+    const yV = document.getElementById(`v-${drag.l.id}-y`);
+    if (xSl) xSl.value = drag.l.properties.x;
+    if (ySl) ySl.value = drag.l.properties.y;
+    if (xV) xV.textContent = String(drag.l.properties.x);
+    if (yV) yV.textContent = String(drag.l.properties.y);
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!drag) return;
+    drag = null;
+    canvasEl.classList.remove('shape-dragging');
+    snapshot();
+  });
+})();
 
 // ── Transform Zone ─────────────────────────────────────────────
 function renderTransformZone(l) {
@@ -555,10 +758,36 @@ function renderTransformZone(l) {
     <div class="ctrl-row">
       <span class="ctrl-label">Blend</span>
       <select class="blend-select" id="rp-blend">
-        ${['normal','screen','multiply','overlay','add'].map(m => `<option value="${m}"${l.blendMode===m?' selected':''}>${m}</option>`).join('')}
+        ${['normal','multiply','screen','overlay','add','lighten','darken'].map(m => `<option value="${m}"${l.blendMode===m?' selected':''}>${m}</option>`).join('')}
       </select>
     </div>
   </div>`;
+}
+
+// ── Shape Zone (rectangle/circle) ──────────────────────────────
+function renderShapeZone(l, isRect) {
+  const p = l.properties || {};
+  const id = l.id;
+  const fillMode = p.fillMode === 'gradient' ? 'gradient' : 'solid';
+  const fillContent = fillMode === 'gradient'
+    ? renderStopsStrip(l)
+    : renderColorRow(id, 'color', p.color || '#E8E8E8', 'Color');
+  return [
+    renderSlider(id,'x','X',p.x!=null?p.x:0,-1000,1000,1),
+    renderSlider(id,'y','Y',p.y!=null?p.y:0,-1000,1000,1),
+    renderSlider(id,'w','Width',p.w||200,1,2000,1),
+    renderSlider(id,'h','Height',p.h||200,1,2000,1),
+    isRect ? renderSlider(id,'radius','Radius',p.radius||0,0,500,1) : '',
+    renderSlider(id,'blur','Blur',p.blur||0,0,200,1),
+    `<div class="ctrl-row fill-mode-row">
+      <span class="ctrl-label">Fill</span>
+      <div class="toggle-wrap fill-mode-toggle" data-lid="${id}">
+        <button class="toggle-opt${fillMode==='solid'?' active':''}" data-fillmode="solid">Solid</button>
+        <button class="toggle-opt${fillMode==='gradient'?' active':''}" data-fillmode="gradient">Gradient</button>
+      </div>
+    </div>`,
+    `<div class="shape-fill">${fillContent}</div>`
+  ].join('');
 }
 
 // ── Properties Zone ────────────────────────────────────────────
@@ -622,6 +851,7 @@ function renderTypeControls(l) {
         renderSlider(id,'scale','Scale',p.scale||2.0,0.3,8.0,0.1),
         renderSlider(id,'wspd','Drift Speed',p.wspd||0.12,0,1.0,0.01),
         renderSlider(id,'oct','Octaves',p.oct||4,1,8,1),
+        renderSlider(id,'angle','Direction °',p.angle!=null?p.angle:90,0,360,1),
       ].join('');
 
     case 'wave':
@@ -634,6 +864,11 @@ function renderTypeControls(l) {
         renderSlider(id,'edge','Softness',p.edge||0.06,0.003,0.9,0.003),
         renderSlider(id,'angle','Angle °',p.angle||0,-360,360,1),
       ].join('');
+
+    case 'rectangle':
+      return renderShapeZone(l, true);
+    case 'circle':
+      return renderShapeZone(l, false);
 
     case 'liquid':
       return [
@@ -709,6 +944,150 @@ function renderTypeControls(l) {
   }
 }
 
+// ── Per-layer Effects Zone ─────────────────────────────────────
+function renderEffectsZone(l) {
+  const effects = l.effects || [];
+  const expandedId = selectedAttachedEffect[l.id];
+  const rows = effects.map(ae => {
+    const expanded = ae.id === expandedId;
+    const eyeCls = ae.visible ? '' : ' invisible';
+    const inner = expanded ? `<div class="ae-props">${renderTypeControlsForAttached(l.id, ae)}</div>` : '';
+    return `<div class="ae-row${expanded?' expanded':''}" data-ae-id="${ae.id}">
+      <div class="ae-head" data-lid="${l.id}" data-ae-id="${ae.id}">
+        <span class="ae-eye${eyeCls}" data-act="toggle" data-lid="${l.id}" data-ae-id="${ae.id}">${ae.visible?'●':'○'}</span>
+        <span class="ae-name">${ae.name}</span>
+        <span class="ae-x" data-act="del" data-lid="${l.id}" data-ae-id="${ae.id}">×</span>
+      </div>
+      ${inner}
+    </div>`;
+  }).join('');
+  return `<div class="rp-zone ae-zone">
+    <div class="rp-zone-label ae-zone-head">
+      <span>Effects</span>
+      <button class="btn-add-effect" data-lid="${l.id}" title="Add effect">+</button>
+    </div>
+    <div class="ae-list">${rows || '<div class="ae-empty">No effects</div>'}</div>
+  </div>`;
+}
+
+// Render a slider/toggle bound to an attached effect (no data-lid → main wiring skips it)
+function aeSlider(aeId, key, label, val, min, max, step) {
+  const vid = `v-ae${aeId}-${key}`;
+  const sid = `s-ae${aeId}-${key}`;
+  return `<div class="ctrl-row">
+    <span class="ctrl-label">${label}</span>
+    <input type="range" class="ctrl-slider ae-slider" id="${sid}" min="${min}" max="${max}" step="${step}" value="${val}" data-aeid="${aeId}" data-key="${key}" data-vid="${vid}">
+    <span class="ctrl-value" id="${vid}">${fmt(val,step)}</span>
+  </div>`;
+}
+function aeToggle(aeId, key, label, val) {
+  const tid = `tg-ae${aeId}-${key}`;
+  return `<div class="ctrl-row">
+    <span class="ctrl-label">${label}</span>
+    <div class="toggle-wrap ae-toggle" id="${tid}" data-aeid="${aeId}" data-key="${key}">
+      <button class="toggle-opt${val?'':' active'}" data-val="0">Off</button>
+      <button class="toggle-opt${val?' active':''}" data-val="1">On</button>
+    </div>
+  </div>`;
+}
+
+// Render type controls for an attached effect (ae-prefixed ids, no data-lid)
+function renderTypeControlsForAttached(layerId, ae) {
+  const p = ae.properties || {};
+  const id = ae.id;
+  switch(ae.type) {
+    case 'grain':
+      return [
+        aeSlider(id,'amount','Amount',p.amount!=null?p.amount:0.08,0,0.5,0.005),
+        aeSlider(id,'size','Size',p.size||1.0,0.5,6,0.1),
+        aeToggle(id,'animated','Animated',p.animated||0),
+      ].join('');
+    case 'color-grade':
+      return [
+        aeSlider(id,'contrast','Contrast',p.contrast!=null?p.contrast:1.0,0,2.0,0.01),
+        aeSlider(id,'sat','Saturation',p.sat!=null?p.sat:1.0,0,2.0,0.01),
+        aeSlider(id,'bright','Brightness',p.bright||0.0,-0.5,0.5,0.01),
+        aeSlider(id,'hue','Hue Shift °',p.hue||0,0,360,1),
+      ].join('');
+    case 'vignette':
+      return [
+        aeSlider(id,'str','Strength',p.str!=null?p.str:0.6,0,2.0,0.01),
+        aeSlider(id,'soft','Softness',p.soft!=null?p.soft:0.4,0.05,1.5,0.01),
+      ].join('');
+    case 'posterize':
+      return [
+        aeSlider(id,'bands','Bands',p.bands||5,2,16,1),
+        aeSlider(id,'mix','Mix',p.mix!=null?p.mix:1.0,0,1.0,0.01),
+      ].join('');
+    case 'scanlines':
+      return [
+        aeSlider(id,'count','Line Count',p.count||120,20,600,5),
+        aeSlider(id,'dark','Darkness',p.dark!=null?p.dark:0.4,0,1.0,0.01),
+        aeSlider(id,'soft','Softness',p.soft!=null?p.soft:0.3,0,1.0,0.01),
+      ].join('');
+    default:
+      return '';
+  }
+}
+
+function wireEffectsZone(l) {
+  const zone = document.querySelector('.ae-zone');
+  if (!zone) return;
+  // Add button
+  const addBtn = zone.querySelector('.btn-add-effect');
+  if (addBtn) addBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    if (effectPopoverLayerId === l.id && !effectPopover.classList.contains('hidden')) {
+      closeEffectPopover();
+    } else {
+      openEffectPopover(addBtn, l.id);
+    }
+  });
+  // Head click → expand
+  zone.querySelectorAll('.ae-head').forEach(h => {
+    h.addEventListener('click', e => {
+      const tgt = e.target;
+      const act = tgt.dataset.act;
+      const aeId = parseInt(h.dataset.aeId, 10);
+      if (act === 'toggle') { e.stopPropagation(); toggleAttachedEffectVisible(l.id, aeId); return; }
+      if (act === 'del')    { e.stopPropagation(); removeAttachedEffect(l.id, aeId); return; }
+      selectAttachedEffect(l.id, aeId);
+    });
+  });
+  // Wire attached-effect sliders
+  zone.querySelectorAll('.ae-slider').forEach(sl => {
+    const aeId = parseInt(sl.dataset.aeid, 10);
+    const key = sl.dataset.key;
+    const ae = (l.effects || []).find(e => e.id === aeId);
+    if (!ae) return;
+    sl.addEventListener('input', () => {
+      ae.properties[key] = parseFloat(sl.value);
+      const v = document.getElementById(sl.dataset.vid);
+      if (v) v.textContent = fmt(sl.value, sl.step);
+      needsRecompile = true;
+    });
+    sl.addEventListener('change', () => snapshot());
+  });
+  // Wire attached-effect toggles
+  zone.querySelectorAll('.ae-toggle').forEach(wrap => {
+    const aeId = parseInt(wrap.dataset.aeid, 10);
+    const key = wrap.dataset.key;
+    const ae = (l.effects || []).find(e => e.id === aeId);
+    if (!ae) return;
+    const [offBtn, onBtn] = wrap.querySelectorAll('.toggle-opt');
+    [offBtn, onBtn].forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = parseInt(btn.dataset.val);
+        ae.properties[key] = val;
+        offBtn.classList.toggle('active', val === 0);
+        onBtn.classList.toggle('active',  val === 1);
+        needsRecompile = true;
+        snapshot();
+      });
+    });
+  });
+}
+
 // ── Frame Zone ─────────────────────────────────────────────────
 function renderFrameZone() {
   const fs = frameState;
@@ -736,8 +1115,8 @@ function renderFrameZone() {
     <div class="rp-zone-label">Background</div>
     <div class="ctrl-color-row">
       <div class="swatch" id="bg-swatch" style="background:${fs.bg}" onclick="document.getElementById('bg-cp').click()"></div>
-      <span class="swatch-hex">${fs.bg}</span>
-      <input type="color" class="color-input-hidden" id="bg-cp" value="${fs.bg}" oninput="onBgColor(this.value);document.getElementById('bg-swatch').style.background=this.value;document.querySelector('#panel-right .swatch-hex').textContent=this.value;" onchange="snapshot();">
+      <input type="text" class="swatch-hex swatch-hex-input" id="bg-hex" value="${fs.bg.toUpperCase()}" spellcheck="false" maxlength="7">
+      <input type="color" class="color-input-hidden" id="bg-cp" value="${fs.bg}" oninput="onBgColor(this.value);document.getElementById('bg-swatch').style.background=this.value;var h=document.getElementById('bg-hex');if(h&&document.activeElement!==h)h.value=this.value.toUpperCase();" onchange="snapshot();">
     </div>
   </div>`;
 }
@@ -747,6 +1126,25 @@ function wireFrameZone() {
   const hi = document.getElementById('frame-h-inp');
   if (wi) wi.addEventListener('change', () => onFrameWChange(wi.value));
   if (hi) hi.addEventListener('change', () => onFrameHChange(hi.value));
+  const bh = document.getElementById('bg-hex');
+  if (bh) {
+    const commit = () => {
+      const norm = normalizeHex(bh.value);
+      if (!norm) { bh.value = (frameState.bg || '#000000').toUpperCase(); return; }
+      onBgColor(norm);
+      bh.value = norm.toUpperCase();
+      const sw = document.getElementById('bg-swatch');
+      if (sw) sw.style.background = norm;
+      const cp = document.getElementById('bg-cp');
+      if (cp) cp.value = norm;
+      snapshot();
+    };
+    bh.addEventListener('blur', commit);
+    bh.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); bh.blur(); }
+      if (e.key === 'Escape') { bh.value = (frameState.bg || '#000000').toUpperCase(); bh.blur(); }
+    });
+  }
 }
 
 // ── Gradient Stops State ───────────────────────────────────────
@@ -780,37 +1178,32 @@ function cssGradientFromStops(stops) {
   return `linear-gradient(to right, ${parts.join(', ')})`;
 }
 
+function evenStopsForCss(stops) {
+  const n = Math.max(1, stops.length - 1);
+  return stops.map((s, i) => ({ position: i / n, color: s.color }));
+}
+
 function renderStopsStrip(l) {
   const id = l.id;
   const stops = l.properties.stops || [];
   const canAdd = stops.length < 6;
   const canRemove = stops.length > 2;
-  const sel = Math.min(selectedStopIdx, stops.length - 1);
-  const selStop = stops[sel];
-  const bgCss = cssGradientFromStops(stops);
-  const thumbs = stops.map((s, i) => {
-    const selCls = i === sel ? ' selected' : '';
-    const xBtn = (i === sel && canRemove)
-      ? `<div class="stops-thumb-x" data-stop-x="${i}" title="Remove stop (⌫)">×</div>`
-      : '';
-    return `<div class="stops-thumb${selCls}" data-stop-idx="${i}" style="left:${(s.position*100).toFixed(3)}%;background:${s.color};">${xBtn}</div>`;
+  const bgCss = cssGradientFromStops(evenStopsForCss(stops));
+  const rows = stops.map((s, i) => {
+    const hex = (s.color || '#ffffff').toUpperCase();
+    return `<div class="stop-row" data-stop-idx="${i}" draggable="true">
+      <span class="stop-drag" title="Drag to reorder">⋮⋮</span>
+      <div class="stop-sw" data-stop-sw="${i}" style="background:${hex}" title="Click to change color"></div>
+      <input type="text" class="stop-hex" data-stop-hex="${i}" value="${hex}" spellcheck="false" maxlength="7">
+      <button class="stop-x" data-stop-rm="${i}" ${canRemove ? '' : 'disabled'} title="${canRemove ? 'Remove stop' : 'Need at least 2 stops'}">×</button>
+      <input type="color" class="color-input-hidden" data-stop-cp="${i}" value="${hex}">
+    </div>`;
   }).join('');
-  const selHex = selStop ? selStop.color : '#ffffff';
-  const selPos = selStop ? Math.round(selStop.position * 100) : 0;
   return `<div class="stops-block" data-stops-lid="${id}">
     <div class="rp-zone-sublabel" style="font-size:9px;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.06em;">COLOR STOPS <span style="opacity:0.7">${stops.length}/6</span></div>
-    <div class="stops-strip-wrap">
-      <div class="stops-strip${canAdd ? '' : ' at-max'}" id="stops-strip-${id}" title="${canAdd ? 'Click to add a stop' : 'Maximum 6 stops'}">
-        <div class="stops-gradient" style="background:${bgCss};"></div>
-      </div>
-      <div class="stops-thumb-layer" id="stops-thumbs-${id}">${thumbs}</div>
-    </div>
-    <div class="stops-info-row">
-      <div class="swatch" id="stops-selswatch-${id}" style="background:${selHex}" onclick="document.getElementById('stops-selcp-${id}').click()"></div>
-      <span class="swatch-hex" id="stops-selhex-${id}">${selHex}</span>
-      <span style="color:var(--text-secondary);">pos ${selPos}%</span>
-      <input type="color" class="color-input-hidden" id="stops-selcp-${id}" value="${selHex}">
-    </div>
+    <div class="stops-preview" style="background:${bgCss};"></div>
+    <div class="stops-list" id="stops-list-${id}">${rows}</div>
+    <button class="stops-add" id="stops-add-${id}" ${canAdd ? '' : 'disabled'} title="${canAdd ? 'Add stop' : 'Maximum 6 stops'}">+ Add stop</button>
   </div>`;
 }
 
@@ -828,10 +1221,12 @@ function renderSlider(layerId, key, label, val, min, max, step) {
 function renderColorRow(layerId, key, hex, label) {
   const cid = `cp-${layerId}-${key}`;
   const did = `cd-${layerId}-${key}`;
+  const hid = `ch-${layerId}-${key}`;
+  const up = (hex || '#ffffff').toUpperCase();
   return `<div class="ctrl-color-row">
     <div class="swatch" id="${did}" style="background:${hex}" onclick="document.getElementById('${cid}').click()"></div>
-    <span class="swatch-hex">${hex}</span>
-    <input type="color" class="color-input-hidden" id="${cid}" value="${hex}" data-lid="${layerId}" data-key="${key}" data-did="${did}">
+    <input type="text" class="swatch-hex swatch-hex-input" id="${hid}" value="${up}" spellcheck="false" maxlength="7" data-lid="${layerId}" data-key="${key}" data-did="${did}" data-cid="${cid}">
+    <input type="color" class="color-input-hidden" id="${cid}" value="${hex}" data-lid="${layerId}" data-key="${key}" data-did="${did}" data-hid="${hid}">
   </div>`;
 }
 
@@ -847,114 +1242,126 @@ function renderToggle(layerId, key, label, val) {
 }
 
 function wireStopsStrip(l) {
-  if (l.type !== 'gradient') return;
+  if (l.type !== 'gradient' && l.type !== 'rectangle' && l.type !== 'circle') return;
   const id = l.id;
-  const strip = document.getElementById(`stops-strip-${id}`);
-  const thumbLayer = document.getElementById(`stops-thumbs-${id}`);
-  if (!strip || !thumbLayer) return;
+  const list = document.getElementById(`stops-list-${id}`);
+  const addBtn = document.getElementById(`stops-add-${id}`);
+  if (!list) return;
 
-  const clamp01 = v => Math.max(0, Math.min(1, v));
-  const getPosFromEvent = (e) => {
-    const rect = strip.getBoundingClientRect();
-    return clamp01((e.clientX - rect.left) / Math.max(1, rect.width));
-  };
-  const refresh = () => { renderRightPanel(); needsRecompile = true; };
+  const refresh = () => { needsRecompile = true; renderRightPanel(); };
 
-  // Click on strip background → add stop
-  strip.addEventListener('mousedown', (e) => {
-    if (e.target !== strip && e.target.parentElement !== strip) return; // ignore clicks on thumbs
-    const stops = l.properties.stops;
-    if (stops.length >= 6) return;
-    const pos = getPosFromEvent(e);
-    const col = interpolateStopColor(stops, pos);
-    stops.push({ position: pos, color: col });
-    stops.sort((a, b) => a.position - b.position);
-    const newIdx = stops.findIndex(s => s.position === pos && s.color === col);
-    selectedStopIdx = newIdx >= 0 ? newIdx : 0;
-    stopSelectionActive = true;
-    needsRecompile = true;
-    snapshot();
-    renderRightPanel();
-  });
+  // Add
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      const stops = l.properties.stops;
+      if (stops.length >= 6) return;
+      const last = stops[stops.length - 1]?.color || '#ffffff';
+      stops.push({ color: last });
+      snapshot();
+      refresh();
+    });
+  }
 
-  // Per-thumb handlers
-  thumbLayer.querySelectorAll('.stops-thumb').forEach(thumb => {
-    const idx = parseInt(thumb.dataset.stopIdx);
-    thumb.addEventListener('mousedown', (e) => {
-      e.stopPropagation();
-      // Clicking the × button removes
-      if (e.target.classList && e.target.classList.contains('stops-thumb-x')) {
-        e.preventDefault();
-        if (l.properties.stops.length <= 2) return;
-        l.properties.stops.splice(idx, 1);
-        selectedStopIdx = Math.min(idx, l.properties.stops.length - 1);
+  list.querySelectorAll('.stop-row').forEach(row => {
+    const idx = parseInt(row.dataset.stopIdx);
+
+    // Right-click remove
+    row.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (l.properties.stops.length <= 2) return;
+      l.properties.stops.splice(idx, 1);
+      snapshot();
+      refresh();
+    });
+
+    // Swatch click → open color picker
+    const sw = row.querySelector(`[data-stop-sw="${idx}"]`);
+    const cp = row.querySelector(`[data-stop-cp="${idx}"]`);
+    if (sw && cp) {
+      sw.addEventListener('click', () => cp.click());
+      cp.addEventListener('input', () => {
+        l.properties.stops[idx].color = cp.value;
+        sw.style.background = cp.value;
+        const hexIn = row.querySelector(`[data-stop-hex="${idx}"]`);
+        if (hexIn && document.activeElement !== hexIn) hexIn.value = cp.value.toUpperCase();
+        const preview = document.querySelector(`[data-stops-lid="${id}"] .stops-preview`);
+        if (preview) preview.style.background = cssGradientFromStops(evenStopsForCss(l.properties.stops));
+        needsRecompile = true;
+      });
+      cp.addEventListener('change', () => snapshot());
+    }
+
+    // Hex input
+    const hexIn = row.querySelector(`[data-stop-hex="${idx}"]`);
+    if (hexIn) {
+      const commitHex = () => {
+        const raw = hexIn.value.trim();
+        const norm = normalizeHex(raw);
+        if (!norm) { hexIn.value = (l.properties.stops[idx].color || '#ffffff').toUpperCase(); return; }
+        l.properties.stops[idx].color = norm;
+        hexIn.value = norm.toUpperCase();
+        if (sw) sw.style.background = norm;
+        if (cp) cp.value = norm;
+        const preview = document.querySelector(`[data-stops-lid="${id}"] .stops-preview`);
+        if (preview) preview.style.background = cssGradientFromStops(evenStopsForCss(l.properties.stops));
         needsRecompile = true;
         snapshot();
-        renderRightPanel();
-        return;
-      }
-      // Select stop
-      selectedStopIdx = idx;
-      stopSelectionActive = true;
-      renderRightPanel();
+      };
+      hexIn.addEventListener('blur', commitHex);
+      hexIn.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); hexIn.blur(); }
+        if (e.key === 'Escape') { hexIn.value = (l.properties.stops[idx].color || '#ffffff').toUpperCase(); hexIn.blur(); }
+      });
+    }
 
-      // Drag to reposition
+    // × button remove
+    const rm = row.querySelector(`[data-stop-rm="${idx}"]`);
+    if (rm) {
+      rm.addEventListener('click', () => {
+        if (l.properties.stops.length <= 2) return;
+        l.properties.stops.splice(idx, 1);
+        snapshot();
+        refresh();
+      });
+    }
+
+    // Drag to reorder (native HTML5 DnD)
+    row.addEventListener('dragstart', (e) => {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', String(idx));
+      row.classList.add('dragging');
+    });
+    row.addEventListener('dragend', () => row.classList.remove('dragging'));
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      row.classList.add('drag-over');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      row.classList.remove('drag-over');
+      const from = parseInt(e.dataTransfer.getData('text/plain'));
+      if (isNaN(from) || from === idx) return;
       const stops = l.properties.stops;
-      const startX = e.clientX;
-      const startPos = stops[idx].position;
-      const dragStop = stops[idx];
-      let moved = false;
-      const onMove = (me) => {
-        const rect = strip.getBoundingClientRect();
-        const dx = (me.clientX - startX) / Math.max(1, rect.width);
-        dragStop.position = clamp01(startPos + dx);
-        moved = true;
-        // Don't re-sort during drag — keep reference; re-sort + renderUI on mouseup
-        needsRecompile = true;
-        // Live-update the thumb's position without full re-render:
-        const t = thumbLayer.querySelector(`.stops-thumb[data-stop-idx="${idx}"]`);
-        if (t) t.style.left = (dragStop.position * 100).toFixed(3) + '%';
-        const gEl = strip.querySelector('.stops-gradient');
-        if (gEl) gEl.style.background = cssGradientFromStops(stops);
-      };
-      const onUp = () => {
-        document.removeEventListener('mousemove', onMove);
-        document.removeEventListener('mouseup', onUp);
-        if (moved) {
-          // Re-sort and update selectedStopIdx to the same stop
-          const marker = dragStop;
-          stops.sort((a, b) => a.position - b.position);
-          selectedStopIdx = stops.indexOf(marker);
-          if (selectedStopIdx < 0) selectedStopIdx = 0;
-          snapshot();
-          renderRightPanel();
-        }
-      };
-      document.addEventListener('mousemove', onMove);
-      document.addEventListener('mouseup', onUp);
+      const [moved] = stops.splice(from, 1);
+      stops.splice(idx, 0, moved);
+      snapshot();
+      refresh();
     });
   });
+}
 
-  // Color picker for selected stop
-  const cp = document.getElementById(`stops-selcp-${id}`);
-  if (cp) {
-    cp.addEventListener('input', () => {
-      const s = l.properties.stops[selectedStopIdx];
-      if (!s) return;
-      s.color = cp.value;
-      // Update UI live without full re-render
-      const sw = document.getElementById(`stops-selswatch-${id}`);
-      if (sw) sw.style.background = cp.value;
-      const hx = document.getElementById(`stops-selhex-${id}`);
-      if (hx) hx.textContent = cp.value;
-      const thumb = thumbLayer.querySelector(`.stops-thumb[data-stop-idx="${selectedStopIdx}"]`);
-      if (thumb) thumb.style.background = cp.value;
-      const gEl = strip.querySelector('.stops-gradient');
-      if (gEl) gEl.style.background = cssGradientFromStops(l.properties.stops);
-      needsRecompile = true;
-    });
-    cp.addEventListener('change', () => snapshot());
+function normalizeHex(raw) {
+  let s = (raw || '').trim();
+  if (!s) return null;
+  if (s[0] !== '#') s = '#' + s;
+  if (/^#[0-9a-fA-F]{3}$/.test(s)) {
+    const r = s[1], g = s[2], b = s[3];
+    return ('#' + r + r + g + g + b + b).toLowerCase();
   }
+  if (/^#[0-9a-fA-F]{6}$/.test(s)) return s.toLowerCase();
+  return null;
 }
 
 function wirePropertiesZone(l) {
@@ -1021,18 +1428,47 @@ function wirePropertiesZone(l) {
   panel.querySelectorAll('input[type=color][data-lid]').forEach(cp => {
     const key = cp.dataset.key;
     const did = cp.dataset.did;
+    const hid = cp.dataset.hid;
     cp.addEventListener('input', () => {
       updateLayerProp(l.id, key, cp.value);
       const sw = document.getElementById(did);
       if (sw) sw.style.background = cp.value;
-      const hex = cp.closest('.ctrl-color-row')?.querySelector('.swatch-hex');
-      if (hex) hex.textContent = cp.value;
+      const hx = hid ? document.getElementById(hid) : cp.closest('.ctrl-color-row')?.querySelector('.swatch-hex');
+      if (hx && document.activeElement !== hx) {
+        if ('value' in hx) hx.value = cp.value.toUpperCase();
+        else hx.textContent = cp.value.toUpperCase();
+      }
     });
     cp.addEventListener('change', () => snapshot());
   });
 
-  // Wire toggles
-  panel.querySelectorAll('.toggle-wrap[id]').forEach(wrap => {
+  // Wire hex text inputs — commit on blur/Enter
+  panel.querySelectorAll('.swatch-hex-input[data-lid]').forEach(hx => {
+    const key = hx.dataset.key;
+    const did = hx.dataset.did;
+    const cid = hx.dataset.cid;
+    const commit = () => {
+      const norm = normalizeHex(hx.value);
+      if (!norm) { hx.value = (l.properties[key] || '#ffffff').toUpperCase(); return; }
+      updateLayerProp(l.id, key, norm);
+      hx.value = norm.toUpperCase();
+      const sw = document.getElementById(did);
+      if (sw) sw.style.background = norm;
+      const cp = document.getElementById(cid);
+      if (cp) cp.value = norm;
+      snapshot();
+    };
+    hx.addEventListener('blur', commit);
+    hx.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); hx.blur(); }
+      if (e.key === 'Escape') { hx.value = (l.properties[key] || '#ffffff').toUpperCase(); hx.blur(); }
+    });
+    // Avoid opening picker when clicking into the input
+    hx.addEventListener('click', e => e.stopPropagation());
+  });
+
+  // Wire toggles (skip ae-toggles — handled in wireEffectsZone)
+  panel.querySelectorAll('.toggle-wrap[id]:not(.ae-toggle):not(.fill-mode-toggle)').forEach(wrap => {
     const [offBtn, onBtn] = wrap.querySelectorAll('.toggle-opt');
     const key = wrap.id.replace(/^tg-\d+-/, '');
     [offBtn, onBtn].forEach(btn => {
@@ -1042,6 +1478,20 @@ function wirePropertiesZone(l) {
         offBtn.classList.toggle('active', val === 0);
         onBtn.classList.toggle('active',  val === 1);
         snapshot();
+      });
+    });
+  });
+
+  // Wire fill-mode toggle (shape layers)
+  panel.querySelectorAll('.fill-mode-toggle').forEach(wrap => {
+    wrap.querySelectorAll('[data-fillmode]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.fillmode;
+        if (l.properties.fillMode === mode) return;
+        l.properties.fillMode = mode;
+        needsRecompile = true;
+        snapshot();
+        renderRightPanel();
       });
     });
   });
@@ -1167,6 +1617,8 @@ function closeAllOverlays() {
   if (mo && !mo.classList.contains('hidden')) { closeModal(); closed = true; }
   const co = document.getElementById('confirm-overlay');
   if (co && !co.classList.contains('hidden')) { closeConfirm(false); closed = true; }
+  const no = document.getElementById('name-overlay');
+  if (no && !no.classList.contains('hidden')) { closeNameDialog(null); closed = true; }
   if (!layerPopover.classList.contains('hidden')) { closeLayerPopover(); closed = true; }
   if (!ctxMenu.classList.contains('hidden')) { closeCtxMenu(); closed = true; }
   return closed;
@@ -1290,12 +1742,22 @@ function showToast(msg, isError) {
 
 // ── Save / Open .frakt ─────────────────────────────────────────
 const KNOWN_LAYER_TYPES = new Set([
-  'solid','gradient','mesh-gradient','image',
+  'solid','gradient','mesh-gradient','image','rectangle','circle',
   'noise-warp','wave','liquid','grain','chromatic-aberration',
   'vignette','color-grade','posterize','pixelate','scanlines'
 ]);
 
-function saveFraktFile() {
+async function saveFraktFile() {
+  const chosen = await showNameDialog({
+    title: 'Save as',
+    defaultName: fileName || 'untitled',
+    ext: '.frakt',
+    okLabel: 'Save'
+  });
+  if (!chosen) return;
+  fileName = chosen;
+  const lbl = document.getElementById('topbar-file-label');
+  if (lbl) lbl.textContent = fileName;
   const data = {
     version: '1',
     name: fileName,
@@ -1313,10 +1775,10 @@ function saveFraktFile() {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `${fileName || 'untitled'}.frakt`;
+  a.href = url; a.download = `${fileName}.frakt`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-  showToast(`Saved ${fileName || 'untitled'}.frakt`);
+  showToast(`Saved ${fileName}.frakt`);
 }
 
 function openFraktFile() {

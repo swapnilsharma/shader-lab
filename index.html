@@ -35,6 +35,16 @@
   <div class="ctx-item" data-action="move-bottom"><span class="ctx-label">Move to Bottom</span></div>
 </div>
 
+<!-- ═══ ADD ATTACHED EFFECT POPOVER (per-layer) ═══ -->
+<div class="layer-popover hidden" id="effect-popover">
+  <div class="pop-label">EFFECTS</div>
+  <div class="pop-item" data-ae-type="grain">Grain</div>
+  <div class="pop-item" data-ae-type="color-grade">Color Grade</div>
+  <div class="pop-item" data-ae-type="vignette">Vignette</div>
+  <div class="pop-item" data-ae-type="posterize">Posterize</div>
+  <div class="pop-item" data-ae-type="scanlines">Scanlines</div>
+</div>
+
 <!-- ═══ ADD LAYER POPOVER ═══ -->
 <div class="layer-popover hidden" id="layer-popover">
   <div class="pop-label">CONTENT</div>
@@ -42,10 +52,12 @@
   <div class="pop-item" data-type="gradient">Gradient</div>
   <div class="pop-item" data-type="mesh-gradient">Mesh Gradient</div>
   <div class="pop-item" data-type="image">Image</div>
+  <div class="pop-item" data-type="wave">Wave</div>
+  <div class="pop-item" data-type="rectangle">Rectangle</div>
+  <div class="pop-item" data-type="circle">Circle</div>
   <div class="pop-divider"></div>
   <div class="pop-label">EFFECTS</div>
   <div class="pop-item" data-type="noise-warp">Noise Warp</div>
-  <div class="pop-item" data-type="wave">Wave</div>
   <div class="pop-item" data-type="liquid">Liquid</div>
   <div class="pop-item" data-type="grain">Grain</div>
   <div class="pop-item" data-type="chromatic-aberration">Chromatic Aberration</div>
@@ -119,6 +131,7 @@
     <!-- CANVAS -->
     <main class="canvas-area" id="canvas-area">
       <canvas id="glcanvas"></canvas>
+      <div class="shape-outline hidden" id="shape-outline"></div>
     </main>
 
     <!-- RIGHT PANEL -->
@@ -150,6 +163,21 @@
     <div class="confirm-actions">
       <button class="confirm-btn confirm-btn--cancel" id="confirm-cancel">Cancel</button>
       <button class="confirm-btn confirm-btn--ok" id="confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FILENAME DIALOG ═══ -->
+<div class="name-overlay hidden" id="name-overlay">
+  <div class="name-dialog">
+    <div class="name-title" id="name-title">Save as</div>
+    <div class="name-input-row">
+      <input type="text" class="name-input" id="name-input" spellcheck="false" autocomplete="off">
+      <span class="name-ext" id="name-ext">.frakt</span>
+    </div>
+    <div class="name-actions">
+      <button class="name-btn name-btn--cancel" id="name-cancel">Cancel</button>
+      <button class="name-btn name-btn--ok" id="name-ok">Save</button>
     </div>
   </div>
 </div>
