@@ -63,10 +63,13 @@
   <div class="pop-label">EFFECTS</div>
   <div class="pop-item" data-type="noise-warp">Noise Warp</div>
   <div class="pop-item" data-type="liquid">Liquid</div>
+  <div class="pop-item" data-type="ripple">Ripple</div>
   <div class="pop-item" data-type="grain">Grain</div>
   <div class="pop-item" data-type="chromatic-aberration">Chromatic Aberration</div>
   <div class="pop-item" data-type="vignette">Vignette</div>
   <div class="pop-item" data-type="color-grade">Color Grade</div>
+  <div class="pop-item" data-type="duotone">Duotone</div>
+  <div class="pop-item" data-type="bloom">Bloom</div>
   <div class="pop-item" data-type="posterize">Posterize</div>
   <div class="pop-item" data-type="pixelate">Pixelate</div>
   <div class="pop-item" data-type="scanlines">Scanlines</div>
@@ -107,6 +110,9 @@
       <button class="tb-btn tb-btn--labeled" onclick="saveFraktFile()" title="Save .frakt" id="btn-save">
         <span>Save</span><span class="tb-shortcut" data-shortcut="save"></span>
       </button>
+      <button class="tb-btn tb-btn--labeled" id="btn-capture" onclick="captureCanvasPNG()" title="Capture PNG @2x">
+        <span>Capture</span><span class="tb-shortcut" data-shortcut="capture"></span>
+      </button>
       <button class="tb-btn tb-btn--primary tb-btn--labeled" id="btn-export" onclick="copyCode()" title="Export as GLSL">
         <span>Export</span><span class="tb-shortcut" data-shortcut="export"></span>
       </button>
@@ -120,7 +126,7 @@
     <aside class="panel-left">
       <div class="panel-header">
         <span class="panel-label">LAYERS</span>
-        <button class="btn-add-layer" id="btn-add-layer" title="Add layer">+ ▾<span class="btn-shortcut" data-shortcut="addlayer"></span></button>
+        <button class="btn-add-layer" id="btn-add-layer" title="Insert layer">+ Insert<span class="btn-shortcut" data-shortcut="addlayer"></span></button>
       </div>
       <div class="layer-stack" id="layer-stack"></div>
       <div class="frame-layer-area">

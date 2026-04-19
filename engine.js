@@ -7,7 +7,11 @@
 let layers = [];           // Array<LayerObject>, index 0 = topmost in panel
 let layerIdCounter = 0;
 let selectedLayerId = null;
-let frameState = { bg: '#111111', w: 800, h: 600, radius: 0 };
+let frameState = { bg: '#111111', w: 800, h: 600, radius: 0, aspect: null };
+// Frame radius is stored as a percentage (0-50). 50% = maximum rounding.
+function frameRadiusPx() {
+  return (frameState.radius / 100) * Math.min(frameState.w, frameState.h);
+}
 let fileName = 'untitled';
 let playing = true;
 let timeOffset = performance.now();
@@ -16,6 +20,7 @@ let needsRecompile = true;
 
 // Image state
 let baseImageTex = null;
+let baseImageElement = null;
 let hasBaseImage = false;
 let imageAspectRatio = 1.0;
 let baseImageName = '';
@@ -113,6 +118,9 @@ function defaultProperties(type) {
     case 'posterize':    return { bands: 5, mix: 1.0, c1: '#82C67C', c2: '#336B51', c3: '#257847', c4: '#0F4140' };
     case 'pixelate':     return { size: 4 };
     case 'scanlines':    return { count: 120, dark: 0.4, soft: 0.3, scroll: 0, scrollspd: 0.3 };
+    case 'duotone':      return { shadow: '#000000', light: '#ffffff', blend: 1.0 };
+    case 'bloom':        return { threshold: 0.7, strength: 0.5, radius: 1.0 };
+    case 'ripple':       return { cx: 0.5, cy: 0.5, freq: 10.0, amp: 0.03, spd: 1.0, decay: 2.0 };
     default:             return {};
   }
 }
@@ -126,7 +134,7 @@ function layerIcon(type) {
 }
 
 function defaultLayerName(type) {
-  const NAMES = { solid:'Solid', gradient:'Gradient', 'mesh-gradient':'Mesh Gradient', image:'Image', 'noise-warp':'Noise Warp', wave:'Wave', rectangle:'Rectangle', circle:'Circle', liquid:'Liquid', grain:'Grain', 'chromatic-aberration':'Chromatic Aberration', vignette:'Vignette', 'color-grade':'Color Grade', posterize:'Posterize', pixelate:'Pixelate', scanlines:'Scanlines' };
+  const NAMES = { solid:'Solid', gradient:'Gradient', 'mesh-gradient':'Mesh Gradient', image:'Image', 'noise-warp':'Noise Warp', wave:'Wave', rectangle:'Rectangle', circle:'Circle', liquid:'Liquid', grain:'Grain', 'chromatic-aberration':'Chromatic Aberration', vignette:'Vignette', 'color-grade':'Color Grade', posterize:'Posterize', pixelate:'Pixelate', scanlines:'Scanlines', duotone:'Duotone', bloom:'Bloom', ripple:'Ripple' };
   return NAMES[type] || type;
 }
 
@@ -354,7 +362,7 @@ function applyFrame() {
   canvas.width = frameState.w; canvas.height = frameState.h;
   canvas.style.width = ''; canvas.style.height = '';
   canvas.style.maxWidth = '100%'; canvas.style.maxHeight = '100%';
-  canvas.style.borderRadius = frameState.radius + 'px';
+  canvas.style.borderRadius = frameRadiusPx() + 'px';
   gl.viewport(0, 0, frameState.w, frameState.h);
   document.getElementById('status-dims').textContent = `${frameState.w} × ${frameState.h}`;
   needsRecompile = true;
@@ -363,22 +371,44 @@ function applyFrame() {
 function onFrameWChange(v) {
   frameState.w = Math.max(100, Math.min(7680, parseInt(v)||800));
   document.getElementById('frame-w-inp').value = frameState.w;
+  frameState.aspect = null;
   applyFrame();
+  if (selectedLayerId === 'frame') updateAspectButtons();
 }
 function onFrameHChange(v) {
   frameState.h = Math.max(100, Math.min(4320, parseInt(v)||600));
   document.getElementById('frame-h-inp').value = frameState.h;
+  frameState.aspect = null;
   applyFrame();
+  if (selectedLayerId === 'frame') updateAspectButtons();
 }
 function setFrameSize(w, h) {
-  frameState.w = w; frameState.h = h; applyFrame();
+  frameState.w = w; frameState.h = h; frameState.aspect = null; applyFrame();
   if (selectedLayerId === 'frame') renderRightPanel();
 }
+// Applies an aspect ratio preset. Keeps the larger dimension = current frame width
+// (so 1:1 from a 1920×1080 frame produces 1920×1920, 9:16 produces 1920×3413, etc.).
+function setFrameAspect(key, rw, rh) {
+  const base = frameState.w;
+  let nw, nh;
+  if (rw >= rh) { nw = base; nh = Math.round(base * rh / rw); }
+  else          { nh = base; nw = Math.round(base * rw / rh); }
+  nw = Math.max(100, Math.min(7680, nw));
+  nh = Math.max(100, Math.min(4320, nh));
+  frameState.w = nw; frameState.h = nh; frameState.aspect = key;
+  applyFrame();
+  if (selectedLayerId === 'frame') renderRightPanel();
+}
+function updateAspectButtons() {
+  document.querySelectorAll('.frame-ar-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.ar === frameState.aspect);
+  });
+}
 function onFrameRadius(v) {
-  frameState.radius = parseInt(v)||0;
-  canvas.style.borderRadius = frameState.radius + 'px';
+  const n = parseInt(v); frameState.radius = Math.max(0, Math.min(50, isFinite(n)?n:0));
+  canvas.style.borderRadius = frameRadiusPx() + 'px';
   const el = document.getElementById('frame-radius-val');
-  if (el) el.textContent = frameState.radius;
+  if (el) el.textContent = frameState.radius + '%';
 }
 function onBgColor(hex) {
   frameState.bg = hex;
@@ -422,6 +452,7 @@ function loadBaseImage(file) {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     hasBaseImage = true;
+    baseImageElement = img;
     baseImageName = file.name.length > 20 ? file.name.slice(0,18)+'…' : file.name;
     // Ensure image layer exists
     if (!layers.find(l => l.type === 'image')) { addLayer('image'); return; }
@@ -1059,6 +1090,30 @@ function renderTypeControls(l) {
         renderSlider(id,'scrollspd','Scroll Speed',p.scrollspd||0.3,0,2.0,0.05),
       ].join('');
 
+    case 'duotone':
+      return [
+        renderColorRow(id,'shadow',p.shadow||'#000000','Shadow'),
+        renderColorRow(id,'light',p.light||'#ffffff','Light'),
+        renderSlider(id,'blend','Blend',p.blend!=null?p.blend:1.0,0,1.0,0.01),
+      ].join('');
+
+    case 'bloom':
+      return [
+        renderSlider(id,'threshold','Threshold',p.threshold!=null?p.threshold:0.7,0,1.0,0.01),
+        renderSlider(id,'strength','Strength',p.strength!=null?p.strength:0.5,0,3.0,0.01),
+        renderSlider(id,'radius','Radius',p.radius!=null?p.radius:1.0,0.25,4.0,0.05),
+      ].join('');
+
+    case 'ripple':
+      return [
+        renderSlider(id,'cx','Center X',p.cx!=null?p.cx:0.5,0,1.0,0.01),
+        renderSlider(id,'cy','Center Y',p.cy!=null?p.cy:0.5,0,1.0,0.01),
+        renderSlider(id,'freq','Frequency',p.freq!=null?p.freq:10.0,1.0,40.0,0.5),
+        renderSlider(id,'amp','Amplitude',p.amp!=null?p.amp:0.03,0,0.2,0.001),
+        renderSlider(id,'spd','Speed',p.spd!=null?p.spd:1.0,-4,4,0.05),
+        renderSlider(id,'decay','Decay',p.decay!=null?p.decay:2.0,0,8.0,0.1),
+      ].join('');
+
     default: return `<div style="color:var(--text-secondary);font-size:10px;">No properties</div>`;
   }
 }
@@ -1083,7 +1138,7 @@ function renderEffectsZone(l) {
   return `<div class="rp-zone ae-zone">
     <div class="rp-zone-label ae-zone-head">
       <span>Effects</span>
-      <button class="btn-add-effect" data-lid="${l.id}" title="Add effect">+</button>
+      <button class="btn-add-effect" data-lid="${l.id}" title="Insert effect">+</button>
     </div>
     <div class="ae-list">${rows || '<div class="ae-empty">No effects</div>'}</div>
   </div>`;
@@ -1218,6 +1273,10 @@ function wireEffectsZone(l) {
 // ── Frame Zone ─────────────────────────────────────────────────
 function renderFrameZone() {
   const fs = frameState;
+  const ARS = [['1:1',1,1],['16:9',16,9],['9:16',9,16],['4:3',4,3],['3:4',3,4]];
+  const arBtns = ARS.map(([label,w,h]) =>
+    `<button class="frame-ar-btn${fs.aspect===label?' active':''}" data-ar="${label}" onclick="setFrameAspect('${label}',${w},${h})">${label}</button>`
+  ).join('');
   return `<div class="rp-zone">
     <div class="rp-zone-label">Dimensions</div>
     <div class="frame-dims-row">
@@ -1228,14 +1287,16 @@ function renderFrameZone() {
       <input class="frame-dim-input" id="frame-h-inp" type="number" value="${fs.h}" min="100" max="4320">
       <span class="frame-px">px</span>
     </div>
+    <div class="frame-ar-label">PRESETS</div>
+    <div class="frame-ar-row">${arBtns}</div>
     <div class="frame-size-chips">
       ${[['720×720','720,720'],['1200×630','1200,630'],['1080×1920','1080,1920'],['1920×1080','1920,1080']].map(([l,v]) =>
         `<button class="frame-chip" onclick="setFrameSize(${v})">${l}</button>`).join('')}
     </div>
     <div class="ctrl-row" style="margin-top:10px;">
       <span class="ctrl-label">Radius</span>
-      <input type="range" class="ctrl-slider" id="frame-radius-sl" min="0" max="120" step="1" value="${fs.radius}" oninput="onFrameRadius(this.value)">
-      <span class="ctrl-value" id="frame-radius-val">${fs.radius}</span>
+      <input type="range" class="ctrl-slider" id="frame-radius-sl" min="0" max="50" step="1" value="${fs.radius}" oninput="onFrameRadius(this.value)">
+      <span class="ctrl-value" id="frame-radius-val">${fs.radius}%</span>
     </div>
   </div>
   <div class="rp-zone">
@@ -1330,7 +1391,7 @@ function renderStopsStrip(l) {
     <div class="rp-zone-sublabel" style="font-size:9px;color:var(--text-secondary);margin-bottom:6px;letter-spacing:0.06em;">COLOR STOPS <span style="opacity:0.7">${stops.length}/6</span></div>
     <div class="stops-preview" style="background:${bgCss};"></div>
     <div class="stops-list" id="stops-list-${id}">${rows}</div>
-    <button class="stops-add" id="stops-add-${id}" ${canAdd ? '' : 'disabled'} title="${canAdd ? 'Add stop' : 'Maximum 6 stops'}">+ Add stop</button>
+    <button class="stops-add" id="stops-add-${id}" ${canAdd ? '' : 'disabled'} title="${canAdd ? 'Insert stop' : 'Maximum 6 stops'}">+ Insert stop</button>
   </div>`;
 }
 
@@ -1711,6 +1772,7 @@ const SHORTCUTS = {
   save:     MOD_SYM + 'S',
   open:     MOD_SYM + 'O',
   export:   MOD_SYM + 'E',
+  capture:  MOD_SYM + 'P',
   dup:      MOD_SYM + 'D'
 };
 
@@ -1726,7 +1788,8 @@ function renderShortcutHints() {
   const bo = document.getElementById('btn-open');  if (bo)  bo.title  = 'Open .frakt (' + SHORTCUTS.open + ')';
   const be = document.getElementById('btn-export');if (be)  be.title  = 'Export GLSL (' + SHORTCUTS.export + ')';
   const bp = document.getElementById('btn-play');  if (bp)  bp.title  = 'Play / Pause (Space)';
-  const ba = document.getElementById('btn-add-layer'); if (ba) ba.title = 'Add layer (' + SHORTCUTS.addlayer + ')';
+  const ba = document.getElementById('btn-add-layer'); if (ba) ba.title = 'Insert layer (' + SHORTCUTS.addlayer + ')';
+  const bc = document.getElementById('btn-capture'); if (bc) bc.title = 'Capture PNG (' + SHORTCUTS.capture + ')';
 }
 
 function isTypingInField() {
@@ -1787,6 +1850,8 @@ document.addEventListener('keydown', e => {
   if (mod && (e.key === 'o' || e.key === 'O')) { e.preventDefault(); openFraktFile(); return; }
   // Cmd+E — export GLSL
   if (mod && (e.key === 'e' || e.key === 'E')) { e.preventDefault(); copyCode(); return; }
+  // Cmd+P — capture canvas as PNG @2x
+  if (mod && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); captureCanvasPNG(); return; }
   // Cmd+D — duplicate selected layer
   if (mod && (e.key === 'd' || e.key === 'D')) {
     if (typeof selectedLayerId === 'number') { e.preventDefault(); duplicateLayer(selectedLayerId); }

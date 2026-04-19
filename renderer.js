@@ -60,7 +60,7 @@ function hexToRgb(h) {
 // (they write directly to `col`) rather than returning a color via contentFn_*.
 const CONTENT_TYPES = new Set(['solid','gradient','mesh-gradient','image','wave','rectangle','circle']);
 const CONTENT_TYPES_WITH_FN = new Set(['solid','gradient','mesh-gradient','image']);
-const UV_PREP_TYPES = new Set(['noise-warp','pixelate']);
+const UV_PREP_TYPES = new Set(['noise-warp','pixelate','ripple']);
 
 function isContent(t)       { return CONTENT_TYPES.has(t); }
 function isContentWithFn(t) { return CONTENT_TYPES_WITH_FN.has(t); }
@@ -269,6 +269,13 @@ function glslUniformDecls(layers) {
         s += `uniform vec3 ${u('po',id,'c1')},${u('po',id,'c2')},${u('po',id,'c3')},${u('po',id,'c4')};\n`; break;
       case 'scanlines':
         s += `uniform float ${u('sc',id,'n')},${u('sc',id,'d')},${u('sc',id,'f')},${u('sc',id,'sc')},${u('sc',id,'ss')};\n`; break;
+      case 'duotone':
+        s += `uniform vec3 ${u('dt',id,'sh')},${u('dt',id,'li')};\n`;
+        s += `uniform float ${u('dt',id,'bl')};\n`; break;
+      case 'bloom':
+        s += `uniform float ${u('bl',id,'th')},${u('bl',id,'st')},${u('bl',id,'rd')};\n`; break;
+      case 'ripple':
+        s += `uniform float ${u('rp',id,'cx')},${u('rp',id,'cy')},${u('rp',id,'fq')},${u('rp',id,'am')},${u('rp',id,'sp')},${u('rp',id,'dc')};\n`; break;
     }
     if (l.type !== 'frame') s += `uniform float u_op_${id};\n`;
   });
@@ -397,6 +404,14 @@ function glslEffectInline(l) {
       const n=u('sc',id,'n'),d=u('sc',id,'d'),f=u('sc',id,'f'),sc=u('sc',id,'sc'),ss=u('sc',id,'ss');
       return `  {float slY=rawuv.y;if(${sc}>0.5)slY=fract(rawuv.y+u_t*${ss});float sl=smoothstep(${f},1.0,abs(sin(slY*${n}*3.14159)));col*=1.0-sl*${d}*u_op_${id};}\n`;
     }
+    case 'duotone': {
+      const sh=u('dt',id,'sh'),li=u('dt',id,'li'),bl=u('dt',id,'bl');
+      return `  {\n    float dtLum=dot(col,vec3(0.299,0.587,0.114));\n    vec3 dtRes=mix(${sh},${li},dtLum);\n    col=mix(col,dtRes,${bl}*u_op_${id});\n  }\n`;
+    }
+    case 'bloom': {
+      const th=u('bl',id,'th'),st=u('bl',id,'st'),rd=u('bl',id,'rd');
+      return `  {\n    float blLum=dot(col,vec3(0.299,0.587,0.114));\n    float blMask=smoothstep(${th}-0.05*${rd},${th}+0.15*${rd},blLum);\n    vec3 blGlow=col*blMask*${st}*${rd};\n    col=col+blGlow*u_op_${id};\n    col=clamp(col,0.0,1.0);\n  }\n`;
+    }
     default: return '';
   }
 }
@@ -450,20 +465,19 @@ function buildFragFromLayers(layers, frameState) {
   function emitUvAbove(idx) {
     let out = '    vec2 wuv=uv;\n';
     const above = vis.slice(0, idx);
-    const pix = above.filter(l => l.type === 'pixelate');
-    const nws = above.filter(l => l.type === 'noise-warp');
-    pix.forEach(l => {
-      const sz = u('px', l.id, 's');
-      out += `    wuv=floor(wuv*(u_res/${sz}))/(u_res/${sz});\n`;
-    });
-    if (nws.length) {
-      out += '    vec2 nwSrc=wuv;\n';
-      nws.forEach(l => {
+    above.forEach(l => {
+      if (l.type === 'pixelate') {
+        const sz = u('px', l.id, 's');
+        out += `    wuv=floor(wuv*(u_res/${sz}))/(u_res/${sz});\n`;
+      } else if (l.type === 'noise-warp') {
         const id=l.id, str=u('nw',id,'str'), sc=u('nw',id,'sc'), sp=u('nw',id,'sp'), oc=u('nw',id,'oc'), ang=u('nw',id,'ang');
-        out += `    {\n      vec2 nwDrift=vec2(cos(${ang}),sin(${ang}))*t*${sp};\n`;
+        out += `    {\n      vec2 nwSrc=wuv;\n      vec2 nwDrift=vec2(cos(${ang}),sin(${ang}))*t*${sp};\n`;
         out += `      wuv+=${str}*vec2(fbm(nwSrc*${sc}+nwDrift,${oc})-0.5,fbm(nwSrc*${sc}+nwDrift+vec2(5.2,1.3),${oc})-0.5);\n    }\n`;
-      });
-    }
+      } else if (l.type === 'ripple') {
+        const id=l.id, cx=u('rp',id,'cx'), cy=u('rp',id,'cy'), fq=u('rp',id,'fq'), am=u('rp',id,'am'), sp=u('rp',id,'sp'), dc=u('rp',id,'dc');
+        out += `    {\n      float ar=u_res.x/u_res.y;\n      vec2 rpC=vec2(${cx},${cy});\n      vec2 rpD=(wuv-rpC)*vec2(ar,1.0);\n      float rpLen=length(rpD);\n      float rpPhase=sin(rpLen*${fq} - u_t*${sp})*${am}*exp(-rpLen*${dc});\n      vec2 rpDir=rpLen>0.0001?rpD/rpLen:vec2(0.0);\n      wuv+=rpDir*vec2(1.0/ar,1.0)*rpPhase;\n    }\n`;
+      }
+    });
     return out;
   }
 
@@ -479,7 +493,7 @@ function buildFragFromLayers(layers, frameState) {
 
   // Walk bottom→top. UV-prep/CA layers contribute via the "above" lookups only.
   [...vis].reverse().forEach(l => {
-    if (l.type === 'noise-warp' || l.type === 'pixelate' || l.type === 'chromatic-aberration') return;
+    if (l.type === 'noise-warp' || l.type === 'pixelate' || l.type === 'ripple' || l.type === 'chromatic-aberration') return;
 
     const idx = vis.indexOf(l);
     s += '  {\n';
@@ -780,6 +794,29 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         glCtx.uniform1f(ul(u('sc',id,'ss')), p.scrollspd||0.3);
         break;
       }
+      case 'duotone': {
+        const sh = hexToRgb(p.shadow || '#000000');
+        const li = hexToRgb(p.light  || '#ffffff');
+        glCtx.uniform3f(ul(u('dt',id,'sh')), ...sh);
+        glCtx.uniform3f(ul(u('dt',id,'li')), ...li);
+        glCtx.uniform1f(ul(u('dt',id,'bl')), p.blend != null ? p.blend : 1.0);
+        break;
+      }
+      case 'bloom': {
+        glCtx.uniform1f(ul(u('bl',id,'th')), p.threshold != null ? p.threshold : 0.7);
+        glCtx.uniform1f(ul(u('bl',id,'st')), p.strength  != null ? p.strength  : 0.5);
+        glCtx.uniform1f(ul(u('bl',id,'rd')), p.radius    != null ? p.radius    : 1.0);
+        break;
+      }
+      case 'ripple': {
+        glCtx.uniform1f(ul(u('rp',id,'cx')), p.cx    != null ? p.cx    : 0.5);
+        glCtx.uniform1f(ul(u('rp',id,'cy')), p.cy    != null ? p.cy    : 0.5);
+        glCtx.uniform1f(ul(u('rp',id,'fq')), p.freq  != null ? p.freq  : 10.0);
+        glCtx.uniform1f(ul(u('rp',id,'am')), p.amp   != null ? p.amp   : 0.03);
+        glCtx.uniform1f(ul(u('rp',id,'sp')), p.spd   != null ? p.spd   : 1.0);
+        glCtx.uniform1f(ul(u('rp',id,'dc')), p.decay != null ? p.decay : 2.0);
+        break;
+      }
     }
   });
 }
@@ -909,6 +946,69 @@ function createMiniRenderer(cvs, presetName) {
 function stopAllMiniRenderers() {
   miniRenderers.forEach(r => r.stop());
   miniRenderers = [];
+}
+
+// ── PNG Capture (@2x, instant) ─────────────────────────────────
+function captureCanvasPNG() {
+  const W = frameState.w * 2, H = frameState.h * 2;
+  const off = document.createElement('canvas');
+  off.width = W; off.height = H;
+  const ogl = off.getContext('webgl', { preserveDrawingBuffer: true });
+  if (!ogl) { showToast('Capture failed: WebGL unavailable', true); return; }
+
+  const oNoise = initNoiseTex(ogl);
+  const fsrc = buildFragFromLayers(layers, frameState);
+  const vs = mkShader(ogl, ogl.VERTEX_SHADER, VERT);
+  const fs = mkShader(ogl, ogl.FRAGMENT_SHADER, fsrc);
+  if (!vs || !fs) { showToast('Capture failed: shader compile', true); return; }
+  const op = ogl.createProgram();
+  ogl.attachShader(op, vs); ogl.attachShader(op, fs); ogl.linkProgram(op);
+  if (!ogl.getProgramParameter(op, ogl.LINK_STATUS)) { showToast('Capture failed: link', true); return; }
+  ogl.useProgram(op);
+  const ovb = ogl.createBuffer();
+  ogl.bindBuffer(ogl.ARRAY_BUFFER, ovb);
+  ogl.bufferData(ogl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), ogl.STATIC_DRAW);
+  const opl = ogl.getAttribLocation(op, 'p');
+  ogl.enableVertexAttribArray(opl); ogl.vertexAttribPointer(opl, 2, ogl.FLOAT, false, 0, 0);
+  ogl.viewport(0, 0, W, H);
+
+  let oImgTex = null;
+  if (hasBaseImage && baseImageTex) {
+    try {
+      const img2d = document.createElement('canvas');
+      img2d.width = 1; img2d.height = 1;
+      // We can't copy a texture across contexts; re-upload from the source if available.
+    } catch (_) {}
+    // baseImageTex lives on main gl; re-upload via the stored HTMLImageElement if present
+    if (typeof baseImageElement !== 'undefined' && baseImageElement) {
+      oImgTex = ogl.createTexture();
+      ogl.activeTexture(ogl.TEXTURE0);
+      ogl.bindTexture(ogl.TEXTURE_2D, oImgTex);
+      ogl.texImage2D(ogl.TEXTURE_2D, 0, ogl.RGBA, ogl.RGBA, ogl.UNSIGNED_BYTE, baseImageElement);
+      ogl.texParameteri(ogl.TEXTURE_2D, ogl.TEXTURE_MIN_FILTER, ogl.LINEAR);
+      ogl.texParameteri(ogl.TEXTURE_2D, ogl.TEXTURE_MAG_FILTER, ogl.LINEAR);
+      ogl.texParameteri(ogl.TEXTURE_2D, ogl.TEXTURE_WRAP_S, ogl.CLAMP_TO_EDGE);
+      ogl.texParameteri(ogl.TEXTURE_2D, ogl.TEXTURE_WRAP_T, ogl.CLAMP_TO_EDGE);
+    }
+  }
+
+  const now = performance.now();
+  const t = playing ? (now - timeOffset) / 1000 : (pausedAt - timeOffset) / 1000;
+  const fs2 = { ...frameState, w: W, h: H };
+  setUniformsForLayers(ogl, op, layers, fs2, t, oNoise, oImgTex, hasBaseImage && !!oImgTex, imageAspectRatio);
+  ogl.drawArrays(ogl.TRIANGLE_STRIP, 0, 4);
+
+  const raw = (typeof fileName !== 'undefined' && fileName.trim()) ? fileName.trim() : 'untitled';
+  const slug = raw.replace(/\s+/g, '_');
+  const outName = `frakt-image-capture-${slug}.png`;
+  off.toBlob((blob) => {
+    if (!blob) { showToast('Capture failed', true); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = outName; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast(`Captured ${outName}`);
+  }, 'image/png');
 }
 
 // ── Export ────────────────────────────────────────────────────

@@ -372,6 +372,19 @@ input.swatch-hex-input:focus {
 }
 .frame-chip:hover { border-color: #555; color: var(--text-primary); background: #222; }
 
+.frame-ar-label {
+  margin-top: 10px; font-size: 9px; letter-spacing: 0.08em;
+  color: var(--text-secondary); text-transform: uppercase;
+}
+.frame-ar-row { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.frame-ar-btn {
+  padding: 3px 8px; font-size: 10px; font-family: var(--font-mono);
+  background: #1a1a1a; border: 1px solid var(--border); border-radius: 2px;
+  color: var(--text-secondary); cursor: pointer; transition: all 0.1s;
+}
+.frame-ar-btn:hover { border-color: #555; color: var(--text-primary); background: #222; }
+.frame-ar-btn.active { border: 1px solid #e0e0e0; color: var(--text-primary); }
+
 /* ── Gradient Stops List ── */
 .stops-block { margin-bottom: 12px; }
 .stops-preview {
