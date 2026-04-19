@@ -420,19 +420,26 @@ function onBgColor(hex) {
 function togglePlay() {
   playing = !playing;
   const btn = document.getElementById('btn-play');
+  const gl = document.getElementById('btn-play-glyph');
   if (playing) {
     timeOffset += performance.now() - pausedAt;
-    btn.classList.add('active');
-    btn.innerHTML = `<svg viewBox="0 0 14 14" width="11" height="11"><polygon points="3,1 12,7 3,13" fill="currentColor"/></svg>`;
+    if (btn) btn.classList.add('active');
+    if (gl) gl.textContent = '⏸';
   } else {
     pausedAt = performance.now();
-    btn.classList.remove('active');
-    btn.innerHTML = `<svg viewBox="0 0 14 14" width="11" height="11"><rect x="3" y="2" width="3" height="10" rx="0.5" fill="currentColor"/><rect x="8" y="2" width="3" height="10" rx="0.5" fill="currentColor"/></svg>`;
+    if (btn) btn.classList.remove('active');
+    if (gl) gl.textContent = '▶';
   }
 }
 function restartTime() {
   timeOffset = performance.now(); pausedAt = performance.now();
-  if (!playing) { playing = true; const btn = document.getElementById('btn-play'); btn.classList.add('active'); btn.innerHTML = `<svg viewBox="0 0 14 14" width="11" height="11"><polygon points="3,1 12,7 3,13" fill="currentColor"/></svg>`; }
+  if (!playing) {
+    playing = true;
+    const btn = document.getElementById('btn-play');
+    const gl = document.getElementById('btn-play-glyph');
+    if (btn) btn.classList.add('active');
+    if (gl) gl.textContent = '⏸';
+  }
 }
 
 // ── Image Upload ───────────────────────────────────────────────
@@ -550,8 +557,13 @@ document.addEventListener('click', () => closeCtxMenu());
 
 // ── Layer Popover ──────────────────────────────────────────────
 const layerPopover = document.getElementById('layer-popover');
+function getInsertAnchor() {
+  return document.getElementById('btn-insert-top')
+      || document.getElementById('btn-add-layer');
+}
 function openLayerPopover() {
-  const btn = document.getElementById('btn-add-layer');
+  const btn = getInsertAnchor();
+  if (!btn) return;
   const r = btn.getBoundingClientRect();
   layerPopover.style.left = r.left + 'px';
   layerPopover.style.top  = (r.bottom + 4) + 'px';
@@ -559,15 +571,21 @@ function openLayerPopover() {
 }
 function closeLayerPopover() { layerPopover.classList.add('hidden'); }
 
-document.getElementById('btn-add-layer').addEventListener('click', e => {
-  e.stopPropagation();
-  layerPopover.classList.contains('hidden') ? openLayerPopover() : closeLayerPopover();
+['btn-insert-top', 'btn-add-layer'].forEach(id => {
+  const b = document.getElementById(id);
+  if (!b) return;
+  b.addEventListener('click', e => {
+    e.stopPropagation();
+    layerPopover.classList.contains('hidden') ? openLayerPopover() : closeLayerPopover();
+  });
 });
 layerPopover.querySelectorAll('.pop-item').forEach(item => {
   item.addEventListener('click', () => addLayer(item.dataset.type));
 });
 document.addEventListener('click', e => {
-  if (!e.target.closest('#layer-popover') && !e.target.closest('#btn-add-layer')) closeLayerPopover();
+  if (!e.target.closest('#layer-popover')
+      && !e.target.closest('#btn-add-layer')
+      && !e.target.closest('#btn-insert-top')) closeLayerPopover();
 });
 
 // ── Attached Effect Popover (per-layer) ────────────────────────
@@ -1769,12 +1787,106 @@ const SHORTCUTS = {
   addlayer: MOD_SYM + 'K',
   undo:     MOD_SYM + 'Z',
   redo:     MOD_SYM + '⇧Z',
+  new:      MOD_SYM + 'N',
   save:     MOD_SYM + 'S',
   open:     MOD_SYM + 'O',
   export:   MOD_SYM + 'E',
   capture:  MOD_SYM + 'P',
   dup:      MOD_SYM + 'D'
 };
+
+// ── Topbar Menus (File + Export dropdowns) ─────────────────────
+function closeMenus(except) {
+  ['menu-file', 'menu-export'].forEach(id => {
+    if (id === except) return;
+    const m = document.getElementById(id);
+    if (m) m.classList.add('hidden');
+  });
+}
+function toggleMenu(event, name) {
+  if (event) event.stopPropagation();
+  const id = 'menu-' + name;
+  const m = document.getElementById(id);
+  if (!m) return;
+  const willOpen = m.classList.contains('hidden');
+  closeMenus(willOpen ? id : null);
+  if (willOpen) m.classList.remove('hidden'); else m.classList.add('hidden');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.tb-menu-wrap')) closeMenus(null);
+});
+
+// ── New Scene ──────────────────────────────────────────────────
+async function newScene() {
+  if (layers && layers.length > 0) {
+    const ok = await showConfirm('Start a new scene?', 'Your current unsaved work will be lost.');
+    if (!ok) return;
+  }
+  layers = [];
+  selectedLayerId = null;
+  frameState.bg = '#000000';
+  fileName = 'untitled';
+  const lbl = document.getElementById('topbar-file-label');
+  if (lbl) lbl.textContent = fileName;
+  history = []; historyIdx = -1;
+  renderUI(); needsRecompile = true;
+  snapshot();
+  closeMenus(null);
+}
+
+// ── Export helpers ─────────────────────────────────────────────
+async function exportRawGLSL() { closeMenus(null); return copyCode(); }
+async function exportGLSLShadertoy() {
+  closeMenus(null);
+  const defaultName = (typeof fileName !== 'undefined' && fileName.trim()) ? fileName.trim() : 'shader';
+  const chosen = await showNameDialog({ title: 'Export Shadertoy', defaultName, ext: '.glsl', okLabel: 'Export' });
+  if (!chosen) return;
+  const raw = buildFragFromLayers(layers, frameState);
+  const body = raw
+    .replace(/^precision[^;]+;\s*/m, '')
+    .replace(/uniform\s+vec2\s+u_res\s*;\s*/, '')
+    .replace(/uniform\s+float\s+u_t\s*;\s*/, '')
+    .replace(/void\s+main\s*\(\s*\)\s*\{([\s\S]*)\}/, (_, inner) => {
+      return 'void mainImage( out vec4 fragColor, in vec2 fragCoord ) {\n'
+        + '  vec2 u_res = iResolution.xy;\n'
+        + '  float u_t  = iTime;\n'
+        + '  vec2 gl_FragCoord_ = fragCoord;\n'
+        + inner.replace(/gl_FragCoord/g, 'gl_FragCoord_')
+               .replace(/gl_FragColor/g, 'fragColor')
+        + '}';
+    });
+  const blob = new Blob([body], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = chosen + '.glsl'; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// Wire dropdown item clicks
+(function wireMenus() {
+  const mf = document.getElementById('menu-file');
+  if (mf) mf.querySelectorAll('.tb-menu-item').forEach(it => {
+    it.addEventListener('click', e => {
+      e.stopPropagation();
+      const a = it.dataset.act;
+      closeMenus(null);
+      if (a === 'new')  newScene();
+      if (a === 'open') openFraktFile();
+      if (a === 'save') saveFraktFile();
+    });
+  });
+  const me = document.getElementById('menu-export');
+  if (me) me.querySelectorAll('.tb-menu-item').forEach(it => {
+    if (it.classList.contains('tb-menu-item--disabled')) return;
+    it.addEventListener('click', e => {
+      e.stopPropagation();
+      const a = it.dataset.act;
+      closeMenus(null);
+      if (a === 'export-shadertoy') exportGLSLShadertoy();
+      if (a === 'export-raw')       exportRawGLSL();
+    });
+  });
+})();
 
 function renderShortcutHints() {
   document.querySelectorAll('[data-shortcut]').forEach(el => {
@@ -1811,6 +1923,10 @@ function closeAllOverlays() {
   if (no && !no.classList.contains('hidden')) { closeNameDialog(null); closed = true; }
   if (!layerPopover.classList.contains('hidden')) { closeLayerPopover(); closed = true; }
   if (!ctxMenu.classList.contains('hidden')) { closeCtxMenu(); closed = true; }
+  ['menu-file', 'menu-export'].forEach(id => {
+    const m = document.getElementById(id);
+    if (m && !m.classList.contains('hidden')) { m.classList.add('hidden'); closed = true; }
+  });
   return closed;
 }
 
@@ -1848,8 +1964,10 @@ document.addEventListener('keydown', e => {
   if (mod && (e.key === 's' || e.key === 'S')) { e.preventDefault(); saveFraktFile(); return; }
   // Cmd+O — open .frakt
   if (mod && (e.key === 'o' || e.key === 'O')) { e.preventDefault(); openFraktFile(); return; }
-  // Cmd+E — export GLSL
-  if (mod && (e.key === 'e' || e.key === 'E')) { e.preventDefault(); copyCode(); return; }
+  // Cmd+N — new scene
+  if (mod && (e.key === 'n' || e.key === 'N')) { e.preventDefault(); newScene(); return; }
+  // Cmd+E — open Export dropdown
+  if (mod && (e.key === 'e' || e.key === 'E')) { e.preventDefault(); toggleMenu(null, 'export'); return; }
   // Cmd+P — capture canvas as PNG @2x
   if (mod && (e.key === 'p' || e.key === 'P')) { e.preventDefault(); captureCanvasPNG(); return; }
   // Cmd+D — duplicate selected layer

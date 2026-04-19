@@ -79,43 +79,54 @@
 <div id="app">
   <!-- TOPBAR -->
   <header class="topbar">
-    <div class="topbar-left">
-      <span class="app-name">frakt</span>
-      <span class="topbar-sep">—</span>
-      <span class="topbar-file" id="topbar-file-label" title="Click to rename">untitled</span>
-      <div class="tb-sep"></div>
-      <button class="tb-btn tb-btn--labeled" id="btn-undo" onclick="undo()" title="Undo" disabled>
-        <span>Undo</span>
-        <span class="tb-shortcut" data-shortcut="undo"></span>
-      </button>
-      <button class="tb-btn tb-btn--labeled" id="btn-redo" onclick="redo()" title="Redo" disabled>
-        <span>Redo</span>
-        <span class="tb-shortcut" data-shortcut="redo"></span>
-      </button>
+    <!-- Line 1 — Identity + File actions -->
+    <div class="topbar-line topbar-line--1">
+      <div class="topbar-l1-left">
+        <div class="app-icon" aria-hidden="true"></div>
+        <span class="app-name">frakt</span>
+        <span class="topbar-sep">—</span>
+        <span class="topbar-file" id="topbar-file-label" title="Click to rename">untitled</span>
+        <div class="tb-menu-wrap">
+          <button class="tb-menu-btn" id="btn-file-menu" onclick="toggleMenu(event,'file')">File <span class="tb-caret">▾</span></button>
+          <div class="tb-menu hidden" id="menu-file">
+            <div class="tb-menu-item" data-act="new"><span class="tb-menu-label">New</span><span class="tb-menu-sc" data-shortcut="new"></span></div>
+            <div class="tb-menu-item" data-act="open"><span class="tb-menu-label">Open</span><span class="tb-menu-sc" data-shortcut="open"></span></div>
+            <div class="tb-menu-item" data-act="save"><span class="tb-menu-label">Save</span><span class="tb-menu-sc" data-shortcut="save"></span></div>
+          </div>
+        </div>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-l1-right">
+        <div class="tb-menu-wrap">
+          <button class="tb-export-btn" id="btn-export" onclick="toggleMenu(event,'export')">Export <span class="tb-caret tb-caret--dark">▾</span></button>
+          <div class="tb-menu tb-menu--right hidden" id="menu-export">
+            <div class="tb-menu-item" data-act="export-shadertoy"><span class="tb-menu-label">GLSL / Shadertoy</span></div>
+            <div class="tb-menu-item" data-act="export-raw"><span class="tb-menu-label">Raw GLSL</span></div>
+            <div class="tb-menu-divider"></div>
+            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Three.js</span><span class="tb-menu-soon">soon</span></div>
+            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Framer</span><span class="tb-menu-soon">soon</span></div>
+            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Android</span><span class="tb-menu-soon">soon</span></div>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="topbar-center">
-      <button class="tb-btn active" id="btn-play" onclick="togglePlay()" title="Play / Pause">
-        <svg viewBox="0 0 14 14" width="11" height="11"><polygon points="3,1 12,7 3,13" fill="currentColor"/></svg>
-      </button>
-      <button class="tb-btn" onclick="restartTime()" title="Restart">
-        <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 7a5 5 0 1 0 1.2-3.3"/><polyline points="1.5,2 2.5,5.5 6,4.5"/></svg>
-      </button>
-      <span class="topbar-time" id="topbar-time">0:00.0</span>
-    </div>
-    <div class="topbar-right">
-      <button class="tb-btn" onclick="openModal()" title="Open preset gallery">Presets</button>
-      <button class="tb-btn tb-btn--labeled" onclick="openFraktFile()" title="Open .frakt" id="btn-open">
-        <span>Open</span><span class="tb-shortcut" data-shortcut="open"></span>
-      </button>
-      <button class="tb-btn tb-btn--labeled" onclick="saveFraktFile()" title="Save .frakt" id="btn-save">
-        <span>Save</span><span class="tb-shortcut" data-shortcut="save"></span>
-      </button>
-      <button class="tb-btn tb-btn--labeled" id="btn-capture" onclick="captureCanvasPNG()" title="Capture PNG @2x">
-        <span>Capture</span><span class="tb-shortcut" data-shortcut="capture"></span>
-      </button>
-      <button class="tb-btn tb-btn--primary tb-btn--labeled" id="btn-export" onclick="copyCode()" title="Export as GLSL">
-        <span>Export</span><span class="tb-shortcut" data-shortcut="export"></span>
-      </button>
+
+    <!-- Line 2 — Tools + Actions -->
+    <div class="topbar-line topbar-line--2">
+      <div class="topbar-l2-left">
+        <button class="tb2-btn" id="btn-insert-top" title="Insert layer"><span>Insert</span><span class="tb2-sc" data-shortcut="addlayer"></span></button>
+        <button class="tb2-btn" id="btn-undo" onclick="undo()" title="Undo" disabled><span>Undo</span><span class="tb2-sc" data-shortcut="undo"></span></button>
+        <button class="tb2-btn" id="btn-redo" onclick="redo()" title="Redo" disabled><span>Redo</span><span class="tb2-sc" data-shortcut="redo"></span></button>
+      </div>
+      <div class="tb2-divider"></div>
+      <div class="topbar-l2-center">
+        <button class="tb2-btn tb2-btn--icon" id="btn-play" onclick="togglePlay()" title="Play / Pause"><span id="btn-play-glyph">▶</span></button>
+        <button class="tb2-btn" onclick="openModal()" title="Open preset gallery"><span>Presets</span></button>
+      </div>
+      <div class="tb2-divider"></div>
+      <div class="topbar-l2-right">
+        <button class="tb2-btn" id="btn-capture" onclick="captureCanvasPNG()" title="Capture PNG @2x"><span>Capture</span><span class="tb2-sc" data-shortcut="capture"></span></button>
+      </div>
     </div>
   </header>
 
