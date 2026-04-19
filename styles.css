@@ -17,8 +17,9 @@
   --font-ui:      'Inter', system-ui, -apple-system, sans-serif;
   --font-mono:    'JetBrains Mono', 'Fira Mono', monospace;
   --radius:       3px;
-  --topbar-h:     68px;
+  --topbar-h:     80px;
   --statusbar-h:  24px;
+  --footer-h:     22px;
   --left-w:       240px;
   --right-w:      240px;
 }
@@ -42,10 +43,25 @@ svg { display: block; }
 /* ── App Shell ── */
 #app {
   display: grid;
-  grid-template-rows: var(--topbar-h) 1fr var(--statusbar-h);
+  grid-template-rows: var(--topbar-h) 1fr var(--statusbar-h) var(--footer-h);
   height: 100vh;
   width: 100vw;
 }
+
+/* ── App Footer (built-by bar) ── */
+.app-footer {
+  display: flex; align-items: center; justify-content: center;
+  height: var(--footer-h);
+  background: #0d0d0d;
+  border-top: 1px solid #1a1a1a;
+  font-size: 11px; color: #444;
+}
+.app-footer-link {
+  color: #555; text-decoration: none;
+  margin-left: 4px;
+  transition: color 0.1s;
+}
+.app-footer-link:hover { color: #888; text-decoration: underline; }
 
 /* ── Topbar ── */
 .topbar {
@@ -59,39 +75,68 @@ svg { display: block; }
   padding: 0 12px;
 }
 .topbar-line--1 {
-  height: 36px;
+  height: 44px;
   border-bottom: 1px solid #222;
   gap: 8px;
 }
 .topbar-line--2 {
-  height: 32px;
+  height: 36px;
   gap: 8px;
+  position: relative;
 }
 
 /* Line 1 sections */
 .topbar-l1-left { display: flex; align-items: center; gap: 8px; }
-.topbar-l1-right { display: flex; align-items: center; gap: 6px; }
+.topbar-l1-right { display: flex; align-items: center; gap: 10px; }
 .topbar-spacer { flex: 1; }
 
 /* App icon */
 .app-icon {
-  width: 14px; height: 14px;
+  width: 24px; height: 24px;
   border-radius: 3px;
-  background: linear-gradient(135deg, #ff6a00 0%, #ee0979 100%);
+  background: #e0e0e0;
   flex-shrink: 0;
+  object-fit: cover;
+  display: block;
 }
 
 .app-name { font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: -0.07em; color: var(--text-primary); }
-.topbar-sep { color: #555; font-size: 11px; }
+.app-tagline { font-size: 11px; color: #555; margin-left: 8px; }
+
+/* Share button + Avatar */
+.tb-share-btn {
+  font-size: 12px; color: #888;
+  padding: 4px 8px; border-radius: 3px;
+  transition: color 0.1s, background 0.1s;
+}
+.tb-share-btn:hover { color: #e0e0e0; background: #1e1e1e; }
+.tb-avatar {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  background: #2a2a2a;
+  border: 1px solid #333;
+  color: #666; font-size: 11px;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+.tb-avatar:hover { background: #333; border-color: #444; color: #aaa; }
+
+/* Line 2 filename (center) */
+.topbar-l2-center {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex; align-items: center;
+}
 .topbar-file {
-  color: var(--text-secondary); font-family: var(--font-mono); font-size: 11px;
-  cursor: pointer; border-radius: 3px; padding: 2px 6px;
+  color: #aaa; font-family: var(--font-mono); font-size: 13px;
+  cursor: pointer; border-radius: 3px; padding: 2px 8px;
+  transition: color 0.1s, background 0.1s;
 }
 .topbar-file:hover { color: var(--text-primary); background: #1e1e1e; }
 .topbar-file-input {
-  color: var(--text-primary); font-family: var(--font-mono); font-size: 11px;
+  color: var(--text-primary); font-family: var(--font-mono); font-size: 13px;
   background: #1a1a1a; border: 1px solid #2a2a2a; border-radius: 3px;
-  padding: 1px 4px; outline: none; width: 120px;
+  padding: 1px 6px; outline: none; width: 160px; text-align: center;
 }
 
 /* Menu wrap + triggers */
@@ -156,7 +201,9 @@ svg { display: block; }
 .tb-menu-divider { height: 1px; background: #222; margin: 4px 0; }
 
 /* Line 2 */
-.topbar-l2-left, .topbar-l2-center, .topbar-l2-right { display: flex; align-items: center; gap: 2px; }
+.topbar-line--2 { justify-content: space-between; }
+.topbar-l2-left { display: flex; align-items: center; gap: 4px; }
+.topbar-l2-right { display: flex; align-items: center; gap: 4px; }
 .tb2-divider { width: 1px; height: 16px; background: #222; margin: 0 6px; }
 
 .tb2-btn {

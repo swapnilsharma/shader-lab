@@ -79,13 +79,23 @@
 <div id="app">
   <!-- TOPBAR -->
   <header class="topbar">
-    <!-- Line 1 — Identity + File actions -->
+    <!-- Line 1 — Identity + Right actions -->
     <div class="topbar-line topbar-line--1">
       <div class="topbar-l1-left">
-        <div class="app-icon" aria-hidden="true"></div>
+        <img class="app-icon" src="assets/frakt-ico-24x24.png" alt="frakt" width="24" height="24">
         <span class="app-name">frakt</span>
-        <span class="topbar-sep">—</span>
-        <span class="topbar-file" id="topbar-file-label" title="Click to rename">untitled</span>
+        <span class="app-tagline">Shaders for the rest of us</span>
+      </div>
+      <div class="topbar-spacer"></div>
+      <div class="topbar-l1-right">
+        <button class="tb-share-btn" id="btn-share" title="Coming soon">Share</button>
+        <button class="tb-avatar" id="btn-avatar" title="Coming soon">S</button>
+      </div>
+    </div>
+
+    <!-- Line 2 — Tools + File name + Actions -->
+    <div class="topbar-line topbar-line--2">
+      <div class="topbar-l2-left">
         <div class="tb-menu-wrap">
           <button class="tb-menu-btn" id="btn-file-menu" onclick="toggleMenu(event,'file')">File <span class="tb-caret">▾</span></button>
           <div class="tb-menu hidden" id="menu-file">
@@ -94,38 +104,26 @@
             <div class="tb-menu-item" data-act="save"><span class="tb-menu-label">Save</span><span class="tb-menu-sc" data-shortcut="save"></span></div>
           </div>
         </div>
+        <button class="tb2-btn" id="btn-insert-top" title="Insert layer"><span>Insert</span><span class="tb2-sc" data-shortcut="addlayer"></span></button>
+        <button class="tb2-btn" id="btn-undo" onclick="undo()" title="Undo" disabled><span>Undo</span><span class="tb2-sc" data-shortcut="undo"></span></button>
+        <button class="tb2-btn" id="btn-redo" onclick="redo()" title="Redo" disabled><span>Redo</span><span class="tb2-sc" data-shortcut="redo"></span></button>
       </div>
-      <div class="topbar-spacer"></div>
-      <div class="topbar-l1-right">
+      <div class="topbar-l2-center">
+        <span class="topbar-file" id="topbar-file-label" title="Click to rename">untitled</span>
+      </div>
+      <div class="topbar-l2-right">
+        <button class="tb2-btn" id="btn-capture" onclick="captureCanvasPNG()" title="Capture PNG @2x"><span>Capture</span><span class="tb2-sc" data-shortcut="capture"></span></button>
         <div class="tb-menu-wrap">
           <button class="tb-export-btn" id="btn-export" onclick="toggleMenu(event,'export')">Export <span class="tb-caret tb-caret--dark">▾</span></button>
           <div class="tb-menu tb-menu--right hidden" id="menu-export">
             <div class="tb-menu-item" data-act="export-shadertoy"><span class="tb-menu-label">GLSL / Shadertoy</span></div>
             <div class="tb-menu-item" data-act="export-raw"><span class="tb-menu-label">Raw GLSL</span></div>
             <div class="tb-menu-divider"></div>
-            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Three.js</span><span class="tb-menu-soon">soon</span></div>
-            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Framer</span><span class="tb-menu-soon">soon</span></div>
-            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Android</span><span class="tb-menu-soon">soon</span></div>
+            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Three.js</span><span class="tb-menu-soon">coming soon</span></div>
+            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Framer</span><span class="tb-menu-soon">coming soon</span></div>
+            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Android</span><span class="tb-menu-soon">coming soon</span></div>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Line 2 — Tools + Actions -->
-    <div class="topbar-line topbar-line--2">
-      <div class="topbar-l2-left">
-        <button class="tb2-btn" id="btn-insert-top" title="Insert layer"><span>Insert</span><span class="tb2-sc" data-shortcut="addlayer"></span></button>
-        <button class="tb2-btn" id="btn-undo" onclick="undo()" title="Undo" disabled><span>Undo</span><span class="tb2-sc" data-shortcut="undo"></span></button>
-        <button class="tb2-btn" id="btn-redo" onclick="redo()" title="Redo" disabled><span>Redo</span><span class="tb2-sc" data-shortcut="redo"></span></button>
-      </div>
-      <div class="tb2-divider"></div>
-      <div class="topbar-l2-center">
-        <button class="tb2-btn tb2-btn--icon" id="btn-play" onclick="togglePlay()" title="Play / Pause"><span id="btn-play-glyph">▶</span></button>
-        <button class="tb2-btn" onclick="openModal()" title="Open preset gallery"><span>Presets</span></button>
-      </div>
-      <div class="tb2-divider"></div>
-      <div class="topbar-l2-right">
-        <button class="tb2-btn" id="btn-capture" onclick="captureCanvasPNG()" title="Capture PNG @2x"><span>Capture</span><span class="tb2-sc" data-shortcut="capture"></span></button>
       </div>
     </div>
   </header>
@@ -185,6 +183,11 @@
       <span id="status-dims">800 × 600</span>
     </div>
   </footer>
+
+  <!-- APP FOOTER -->
+  <div class="app-footer">
+    Built by <a class="app-footer-link" href="https://x.com/swapnilsharmakr" target="_blank" rel="noopener">Swapnil</a>
+  </div>
 </div>
 
 <!-- ═══ CONFIRM DIALOG ═══ -->

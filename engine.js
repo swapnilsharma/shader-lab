@@ -1862,6 +1862,14 @@ async function exportGLSLShadertoy() {
   URL.revokeObjectURL(url);
 }
 
+// Wire Share + Avatar "Coming soon" buttons
+(function wireSoonButtons() {
+  const bs = document.getElementById('btn-share');
+  if (bs) bs.addEventListener('click', e => { e.stopPropagation(); showToast('Coming soon'); });
+  const ba = document.getElementById('btn-avatar');
+  if (ba) ba.addEventListener('click', e => { e.stopPropagation(); showToast('Coming soon'); });
+})();
+
 // Wire dropdown item clicks
 (function wireMenus() {
   const mf = document.getElementById('menu-file');
@@ -1899,7 +1907,6 @@ function renderShortcutHints() {
   const bs = document.getElementById('btn-save');  if (bs)  bs.title  = 'Save .frakt (' + SHORTCUTS.save + ')';
   const bo = document.getElementById('btn-open');  if (bo)  bo.title  = 'Open .frakt (' + SHORTCUTS.open + ')';
   const be = document.getElementById('btn-export');if (be)  be.title  = 'Export GLSL (' + SHORTCUTS.export + ')';
-  const bp = document.getElementById('btn-play');  if (bp)  bp.title  = 'Play / Pause (Space)';
   const ba = document.getElementById('btn-add-layer'); if (ba) ba.title = 'Insert layer (' + SHORTCUTS.addlayer + ')';
   const bc = document.getElementById('btn-capture'); if (bc) bc.title = 'Capture PNG (' + SHORTCUTS.capture + ')';
 }
@@ -1975,8 +1982,6 @@ document.addEventListener('keydown', e => {
     if (typeof selectedLayerId === 'number') { e.preventDefault(); duplicateLayer(selectedLayerId); }
     return;
   }
-  // Space — toggle play/pause
-  if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); togglePlay(); return; }
   // Delete / Backspace — remove selected stop (if a gradient stop is actively selected), else delete selected layer
   if (e.key === 'Delete' || e.key === 'Backspace') {
     const l = typeof selectedLayerId === 'number' ? layers.find(ll => ll.id === selectedLayerId) : null;
