@@ -103,8 +103,8 @@ function defaultProperties(type) {
     case 'image':        return { fit: 'cover' };
     case 'noise-warp':   return { str: 0.5, scale: 2.0, wspd: 0.12, oct: 4, angle: 90 };
     case 'wave':         return { color: '#6B7FE8', freq: 4.0, amp: 0.15, spd: 0.6, pos: 0.5, edge: 0.06, angle: 0 };
-    case 'rectangle':    return { x: 0, y: 0, w: 300, h: 200, radius: 0, blur: 0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}] };
-    case 'circle':       return { x: 0, y: 0, w: 240, h: 240, blur: 0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}] };
+    case 'rectangle':    return { x: 0, y: 0, w: 300, h: 200, radius: 0, blur: 0, rotation: 0, scale: 1.0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}] };
+    case 'circle':       return { x: 0, y: 0, w: 240, h: 240, blur: 0, rotation: 0, scale: 1.0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}] };
     case 'liquid':       return { seed: 12, speed: 0.3, scale: 0.42, turbAmp: 0.6, turbFreq: 0.1, turbIter: 7, waveFreq: 3.8, distBias: 0.0, exposure: 1.1, contrast: 1.1, saturation: 1.0, color0: '#00001A', color1: '#2962FF', color2: '#40BCFF', color3: '#FFB8B5', color4: '#FFC14F' };
     case 'grain':        return { amount: 0.08, size: 1.0, animated: 1, streak: 0, sangle: 90, slen: 6 };
     case 'chromatic-aberration': return { spread: 0.006, angle: 0 };
@@ -167,8 +167,43 @@ function createLayer(type, propsOverride) {
 }
 
 // ── Per-layer Effects (attached to content layers) ─────────────
-const PER_LAYER_EFFECT_TYPES = ['grain','color-grade','vignette','posterize','scanlines'];
+const PER_LAYER_EFFECT_TYPES = ['grain','color-grade','vignette','posterize','scanlines','noise-warp'];
 let selectedAttachedEffect = {}; // layerId → attachedEffectId (for expanded inline props)
+let effectsClipboard = null;     // array of attached effects (deep-copied)
+
+function copyEffects(layerId) {
+  const l = layers.find(x => x.id === layerId); if (!l) return;
+  const src = l.effects || [];
+  effectsClipboard = src.map(ae => ({
+    type: ae.type,
+    name: ae.name,
+    visible: ae.visible !== false,
+    opacity: ae.opacity != null ? ae.opacity : 1.0,
+    properties: JSON.parse(JSON.stringify(ae.properties || {}))
+  }));
+  showToast(`Copied ${effectsClipboard.length} effect${effectsClipboard.length===1?'':'s'}`);
+}
+
+function pasteEffects(layerId) {
+  const l = layers.find(x => x.id === layerId); if (!l) return;
+  if (!effectsClipboard || !effectsClipboard.length) { showToast('No effects to paste'); return; }
+  if (!isContentLayer(l.type)) { showToast('Effects can only paste onto content layers'); return; }
+  l.effects = l.effects || [];
+  effectsClipboard.forEach(src => {
+    l.effects.unshift({
+      id: ++layerIdCounter,
+      type: src.type,
+      name: src.name,
+      visible: src.visible,
+      opacity: src.opacity,
+      properties: JSON.parse(JSON.stringify(src.properties))
+    });
+  });
+  needsRecompile = true;
+  renderRightPanel();
+  snapshot();
+  showToast(`Pasted ${effectsClipboard.length} effect${effectsClipboard.length===1?'':'s'}`);
+}
 
 function addAttachedEffect(layerId, type) {
   const l = layers.find(x => x.id === layerId); if (!l) return;
@@ -471,11 +506,13 @@ ctxMenu.querySelectorAll('.ctx-item').forEach(item => {
     const id = ctxTargetId;
     closeCtxMenu();
     if (!id) return;
-    if (action === 'rename')      renameLayer(id);
-    if (action === 'duplicate')   duplicateLayer(id);
-    if (action === 'delete')      removeLayerConfirm(id);
-    if (action === 'move-top')    moveLayerToTop(id);
-    if (action === 'move-bottom') moveLayerToBottom(id);
+    if (action === 'rename')       renameLayer(id);
+    if (action === 'duplicate')    duplicateLayer(id);
+    if (action === 'copy-effects') copyEffects(id);
+    if (action === 'paste-effects')pasteEffects(id);
+    if (action === 'delete')       removeLayerConfirm(id);
+    if (action === 'move-top')     moveLayerToTop(id);
+    if (action === 'move-bottom')  moveLayerToBottom(id);
   });
 });
 document.addEventListener('click', () => closeCtxMenu());
@@ -672,15 +709,19 @@ function updateShapeOutline() {
   const cx = (rect.left - area.left) + rect.width / 2;
   const cy = (rect.top  - area.top)  + rect.height / 2;
   const p = l.properties;
-  const w = (p.w || 200) * scale;
-  const h = (p.h || 200) * scale;
+  const sclF = p.scale != null ? p.scale : 1.0;
+  const w = (p.w || 200) * scale * sclF;
+  const h = (p.h || 200) * scale * sclF;
   const left = cx + (p.x || 0) * scale - w / 2;
   const top  = cy - (p.y || 0) * scale - h / 2;
+  // shader rotation is CCW (y-up); CSS rotate is CW (y-down) → negate
+  const rotCss = -(p.rotation || 0);
   out.style.left = left + 'px';
   out.style.top  = top + 'px';
   out.style.width = w + 'px';
   out.style.height = h + 'px';
-  out.style.borderRadius = l.type === 'circle' ? '50%' : (((p.radius || 0) * scale) + 'px');
+  out.style.transform = `rotate(${rotCss}deg)`;
+  out.style.borderRadius = l.type === 'circle' ? '50%' : (((p.radius || 0) * scale * sclF) + 'px');
   out.classList.remove('hidden');
   canvasEl.classList.add('shape-target');
 }
@@ -691,6 +732,7 @@ window.addEventListener('resize', () => updateShapeOutline());
   const canvasEl = document.getElementById('glcanvas');
   if (!canvasEl) return;
   let drag = null;
+
   const pxFromMouse = (e) => {
     const rect = canvasEl.getBoundingClientRect();
     const sx = canvasEl.width / Math.max(1, rect.width);
@@ -699,16 +741,65 @@ window.addEventListener('resize', () => updateShapeOutline());
     const my = (e.clientY - rect.top)  * sy - canvasEl.height / 2;
     return { mx, my };
   };
+  // Screen coords (y-down, px-in-canvas-space, relative to shape center)
+  // Rotate by +rot (shader CCW rad) to undo the visual rotation → local shape coords (still y-down).
+  const toLocal = (dx, dy, rotRadShader) => {
+    // CSS rotation applied = -rotRadShader (screen CW). Undo: rotate screen vec by +rotRadShader (CCW in y-down = CW math)
+    // Using y-down CW math for CCW-visual: point = R(-rotRadShader) * screen_vec
+    const a = rotRadShader; // rad
+    const c = Math.cos(a), s = Math.sin(a);
+    // In y-down frame with CSS rotate(-rot)deg applied, world->local undoes by rotate(+rot)deg CW = y-down CW matrix
+    return { x: c*dx + s*dy, y: -s*dx + c*dy };
+  };
   const hitTest = (l, mx, my) => {
     const p = l.properties;
     const dx = mx - (p.x || 0);
-    const dy = my + (p.y || 0);
-    const hw = Math.max(0.5, (p.w || 1) / 2);
-    const hh = Math.max(0.5, (p.h || 1) / 2);
-    if (l.type === 'rectangle') return Math.abs(dx) <= hw && Math.abs(dy) <= hh;
-    if (l.type === 'circle')    return (dx*dx)/(hw*hw) + (dy*dy)/(hh*hh) <= 1;
+    const dy = my + (p.y || 0); // screen-down vector from shape center
+    const scl = Math.max(0.01, p.scale != null ? p.scale : 1);
+    const rot = (p.rotation || 0) * Math.PI / 180;
+    const lp = toLocal(dx, dy, rot);
+    const hw = Math.max(0.5, (p.w || 1) / 2) * scl;
+    const hh = Math.max(0.5, (p.h || 1) / 2) * scl;
+    if (l.type === 'rectangle') return Math.abs(lp.x) <= hw && Math.abs(lp.y) <= hh;
+    if (l.type === 'circle')    return (lp.x*lp.x)/(hw*hw) + (lp.y*lp.y)/(hh*hh) <= 1;
     return false;
   };
+
+  const liveSyncSlider = (layerId, key, value) => {
+    const sl = document.getElementById(`s-${layerId}-${key}`);
+    const v  = document.getElementById(`v-${layerId}-${key}`);
+    if (sl) sl.value = value;
+    if (v)  v.textContent = typeof value === 'number' && !Number.isInteger(value) ? (Math.round(value*100)/100) : String(Math.round(value));
+  };
+
+  // ── Handle interactions (resize + rotate) ──
+  const outEl = document.getElementById('shape-outline');
+  if (outEl) {
+    outEl.addEventListener('mousedown', (e) => {
+      const h = e.target.closest('.sh-handle, .sh-handle--rot');
+      if (!h) return;
+      const l = getSelectedShape();
+      if (!l) return;
+      const kind = h.dataset.h;
+      e.preventDefault();
+      e.stopPropagation();
+      const p = l.properties;
+      const { mx, my } = pxFromMouse(e);
+      drag = {
+        l,
+        mode: kind === 'rot' ? 'rotate' : 'resize',
+        handle: kind,
+        startMx: mx, startMy: my,
+        startW: p.w || 200,
+        startH: p.h || 200,
+        startX: p.x || 0,
+        startY: p.y || 0,
+        startScale: p.scale != null ? p.scale : 1,
+        startRot: p.rotation || 0
+      };
+      canvasEl.classList.add('shape-dragging');
+    });
+  }
 
   canvasEl.addEventListener('mousedown', (e) => {
     const l = getSelectedShape();
@@ -716,26 +807,52 @@ window.addEventListener('resize', () => updateShapeOutline());
     const { mx, my } = pxFromMouse(e);
     if (!hitTest(l, mx, my)) return;
     e.preventDefault();
-    drag = { l, startMx: mx, startMy: my, startX: l.properties.x || 0, startY: l.properties.y || 0 };
+    drag = { l, mode: 'move', startMx: mx, startMy: my, startX: l.properties.x || 0, startY: l.properties.y || 0 };
     canvasEl.classList.add('shape-dragging');
   });
 
   window.addEventListener('mousemove', (e) => {
     if (!drag) return;
     const { mx, my } = pxFromMouse(e);
-    drag.l.properties.x = Math.round(drag.startX + (mx - drag.startMx));
-    drag.l.properties.y = Math.round(drag.startY - (my - drag.startMy));
+    const p = drag.l.properties;
+
+    if (drag.mode === 'move') {
+      p.x = Math.round(drag.startX + (mx - drag.startMx));
+      p.y = Math.round(drag.startY - (my - drag.startMy));
+      liveSyncSlider(drag.l.id, 'x', p.x);
+      liveSyncSlider(drag.l.id, 'y', p.y);
+    } else if (drag.mode === 'rotate') {
+      // screen-down vec from shape center, at start and now
+      const cxS = drag.startX, cyS = -drag.startY;       // center in screen-down coords
+      const a0 = Math.atan2(drag.startMy - cyS, drag.startMx - cxS);
+      const a1 = Math.atan2(my - cyS, mx - cxS);
+      const dScreenCW = a1 - a0;                          // radians, CW positive on screen
+      // shader rotation is CCW → subtract
+      const newRotDeg = drag.startRot - dScreenCW * 180 / Math.PI;
+      p.rotation = Math.round(((newRotDeg + 540) % 360) - 180);
+      liveSyncSlider(drag.l.id, 'rotation', p.rotation);
+    } else if (drag.mode === 'resize') {
+      // Transform mouse delta into shape-local (un-rotated) axes.
+      const rot = drag.startRot * Math.PI / 180;
+      const dxScreen = mx - drag.startMx;
+      const dyScreen = my - drag.startMy;
+      const loc = toLocal(dxScreen, dyScreen, rot);  // local y is still screen-down
+      const scl = Math.max(0.01, drag.startScale);
+      const h = drag.handle;
+      const sgnX = h.includes('r') ? 1 : (h.includes('l') ? -1 : 0);
+      const sgnY = h.includes('b') ? 1 : (h.includes('t') ? -1 : 0);
+
+      let newW = drag.startW, newH = drag.startH;
+      if (sgnX !== 0) newW = Math.max(2, drag.startW + 2 * sgnX * loc.x / scl);
+      if (sgnY !== 0) newH = Math.max(2, drag.startH + 2 * sgnY * loc.y / scl);
+
+      p.w = Math.round(newW);
+      p.h = Math.round(newH);
+      liveSyncSlider(drag.l.id, 'w', p.w);
+      liveSyncSlider(drag.l.id, 'h', p.h);
+    }
     needsRecompile = false; // pure uniform update
     updateShapeOutline();
-    // Live-update the sliders in the right panel if visible
-    const xSl = document.getElementById(`s-${drag.l.id}-x`);
-    const ySl = document.getElementById(`s-${drag.l.id}-y`);
-    const xV = document.getElementById(`v-${drag.l.id}-x`);
-    const yV = document.getElementById(`v-${drag.l.id}-y`);
-    if (xSl) xSl.value = drag.l.properties.x;
-    if (ySl) ySl.value = drag.l.properties.y;
-    if (xV) xV.textContent = String(drag.l.properties.x);
-    if (yV) yV.textContent = String(drag.l.properties.y);
   });
 
   window.addEventListener('mouseup', () => {
@@ -779,6 +896,8 @@ function renderShapeZone(l, isRect) {
     renderSlider(id,'h','Height',p.h||200,1,2000,1),
     isRect ? renderSlider(id,'radius','Radius',p.radius||0,0,500,1) : '',
     renderSlider(id,'blur','Blur',p.blur||0,0,200,1),
+    renderSlider(id,'rotation','Rotation °',p.rotation||0,-180,180,1),
+    renderSlider(id,'scale','Scale',p.scale!=null?p.scale:1.0,0.1,4.0,0.01),
     `<div class="ctrl-row fill-mode-row">
       <span class="ctrl-label">Fill</span>
       <div class="toggle-wrap fill-mode-toggle" data-lid="${id}">
@@ -1024,6 +1143,14 @@ function renderTypeControlsForAttached(layerId, ae) {
         aeSlider(id,'count','Line Count',p.count||120,20,600,5),
         aeSlider(id,'dark','Darkness',p.dark!=null?p.dark:0.4,0,1.0,0.01),
         aeSlider(id,'soft','Softness',p.soft!=null?p.soft:0.3,0,1.0,0.01),
+      ].join('');
+    case 'noise-warp':
+      return [
+        aeSlider(id,'str','Strength',p.str!=null?p.str:0.5,0,2.0,0.01),
+        aeSlider(id,'scale','Scale',p.scale!=null?p.scale:2.0,0.1,8.0,0.1),
+        aeSlider(id,'wspd','Speed',p.wspd!=null?p.wspd:0.12,0,1.0,0.01),
+        aeSlider(id,'oct','Octaves',p.oct||4,1,8,1),
+        aeSlider(id,'angle','Direction °',p.angle!=null?p.angle:90,0,360,1),
       ].join('');
     default:
       return '';

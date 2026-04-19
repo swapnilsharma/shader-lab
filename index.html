@@ -29,6 +29,9 @@
   <div class="ctx-item" data-action="rename"><span class="ctx-label">Rename</span><span class="ctx-shortcut">↵</span></div>
   <div class="ctx-item" data-action="duplicate"><span class="ctx-label">Duplicate</span><span class="ctx-shortcut" data-shortcut="dup"></span></div>
   <div class="ctx-divider"></div>
+  <div class="ctx-item" data-action="copy-effects"><span class="ctx-label">Copy Effects</span></div>
+  <div class="ctx-item" data-action="paste-effects"><span class="ctx-label">Paste Effects</span></div>
+  <div class="ctx-divider"></div>
   <div class="ctx-item ctx-item--danger" data-action="delete"><span class="ctx-label">Delete</span><span class="ctx-shortcut">⌫</span></div>
   <div class="ctx-divider"></div>
   <div class="ctx-item" data-action="move-top"><span class="ctx-label">Move to Top</span></div>
@@ -38,6 +41,7 @@
 <!-- ═══ ADD ATTACHED EFFECT POPOVER (per-layer) ═══ -->
 <div class="layer-popover hidden" id="effect-popover">
   <div class="pop-label">EFFECTS</div>
+  <div class="pop-item" data-ae-type="noise-warp">Noise Warp</div>
   <div class="pop-item" data-ae-type="grain">Grain</div>
   <div class="pop-item" data-ae-type="color-grade">Color Grade</div>
   <div class="pop-item" data-ae-type="vignette">Vignette</div>
@@ -131,7 +135,18 @@
     <!-- CANVAS -->
     <main class="canvas-area" id="canvas-area">
       <canvas id="glcanvas"></canvas>
-      <div class="shape-outline hidden" id="shape-outline"></div>
+      <div class="shape-outline hidden" id="shape-outline">
+        <div class="sh-rot-stem"></div>
+        <div class="sh-handle--rot" data-h="rot"></div>
+        <div class="sh-handle" data-h="tl"></div>
+        <div class="sh-handle" data-h="tm"></div>
+        <div class="sh-handle" data-h="tr"></div>
+        <div class="sh-handle" data-h="lm"></div>
+        <div class="sh-handle" data-h="rm"></div>
+        <div class="sh-handle" data-h="bl"></div>
+        <div class="sh-handle" data-h="bm"></div>
+        <div class="sh-handle" data-h="br"></div>
+      </div>
     </main>
 
     <!-- RIGHT PANEL -->

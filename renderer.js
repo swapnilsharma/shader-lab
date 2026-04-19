@@ -246,11 +246,11 @@ function glslUniformDecls(layers) {
         s += `uniform float ${u('wv',id,'f')},${u('wv',id,'a')},${u('wv',id,'s')},${u('wv',id,'p')},${u('wv',id,'e')},${u('wv',id,'ang')};\n`;
         s += `uniform vec3 ${u('wv',id,'c')};\n`; break;
       case 'rectangle':
-        s += `uniform float ${u('rc',id,'x')},${u('rc',id,'y')},${u('rc',id,'w')},${u('rc',id,'h')},${u('rc',id,'r')},${u('rc',id,'fm')},${u('rc',id,'cnt')},${u('rc',id,'bl')};\n`;
+        s += `uniform float ${u('rc',id,'x')},${u('rc',id,'y')},${u('rc',id,'w')},${u('rc',id,'h')},${u('rc',id,'r')},${u('rc',id,'fm')},${u('rc',id,'cnt')},${u('rc',id,'bl')},${u('rc',id,'rot')},${u('rc',id,'scl')};\n`;
         s += `uniform vec3 ${u('rc',id,'c')};\n`;
         s += `uniform vec3 ${u('rc',id,'cols')}[6];\n`; break;
       case 'circle':
-        s += `uniform float ${u('ci',id,'x')},${u('ci',id,'y')},${u('ci',id,'w')},${u('ci',id,'h')},${u('ci',id,'fm')},${u('ci',id,'cnt')},${u('ci',id,'bl')};\n`;
+        s += `uniform float ${u('ci',id,'x')},${u('ci',id,'y')},${u('ci',id,'w')},${u('ci',id,'h')},${u('ci',id,'fm')},${u('ci',id,'cnt')},${u('ci',id,'bl')},${u('ci',id,'rot')},${u('ci',id,'scl')};\n`;
         s += `uniform vec3 ${u('ci',id,'c')};\n`;
         s += `uniform vec3 ${u('ci',id,'cols')}[6];\n`; break;
       case 'liquid':
@@ -278,31 +278,58 @@ function glslUniformDecls(layers) {
 // ── GLSL: inline-content fill (wave / rectangle / circle) ──────
 // Emits GLSL that declares `vec3 fillC;` and `float _mask;` in the current
 // scope. The walk loop handles attached-effect scoping + blend composite.
-function glslShapeFill(l) {
+// Emits the "prep" portion: declares pp, c, hs, lp (or ruv for wave).
+// For rect/circle, the caller can optionally warp `lp` in shape-local space
+// between prep and body (e.g. attached noise-warp) so effects feel native.
+function glslShapeFillPrep(l) {
   const id = l.id;
   switch (l.type) {
     case 'wave': {
-      const f=u('wv',id,'f'),a=u('wv',id,'a'),sp=u('wv',id,'s'),pos=u('wv',id,'p'),e=u('wv',id,'e'),ang=u('wv',id,'ang'),c=u('wv',id,'c');
-      return `    vec2 ruv=rot2(wuv-0.5,${ang})+0.5;
-    float wave=sin(ruv.x*${f}*6.2832+u_t*${sp})*${a};
+      const ang=u('wv',id,'ang');
+      return `    vec2 ruv=rot2(wuv-0.5,${ang})+0.5;\n`;
+    }
+    case 'rectangle': {
+      const xU=u('rc',id,'x'),yU=u('rc',id,'y'),wU=u('rc',id,'w'),hU=u('rc',id,'h'),rotU=u('rc',id,'rot'),sclU=u('rc',id,'scl');
+      return `    vec2 pp=wuv*u_res;
+    vec2 c=u_res*0.5+vec2(${xU},${yU});
+    vec2 hs=vec2(${wU},${hU})*0.5*max(${sclU},0.01);
+    vec2 lp=rot2(pp-c,-${rotU});
+`;
+    }
+    case 'circle': {
+      const xU=u('ci',id,'x'),yU=u('ci',id,'y'),wU=u('ci',id,'w'),hU=u('ci',id,'h'),rotU=u('ci',id,'rot'),sclU=u('ci',id,'scl');
+      return `    vec2 pp=wuv*u_res;
+    vec2 c=u_res*0.5+vec2(${xU},${yU});
+    vec2 hs=vec2(${wU},${hU})*0.5*max(${sclU},0.01);
+    vec2 lp=rot2(pp-c,-${rotU});
+`;
+    }
+  }
+  return '';
+}
+
+// Emits the "body" portion: SDF, _mask, fillC. Expects prep vars in scope.
+function glslShapeFillBody(l) {
+  const id = l.id;
+  switch (l.type) {
+    case 'wave': {
+      const f=u('wv',id,'f'),a=u('wv',id,'a'),sp=u('wv',id,'s'),pos=u('wv',id,'p'),e=u('wv',id,'e'),c=u('wv',id,'c');
+      return `    float wave=sin(ruv.x*${f}*6.2832+u_t*${sp})*${a};
     float _mask=smoothstep(${e},0.0,abs(ruv.y-(${pos}+wave))-${e}*0.3);
     vec3 fillC=${c};
 `;
     }
     case 'rectangle': {
-      const xU=u('rc',id,'x'),yU=u('rc',id,'y'),wU=u('rc',id,'w'),hU=u('rc',id,'h'),rU=u('rc',id,'r'),fmU=u('rc',id,'fm'),blU=u('rc',id,'bl'),cU=u('rc',id,'c'),cntU=u('rc',id,'cnt'),colsU=u('rc',id,'cols');
-      return `    vec2 pp=wuv*u_res;
-    vec2 c=u_res*0.5+vec2(${xU},${yU});
-    vec2 hs=vec2(${wU},${hU})*0.5;
-    float r=clamp(${rU},0.0,min(hs.x,hs.y));
-    vec2 d=abs(pp-c)-hs+vec2(r);
+      const rU=u('rc',id,'r'),fmU=u('rc',id,'fm'),blU=u('rc',id,'bl'),cU=u('rc',id,'c'),cntU=u('rc',id,'cnt'),colsU=u('rc',id,'cols');
+      return `    float r=clamp(${rU},0.0,min(hs.x,hs.y));
+    vec2 d=abs(lp)-hs+vec2(r);
     float sdf=length(max(d,0.0))+min(max(d.x,d.y),0.0)-r;
     float bl=max(${blU},1.0);
     float _mask=1.0-smoothstep(-bl,bl,sdf);
     vec3 fillC=${cU};
     if(${fmU}>0.5){
       float ncnt=max(${cntU},2.0);
-      float tg=clamp((pp.y-(c.y-hs.y))/(2.0*hs.y),0.0,1.0);
+      float tg=clamp((lp.y+hs.y)/(2.0*hs.y),0.0,1.0);
       float ft=tg*(ncnt-1.0);
       float fi0=floor(ft);
       float fi1=min(fi0+1.0,ncnt-1.0);
@@ -314,11 +341,8 @@ function glslShapeFill(l) {
 `;
     }
     case 'circle': {
-      const xU=u('ci',id,'x'),yU=u('ci',id,'y'),wU=u('ci',id,'w'),hU=u('ci',id,'h'),fmU=u('ci',id,'fm'),blU=u('ci',id,'bl'),cU=u('ci',id,'c'),cntU=u('ci',id,'cnt'),colsU=u('ci',id,'cols');
-      return `    vec2 pp=wuv*u_res;
-    vec2 c=u_res*0.5+vec2(${xU},${yU});
-    vec2 hs=vec2(${wU},${hU})*0.5;
-    vec2 q=(pp-c)/max(hs,vec2(0.5));
+      const fmU=u('ci',id,'fm'),blU=u('ci',id,'bl'),cU=u('ci',id,'c'),cntU=u('ci',id,'cnt'),colsU=u('ci',id,'cols');
+      return `    vec2 q=lp/max(hs,vec2(0.5));
     float r=max(min(hs.x,hs.y),0.5);
     float sdf=(length(q)-1.0)*r;
     float bl=max(${blU},1.0);
@@ -326,7 +350,7 @@ function glslShapeFill(l) {
     vec3 fillC=${cU};
     if(${fmU}>0.5){
       float ncnt=max(${cntU},2.0);
-      float tg=clamp((pp.y-(c.y-hs.y))/(2.0*hs.y),0.0,1.0);
+      float tg=clamp((lp.y+hs.y)/(2.0*hs.y),0.0,1.0);
       float ft=tg*(ncnt-1.0);
       float fi0=floor(ft);
       float fi1=min(fi0+1.0,ncnt-1.0);
@@ -339,6 +363,11 @@ function glslShapeFill(l) {
     }
   }
   return '';
+}
+
+// Backwards-compat: emits prep + body together (still used via split in walk loop).
+function glslShapeFill(l) {
+  return glslShapeFillPrep(l) + glslShapeFillBody(l);
 }
 
 // ── GLSL: effect inline body ───────────────────────────────────
@@ -458,8 +487,31 @@ function buildFragFromLayers(layers, frameState) {
 
     const op = `u_op_${l.id}`;
     const mode = l.blendMode || 'normal';
-    const aes = (isContent(l.type) && Array.isArray(l.effects))
+    const aesAll = (isContent(l.type) && Array.isArray(l.effects))
       ? l.effects.filter(ae => ae.visible !== false) : [];
+    const aesUv = aesAll.filter(ae => ae.type === 'noise-warp');
+    const aes = aesAll.filter(ae => ae.type !== 'noise-warp');
+
+    // Emit attached noise-warp as a wuv shift (canvas-UV space) — used for
+    // content-fn layers and wave (both sample the content in wuv space).
+    const emitWuvWarp = () => {
+      aesUv.forEach(ae => {
+        const id=ae.id, str=u('nw',id,'str'), sc=u('nw',id,'sc'), sp=u('nw',id,'sp'), oc=u('nw',id,'oc'), ang=u('nw',id,'ang');
+        s += `    {\n      vec2 nwSrc=wuv;\n      vec2 nwDrift=vec2(cos(${ang}),sin(${ang}))*t*${sp};\n`;
+        s += `      wuv+=${str}*vec2(fbm(nwSrc*${sc}+nwDrift,${oc})-0.5,fbm(nwSrc*${sc}+nwDrift+vec2(5.2,1.3),${oc})-0.5);\n    }\n`;
+      });
+    };
+    // Emit attached noise-warp in shape-local space: samples noise in
+    // normalized shape coords (so the pattern rotates/translates with the
+    // shape) and displaces lp in shape-local px. Requires lp + hs in scope.
+    const emitLocalWarp = () => {
+      aesUv.forEach(ae => {
+        const id=ae.id, str=u('nw',id,'str'), sc=u('nw',id,'sc'), sp=u('nw',id,'sp'), oc=u('nw',id,'oc'), ang=u('nw',id,'ang');
+        s += `    {\n      vec2 nwLocal=lp/max(hs,vec2(1.0));\n      vec2 nwDrift=vec2(cos(${ang}),sin(${ang}))*t*${sp};\n`;
+        s += `      vec2 nwW=${str}*vec2(fbm(nwLocal*${sc}+nwDrift,${oc})-0.5,fbm(nwLocal*${sc}+nwDrift+vec2(5.2,1.3),${oc})-0.5);\n`;
+        s += `      lp+=nwW*max(hs,vec2(1.0));\n    }\n`;
+      });
+    };
 
     const emitAttached = (target) => {
       if (!aes.length) return '';
@@ -470,6 +522,7 @@ function buildFragFromLayers(layers, frameState) {
     };
 
     if (isContentWithFn(l.type)) {
+      emitWuvWarp();
       const cas = caAboveByContent[l.id] || [];
       if (cas.length > 0) {
         const sumX = cas.map(c => `ca_d_${c.id}.x`).join('+');
@@ -482,8 +535,17 @@ function buildFragFromLayers(layers, frameState) {
       }
       s += emitAttached('lc');
       s += `    col=mix(col,${glslBlend(mode, 'col', 'lc')},${op});\n`;
-    } else if (l.type === 'wave' || l.type === 'rectangle' || l.type === 'circle') {
+    } else if (l.type === 'rectangle' || l.type === 'circle') {
       s += '  {\n'; // extra scope so fillC/_mask don't collide across shapes
+      s += glslShapeFillPrep(l);
+      emitLocalWarp();              // native-to-shape: warps lp in local space
+      s += glslShapeFillBody(l);
+      s += emitAttached('fillC');
+      s += `    col=mix(col,${glslBlend(mode, 'col', 'fillC')},_mask*${op});\n`;
+      s += '  }\n';
+    } else if (l.type === 'wave') {
+      emitWuvWarp();                // wave uses wuv/ruv, keep canvas-space warp
+      s += '  {\n';
       s += glslShapeFill(l);
       s += emitAttached('fillC');
       s += `    col=mix(col,${glslBlend(mode, 'col', 'fillC')},_mask*${op});\n`;
@@ -618,6 +680,8 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         glCtx.uniform1f(ul(u('rc',id,'r')), Math.max(0, p.radius || 0));
         glCtx.uniform1f(ul(u('rc',id,'fm')), (p.fillMode === 'gradient') ? 1.0 : 0.0);
         glCtx.uniform1f(ul(u('rc',id,'bl')), Math.max(0, p.blur || 0));
+        glCtx.uniform1f(ul(u('rc',id,'rot')), ((p.rotation||0) * Math.PI / 180));
+        glCtx.uniform1f(ul(u('rc',id,'scl')), p.scale != null ? p.scale : 1.0);
         glCtx.uniform3f(ul(u('rc',id,'c')), r, g, b);
         const stops = Array.isArray(p.stops) && p.stops.length >= 2 ? p.stops : [{color:'#FF0055'},{color:'#0088FF'}];
         const n = Math.min(6, stops.length);
@@ -639,6 +703,8 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         glCtx.uniform1f(ul(u('ci',id,'h')), Math.max(1, p.h || 200));
         glCtx.uniform1f(ul(u('ci',id,'fm')), (p.fillMode === 'gradient') ? 1.0 : 0.0);
         glCtx.uniform1f(ul(u('ci',id,'bl')), Math.max(0, p.blur || 0));
+        glCtx.uniform1f(ul(u('ci',id,'rot')), ((p.rotation||0) * Math.PI / 180));
+        glCtx.uniform1f(ul(u('ci',id,'scl')), p.scale != null ? p.scale : 1.0);
         glCtx.uniform3f(ul(u('ci',id,'c')), r, g, b);
         const stops = Array.isArray(p.stops) && p.stops.length >= 2 ? p.stops : [{color:'#FF0055'},{color:'#0088FF'}];
         const n = Math.min(6, stops.length);

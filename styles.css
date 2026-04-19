@@ -636,10 +636,52 @@ input.swatch-hex-input:focus {
   box-shadow: 0 0 0 1px rgba(0,0,0,0.4);
   pointer-events: none;
   z-index: 3;
+  transform-origin: 50% 50%;
 }
 .shape-outline.hidden { display: none; }
 canvas#glcanvas.shape-target { cursor: grab; }
 canvas#glcanvas.shape-dragging { cursor: grabbing; }
+
+/* ── Shape Handles ── */
+.sh-handle {
+  position: absolute;
+  width: 10px; height: 10px;
+  background: #0E0E0E;
+  border: 1px solid #00E0FF;
+  border-radius: 2px;
+  pointer-events: auto;
+  z-index: 4;
+  box-sizing: border-box;
+}
+.sh-handle[data-h="tl"] { left: -5px;  top: -5px;  cursor: nwse-resize; }
+.sh-handle[data-h="tr"] { right: -5px; top: -5px;  cursor: nesw-resize; }
+.sh-handle[data-h="bl"] { left: -5px;  bottom: -5px; cursor: nesw-resize; }
+.sh-handle[data-h="br"] { right: -5px; bottom: -5px; cursor: nwse-resize; }
+.sh-handle[data-h="tm"] { left: 50%; top: -5px; margin-left: -5px; cursor: ns-resize; }
+.sh-handle[data-h="bm"] { left: 50%; bottom: -5px; margin-left: -5px; cursor: ns-resize; }
+.sh-handle[data-h="lm"] { top: 50%; left: -5px; margin-top: -5px; cursor: ew-resize; }
+.sh-handle[data-h="rm"] { top: 50%; right: -5px; margin-top: -5px; cursor: ew-resize; }
+.sh-handle--rot {
+  position: absolute;
+  left: 50%; top: -26px; margin-left: -5px;
+  width: 10px; height: 10px;
+  background: #00E0FF;
+  border: 1px solid #00E0FF;
+  border-radius: 50%;
+  pointer-events: auto;
+  z-index: 4;
+  cursor: grab;
+}
+.sh-handle--rot:active { cursor: grabbing; }
+.sh-rot-stem {
+  position: absolute;
+  left: 50%; top: -16px;
+  width: 1px; height: 16px;
+  background: #00E0FF;
+  margin-left: -0.5px;
+  pointer-events: none;
+  z-index: 3;
+}
 
 /* Fill mode toggle — wider buttons to fit labels */
 .fill-mode-toggle .toggle-opt { min-width: 56px; }
