@@ -65,12 +65,12 @@
       <span class="topbar-sep">—</span>
       <span class="topbar-file" id="topbar-file-label" title="Click to rename">untitled</span>
       <div class="tb-sep"></div>
-      <button class="tb-btn tb-btn--with-sc" id="btn-undo" onclick="undo()" title="Undo" disabled>
-        <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 7a4 4 0 1 0 1-3.2"/><polyline points="1,2.5 3,6.5 6.5,5"/></svg>
+      <button class="tb-btn tb-btn--labeled" id="btn-undo" onclick="undo()" title="Undo" disabled>
+        <span>Undo</span>
         <span class="tb-shortcut" data-shortcut="undo"></span>
       </button>
-      <button class="tb-btn tb-btn--with-sc" id="btn-redo" onclick="redo()" title="Redo" disabled>
-        <svg viewBox="0 0 14 14" width="11" height="11" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M11 7a4 4 0 1 1-1-3.2"/><polyline points="13,2.5 11,6.5 7.5,5"/></svg>
+      <button class="tb-btn tb-btn--labeled" id="btn-redo" onclick="redo()" title="Redo" disabled>
+        <span>Redo</span>
         <span class="tb-shortcut" data-shortcut="redo"></span>
       </button>
     </div>
@@ -85,9 +85,15 @@
     </div>
     <div class="topbar-right">
       <button class="tb-btn" onclick="openModal()" title="Open preset gallery">Presets</button>
-      <button class="tb-btn" onclick="openFraktFile()" title="Open .frakt" id="btn-open">Open</button>
-      <button class="tb-btn" onclick="saveFraktFile()" title="Save .frakt" id="btn-save">Save</button>
-      <button class="tb-btn tb-btn--primary" id="btn-export" onclick="copyCode()" title="Export as GLSL">Export</button>
+      <button class="tb-btn tb-btn--labeled" onclick="openFraktFile()" title="Open .frakt" id="btn-open">
+        <span>Open</span><span class="tb-shortcut" data-shortcut="open"></span>
+      </button>
+      <button class="tb-btn tb-btn--labeled" onclick="saveFraktFile()" title="Save .frakt" id="btn-save">
+        <span>Save</span><span class="tb-shortcut" data-shortcut="save"></span>
+      </button>
+      <button class="tb-btn tb-btn--primary tb-btn--labeled" id="btn-export" onclick="copyCode()" title="Export as GLSL">
+        <span>Export</span><span class="tb-shortcut" data-shortcut="export"></span>
+      </button>
     </div>
   </header>
 

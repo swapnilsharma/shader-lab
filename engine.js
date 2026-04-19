@@ -99,7 +99,7 @@ function defaultProperties(type) {
         { position: 1.0,  color: '#AA44FF' }
       ]
     };
-    case 'mesh-gradient':return { seed: 12, speed: 0.3, scale: 0.42, turbAmp: 0.6, turbFreq: 0.1, turbIter: 7, waveFreq: 3.8, distBias: 0.0, exposure: 1.1, contrast: 1.1, saturation: 1.0, color0: '#00001A', color1: '#2962FF', color2: '#40BCFF', color3: '#FFB8B5', color4: '#FFC14F' };
+    case 'mesh-gradient':return { seed: 12, speed: 0.3, scale: 0.42, turbAmp: 0.15, turbFreq: 0.1, turbIter: 7, waveFreq: 3.8, distBias: 0.0, exposure: 1.1, contrast: 1.1, saturation: 1.0, color0: '#1a1a2e', color1: '#16213e', color2: '#0f3460', color3: '#533483', color4: '#e94560' };
     case 'image':        return { fit: 'cover' };
     case 'noise-warp':   return { str: 0.5, scale: 2.0, wspd: 0.12, oct: 4 };
     case 'wave':         return { color: '#6B7FE8', freq: 4.0, amp: 0.15, spd: 0.6, pos: 0.5, edge: 0.06, angle: 0 };

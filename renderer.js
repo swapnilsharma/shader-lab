@@ -284,14 +284,26 @@ function glslEffectInline(l) {
 }
 
 // ── Build Fragment Shader ──────────────────────────────────────
+// Stack-respecting compositing: effect layers only affect layers BELOW them.
+// Architecture: single fragment shader, layers walked bottom-to-top, effects
+// applied inline to the running `col` accumulator. CA is baked into each
+// content layer's sampling using the sum of offsets from CAs above it in the
+// stack. (UV-prep types — noise-warp, pixelate — are still global; upgrading
+// to true per-layer image-space effects would require ping-pong FBOs.)
 function buildFragFromLayers(layers, frameState) {
   const vis = (layers || []).filter(l => l.visible !== false && l.type !== 'frame');
 
   const contentLayers  = vis.filter(l => isContent(l.type));
   const nwLayers       = vis.filter(l => l.type === 'noise-warp');
   const pixelLayers    = vis.filter(l => l.type === 'pixelate');
-  const caLayer        = vis.find(l => l.type === 'chromatic-aberration');
-  const effectLayers   = vis.filter(l => !isContent(l.type) && !isUVPrep(l.type) && l.type !== 'chromatic-aberration');
+
+  // For each content layer: the CA layers above it in the stack (lower index).
+  const caAboveByContent = {};
+  vis.forEach((l, i) => {
+    if (isContent(l.type)) {
+      caAboveByContent[l.id] = vis.slice(0, i).filter(ll => ll.type === 'chromatic-aberration');
+    }
+  });
 
   const [bgR, bgG, bgB] = hexToRgb(frameState.bg);
   const hasImage = contentLayers.some(l => l.type === 'image');
@@ -303,7 +315,6 @@ function buildFragFromLayers(layers, frameState) {
   s += glslUniformDecls(vis);
   s += GLSL_HELPERS;
 
-  // Content layer GLSL functions
   contentLayers.forEach(l => {
     if      (l.type === 'solid')         s += glslSolidFn(l.id);
     else if (l.type === 'gradient')      s += glslGradientFn(l.id);
@@ -314,12 +325,10 @@ function buildFragFromLayers(layers, frameState) {
   s += 'void main(){\n';
   s += '  vec2 uv=gl_FragCoord.xy/u_res;\n  float t=u_t;\n  vec2 rawuv=uv;\n';
 
-  // Pixelate UV
   pixelLayers.forEach(l => {
     s += `  uv=floor(uv*(u_res/${u('px',l.id,'s')}))/(u_res/${u('px',l.id,'s')});\n`;
   });
 
-  // Noise-warp UV
   if (nwLayers.length) {
     s += '  vec2 wuv=uv;\n';
     nwLayers.forEach(l => {
@@ -330,29 +339,33 @@ function buildFragFromLayers(layers, frameState) {
     s += '  vec2 wuv=uv;\n';
   }
 
-  // CA UV offsets
-  if (caLayer) {
-    const id=caLayer.id, sp=u('ca',id,'sp'), an=u('ca',id,'an');
-    s += `  vec2 ca_d=vec2(cos(${an}),sin(${an}));\n`;
-    s += `  vec2 wuvR=wuv+ca_d*${sp},wuvB=wuv-ca_d*${sp};\n`;
-  }
-
-  // Background
-  s += `  vec3 col=vec3(${bgR.toFixed(4)},${bgG.toFixed(4)},${bgB.toFixed(4)});\n`;
-
-  // Content layers (reversed: last in array = bottom = renders first)
-  [...contentLayers].reverse().forEach(l => {
-    const op = `u_op_${l.id}`;
-    if (caLayer) {
-      s += `  {\n    vec3 lR=contentFn_${l.id}(wuvR),lG=contentFn_${l.id}(wuv),lB=contentFn_${l.id}(wuvB);\n`;
-      s += `    col=mix(col,vec3(lR.r,lG.g,lB.b),${op});\n  }\n`;
-    } else {
-      s += `  {\n    vec3 lc=contentFn_${l.id}(wuv);col=mix(col,lc,${op});\n  }\n`;
-    }
+  // Per-CA direction vectors (cos*spread, sin*spread)
+  vis.filter(l => l.type === 'chromatic-aberration').forEach(l => {
+    s += `  vec2 ca_d_${l.id}=vec2(cos(${u('ca',l.id,'an')}),sin(${u('ca',l.id,'an')}))*${u('ca',l.id,'sp')};\n`;
   });
 
-  // Effect layers (reversed: bottom of stack applies first)
-  [...effectLayers].reverse().forEach(l => { s += glslEffectInline(l); });
+  s += `  vec3 col=vec3(${bgR.toFixed(4)},${bgG.toFixed(4)},${bgB.toFixed(4)});\n`;
+
+  // Walk bottom→top. UV-prep and CA are handled above / baked into content; skip here.
+  [...vis].reverse().forEach(l => {
+    if (l.type === 'noise-warp' || l.type === 'pixelate' || l.type === 'chromatic-aberration') return;
+
+    if (isContent(l.type)) {
+      const op = `u_op_${l.id}`;
+      const cas = caAboveByContent[l.id] || [];
+      if (cas.length > 0) {
+        const sumX = cas.map(c => `ca_d_${c.id}.x`).join('+');
+        const sumY = cas.map(c => `ca_d_${c.id}.y`).join('+');
+        s += `  {\n    vec2 _cad=vec2(${sumX},${sumY});\n`;
+        s += `    vec3 lR=contentFn_${l.id}(wuv+_cad),lG=contentFn_${l.id}(wuv),lB=contentFn_${l.id}(wuv-_cad);\n`;
+        s += `    col=mix(col,vec3(lR.r,lG.g,lB.b),${op});\n  }\n`;
+      } else {
+        s += `  {\n    vec3 lc=contentFn_${l.id}(wuv);col=mix(col,lc,${op});\n  }\n`;
+      }
+    } else {
+      s += glslEffectInline(l);
+    }
+  });
 
   s += '  gl_FragColor=vec4(clamp(col,0.0,1.0),1.0);\n}\n';
   return s;

@@ -91,16 +91,19 @@ svg { display: block; }
 .tb-btn--primary:hover { background: #2e2e2e; }
 .tb-btn:disabled { opacity: 0.28; cursor: default; pointer-events: none; }
 .tb-sep { width: 1px; height: 14px; background: var(--border); margin: 0 2px; }
-.tb-btn--with-sc { gap: 4px; padding: 0 6px; }
-.tb-shortcut {
-  font-family: var(--font-mono); font-size: 8.5px; color: var(--text-secondary);
-  letter-spacing: 0.02em; line-height: 1;
+.tb-btn--with-sc { gap: 6px; padding: 0 6px 0 8px; }
+.tb-shortcut,
+.btn-shortcut,
+.ctx-shortcut {
+  display: inline-flex; align-items: center;
+  background: #2a2a2a; border: 1px solid #333; border-radius: 4px;
+  padding: 2px 5px;
+  font-family: var(--font-mono); font-size: 11px; line-height: 1;
+  color: #888; letter-spacing: 0.02em;
 }
-.tb-btn:hover .tb-shortcut { color: #888; }
-.btn-shortcut {
-  font-family: var(--font-mono); font-size: 8.5px; color: var(--text-secondary);
-  margin-left: 6px; letter-spacing: 0.02em;
-}
+.tb-btn:hover .tb-shortcut { color: #aaa; border-color: #3a3a3a; }
+.btn-shortcut { margin-left: 6px; }
+.tb-btn--labeled { padding: 0 4px 0 8px; gap: 6px; }
 
 /* ── App Body ── */
 .app-body {
@@ -589,10 +592,6 @@ svg { display: block; }
 .ctx-item--danger:hover { background: #2a1515; }
 .ctx-divider { height: 1px; background: var(--border); margin: 4px 0; }
 .ctx-label { flex: 1; }
-.ctx-shortcut {
-  font-family: var(--font-mono); font-size: 9px; color: var(--text-secondary);
-  letter-spacing: 0.02em;
-}
 
 /* ── Confirm Dialog ── */
 .confirm-overlay {
