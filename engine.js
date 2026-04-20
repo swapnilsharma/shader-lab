@@ -104,8 +104,8 @@ function defaultProperties(type) {
         { color: '#AA44FF' }
       ]
     };
-    case 'mesh-gradient':return { seed: 12, speed: 0.3, scale: 0.42, turbAmp: 0.15, turbFreq: 0.1, turbIter: 7, waveFreq: 3.8, distBias: 0.0, exposure: 1.1, contrast: 1.1, saturation: 1.0, color0: '#1a1a2e', color1: '#16213e', color2: '#0f3460', color3: '#533483', color4: '#e94560' };
-    case 'image':        return { fit: 'cover' };
+    case 'mesh-gradient':return { seed: 12, speed: 0.3, scale: 0.42, turbAmp: 0.15, turbFreq: 0.1, turbIter: 7, waveFreq: 3.8, distBias: 0.0, exposure: 1.1, contrast: 1.1, saturation: 1.0, colors: ['#1e2558', '#2f3088', '#4f3aa8', '#7050c8', '#a580e0'] };
+    case 'image':        return { x: 0, y: 0, w: frameState.w, h: frameState.h, fit: 'cover' };
     case 'noise-warp':   return { str: 0.5, scale: 2.0, wspd: 0.12, oct: 4, angle: 90 };
     case 'wave':         return { color: '#6B7FE8', freq: 4.0, amp: 0.15, spd: 0.6, pos: 0.5, edge: 0.06, angle: 0 };
     case 'rectangle':    return { x: 0, y: 0, w: 300, h: 200, radius: 0, blur: 0, rotation: 0, scale: 1.0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}] };
@@ -138,6 +138,22 @@ function defaultLayerName(type) {
   return NAMES[type] || type;
 }
 
+function migrateMeshGradientProps(props, override) {
+  // Legacy color0..color4 → colors[]
+  const hasColorsArr = Array.isArray(props.colors) && props.colors.length >= 2;
+  const hasLegacy = override && (override.color0 || override.color1 || override.color2 || override.color3 || override.color4);
+  if (!hasColorsArr && hasLegacy) {
+    const raw = [override.color0, override.color1, override.color2, override.color3, override.color4].filter(c => typeof c === 'string');
+    if (raw.length >= 2) props.colors = raw;
+  }
+  delete props.color0; delete props.color1; delete props.color2; delete props.color3; delete props.color4;
+  if (!Array.isArray(props.colors) || props.colors.length < 2) {
+    props.colors = ['#1e2558', '#2f3088', '#4f3aa8', '#7050c8', '#a580e0'];
+  }
+  // Clamp
+  props.colors = props.colors.slice(0, 16);
+}
+
 function migrateGradientProps(props, override) {
   // Legacy color0..color3 → stops
   const hasOldColors = override && (override.color0 || override.color1 || override.color2 || override.color3);
@@ -161,6 +177,7 @@ function migrateGradientProps(props, override) {
 function createLayer(type, propsOverride) {
   const props = Object.assign({}, defaultProperties(type), propsOverride || {});
   if (type === 'gradient') migrateGradientProps(props, propsOverride);
+  if (type === 'mesh-gradient') migrateMeshGradientProps(props, propsOverride);
   const layer = {
     id: ++layerIdCounter,
     type,
@@ -260,7 +277,6 @@ function addLayer(type) {
   layers.unshift(layer); // add at top
   selectedLayerId = layer.id;
   renderUI(); needsRecompile = true;
-  closeLayerPopover();
   snapshot();
 }
 
@@ -555,43 +571,116 @@ ctxMenu.querySelectorAll('.ctx-item').forEach(item => {
 });
 document.addEventListener('click', () => closeCtxMenu());
 
-// ── Layer Popover ──────────────────────────────────────────────
-const layerPopover = document.getElementById('layer-popover');
-function getInsertAnchor() {
-  return document.getElementById('btn-insert-top')
-      || document.getElementById('btn-add-layer');
-}
-function openLayerPopover() {
-  const btn = getInsertAnchor();
-  if (!btn) return;
-  const r = btn.getBoundingClientRect();
-  layerPopover.style.left = r.left + 'px';
-  layerPopover.style.top  = (r.bottom + 4) + 'px';
-  layerPopover.classList.remove('hidden');
-  startPopoverThumbs(layerPopover);
-  clampPopoverToViewport(layerPopover, r);
-}
-function closeLayerPopover() {
-  layerPopover.classList.add('hidden');
-  stopAllThumbRenderers();
+// ── Layer/Effects Top-bar Menu Wiring ──────────────────────────
+// Wire items in #menu-layers to add layers
+(function wireLayersMenu() {
+  const menu = document.getElementById('menu-layers');
+  if (!menu) return;
+  menu.querySelectorAll('[data-act="add-layer"]').forEach(item => {
+    item.addEventListener('click', () => {
+      const type = item.dataset.type;
+      if (type) addLayer(type);
+      closeAllTopbarMenus();
+    });
+  });
+})();
+
+// Wire items in #menu-effects to add an effect layer to the top of the main layer stack
+// (identical to how effects were added before Round 6 split the Insert menu in two).
+(function wireEffectsMenu() {
+  const menu = document.getElementById('menu-effects');
+  if (!menu) return;
+  menu.querySelectorAll('[data-act="add-effect"]').forEach(item => {
+    item.addEventListener('click', () => {
+      const type = item.dataset.type;
+      if (!type) return;
+      addLayer(type);
+      closeAllTopbarMenus();
+    });
+  });
+})();
+
+// Wire help menu actions
+(function wireHelpMenu() {
+  const menu = document.getElementById('menu-help');
+  if (!menu) return;
+  menu.querySelectorAll('[data-act]').forEach(item => {
+    item.addEventListener('click', () => {
+      const act = item.dataset.act;
+      closeAllTopbarMenus();
+      if (act === 'help-shortcuts') openHelpModal('help-shortcuts-overlay');
+      else if (act === 'help-whatsnew') openHelpModal('help-whatsnew-overlay');
+      else if (act === 'help-about') openHelpModal('help-about-overlay');
+      else if (act === 'help-bug') openHelpModal('help-bug-overlay');
+    });
+  });
+  // Close buttons on modals
+  document.querySelectorAll('.help-close[data-close]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = btn.dataset.close;
+      const ov = document.getElementById(id);
+      if (ov) ov.classList.add('hidden');
+    });
+  });
+  // Click overlay backdrop to dismiss
+  document.querySelectorAll('.help-overlay').forEach(ov => {
+    ov.addEventListener('click', (e) => {
+      if (e.target === ov) ov.classList.add('hidden');
+    });
+  });
+  // Copy-email buttons inside help modals (Report-a-bug + About > Get in touch)
+  document.querySelectorAll('.contact-copy-btn[data-copy-email]').forEach(btn => {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const email = btn.dataset.copyEmail;
+      if (!email) return;
+      const mark = () => {
+        const orig = btn.textContent;
+        btn.classList.add('copied');
+        btn.textContent = 'Copied';
+        setTimeout(() => { btn.classList.remove('copied'); btn.textContent = orig; }, 1400);
+      };
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(email);
+          mark();
+          return;
+        }
+      } catch (_) { /* fall through */ }
+      // Fallback: hidden textarea + execCommand
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = email;
+        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        ta.remove();
+        mark();
+      } catch (_) {
+        if (typeof showToast === 'function') showToast('Copy failed — select and copy manually', true);
+      }
+    });
+  });
+})();
+
+function openHelpModal(id) {
+  // Close any other help modal first
+  document.querySelectorAll('.help-overlay').forEach(ov => ov.classList.add('hidden'));
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('hidden');
 }
 
-['btn-insert-top', 'btn-add-layer'].forEach(id => {
-  const b = document.getElementById(id);
-  if (!b) return;
-  b.addEventListener('click', e => {
-    e.stopPropagation();
-    layerPopover.classList.contains('hidden') ? openLayerPopover() : closeLayerPopover();
-  });
-});
-layerPopover.querySelectorAll('.pop-item').forEach(item => {
-  item.addEventListener('click', () => addLayer(item.dataset.type));
-});
-document.addEventListener('click', e => {
-  if (!e.target.closest('#layer-popover')
-      && !e.target.closest('#btn-add-layer')
-      && !e.target.closest('#btn-insert-top')) closeLayerPopover();
-});
+// Lifecycle for Effects-dropdown thumbs: start animations when menu opens,
+// stop when it closes. Hook into toggleMenu().
+function onEffectsMenuOpened() {
+  const m = document.getElementById('menu-effects');
+  if (!m) return;
+  startPopoverThumbs(m);
+}
+function onEffectsMenuClosed() {
+  stopAllThumbRenderers();
+}
 
 // ── Attached Effect Popover (per-layer) ────────────────────────
 const effectPopover = document.getElementById('effect-popover');
@@ -789,7 +878,7 @@ function renderUI() {
 // ── Shape canvas interaction ───────────────────────────────────
 function getSelectedShape() {
   const l = layers.find(l => l.id === selectedLayerId);
-  if (!l || (l.type !== 'rectangle' && l.type !== 'circle')) return null;
+  if (!l || (l.type !== 'rectangle' && l.type !== 'circle' && l.type !== 'image')) return null;
   if (l.visible === false) return null;
   return l;
 }
@@ -807,19 +896,22 @@ function updateShapeOutline() {
   const cx = (rect.left - area.left) + rect.width / 2;
   const cy = (rect.top  - area.top)  + rect.height / 2;
   const p = l.properties;
-  const sclF = p.scale != null ? p.scale : 1.0;
-  const w = (p.w || 200) * scale * sclF;
-  const h = (p.h || 200) * scale * sclF;
+  const isImage = l.type === 'image';
+  const sclF = isImage ? 1.0 : (p.scale != null ? p.scale : 1.0);
+  const defW = isImage ? frameState.w : 200;
+  const defH = isImage ? frameState.h : 200;
+  const w = (p.w || defW) * scale * sclF;
+  const h = (p.h || defH) * scale * sclF;
   const left = cx + (p.x || 0) * scale - w / 2;
   const top  = cy - (p.y || 0) * scale - h / 2;
   // shader rotation is CCW (y-up); CSS rotate is CW (y-down) → negate
-  const rotCss = -(p.rotation || 0);
+  const rotCss = isImage ? 0 : -(p.rotation || 0);
   out.style.left = left + 'px';
   out.style.top  = top + 'px';
   out.style.width = w + 'px';
   out.style.height = h + 'px';
   out.style.transform = `rotate(${rotCss}deg)`;
-  out.style.borderRadius = l.type === 'circle' ? '50%' : (((p.radius || 0) * scale * sclF) + 'px');
+  out.style.borderRadius = l.type === 'circle' ? '50%' : (isImage ? '0px' : (((p.radius || 0) * scale * sclF) + 'px'));
   out.classList.remove('hidden');
   canvasEl.classList.add('shape-target');
 }
@@ -853,12 +945,15 @@ window.addEventListener('resize', () => updateShapeOutline());
     const p = l.properties;
     const dx = mx - (p.x || 0);
     const dy = my + (p.y || 0); // screen-down vector from shape center
-    const scl = Math.max(0.01, p.scale != null ? p.scale : 1);
-    const rot = (p.rotation || 0) * Math.PI / 180;
+    const isImage = l.type === 'image';
+    const scl = isImage ? 1 : Math.max(0.01, p.scale != null ? p.scale : 1);
+    const rot = isImage ? 0 : (p.rotation || 0) * Math.PI / 180;
     const lp = toLocal(dx, dy, rot);
-    const hw = Math.max(0.5, (p.w || 1) / 2) * scl;
-    const hh = Math.max(0.5, (p.h || 1) / 2) * scl;
-    if (l.type === 'rectangle') return Math.abs(lp.x) <= hw && Math.abs(lp.y) <= hh;
+    const defW = isImage ? frameState.w : 1;
+    const defH = isImage ? frameState.h : 1;
+    const hw = Math.max(0.5, (p.w || defW) / 2) * scl;
+    const hh = Math.max(0.5, (p.h || defH) / 2) * scl;
+    if (l.type === 'rectangle' || l.type === 'image') return Math.abs(lp.x) <= hw && Math.abs(lp.y) <= hh;
     if (l.type === 'circle')    return (lp.x*lp.x)/(hw*hw) + (lp.y*lp.y)/(hh*hh) <= 1;
     return false;
   };
@@ -1037,8 +1132,30 @@ function renderTypeControls(l) {
         renderSlider(id,'blend','Blend',p.blend||0.54,0.0,1.0,0.01),
       ].join('');
 
-    case 'mesh-gradient':
+    case 'mesh-gradient': {
+      const cols = Array.isArray(p.colors) && p.colors.length >= 2 ? p.colors : ['#1e2558','#2f3088','#4f3aa8','#7050c8','#a580e0'];
+      const rowsHTML = cols.map((c, i) => {
+        const sid = `mg-sw-${id}-${i}`;
+        const hid = `mg-hex-${id}-${i}`;
+        const cid = `mg-cp-${id}-${i}`;
+        const up  = (c || '#ffffff').toUpperCase();
+        return `<div class="ctrl-color-row mg-color-row" data-lid="${id}" data-idx="${i}">
+          <div class="swatch" id="${sid}" style="background:${c}" onclick="document.getElementById('${cid}').click()"></div>
+          <input type="text" class="swatch-hex swatch-hex-input mg-color-hex" id="${hid}" value="${up}" spellcheck="false" maxlength="7" data-lid="${id}" data-idx="${i}">
+          <input type="color" class="color-input-hidden mg-color-cp" id="${cid}" value="${c}" data-lid="${id}" data-idx="${i}">
+          <button class="mg-color-del" data-lid="${id}" data-idx="${i}" title="Remove color" tabindex="-1">×</button>
+        </div>`;
+      }).join('');
       return [
+        `<div class="mg-preview-wrap"><canvas class="mg-preview-canvas" id="mg-preview-${id}" data-lid="${id}" width="240" height="160"></canvas></div>`,
+        `<div class="mg-points-zone">
+          <div class="mg-points-header">
+            <span class="mg-points-label">Colors</span>
+            <span class="mg-points-count" id="mg-cnt-${id}">${cols.length} points</span>
+          </div>
+          <div class="mg-colors-list" data-lid="${id}">${rowsHTML}</div>
+          ${cols.length < 16 ? `<button class="mg-color-add" data-lid="${id}">+ Add color</button>` : ''}
+        </div>`,
         renderSlider(id,'seed','Seed',p.seed||12,0,999,1),
         renderSlider(id,'speed','Speed',p.speed||0.3,0.01,2.0,0.01),
         renderSlider(id,'scale','Scale',p.scale||0.42,0.1,2.0,0.01),
@@ -1049,18 +1166,32 @@ function renderTypeControls(l) {
         renderSlider(id,'exposure','Exposure',p.exposure||1.1,0.5,2.0,0.01),
         renderSlider(id,'contrast','Contrast',p.contrast||1.1,0.5,2.0,0.01),
         renderSlider(id,'saturation','Saturation',p.saturation||1.0,0.0,2.0,0.01),
-        renderColorRow(id,'color0',p.color0||'#00001A','Color 1'),
-        renderColorRow(id,'color1',p.color1||'#2962FF','Color 2'),
-        renderColorRow(id,'color2',p.color2||'#40BCFF','Color 3'),
-        renderColorRow(id,'color3',p.color3||'#FFB8B5','Color 4'),
-        renderColorRow(id,'color4',p.color4||'#FFC14F','Color 5'),
       ].join('');
+    }
 
-    case 'image':
-      return `<div class="img-drop-zone" onclick="document.getElementById('img-input').click()">
-        <div class="img-drop-icon">↑</div>
-        <div class="img-drop-text">${hasBaseImage ? baseImageName : 'click or drop image'}</div>
-      </div>`;
+    case 'image': {
+      const fit = p.fit || 'cover';
+      const fw = p.w != null ? p.w : frameState.w;
+      const fh = p.h != null ? p.h : frameState.h;
+      return [
+        `<div class="img-drop-zone" onclick="document.getElementById('img-input').click()">
+          <div class="img-drop-icon">↑</div>
+          <div class="img-drop-text">${hasBaseImage ? baseImageName : 'click or drop image'}</div>
+        </div>`,
+        renderSlider(id,'x','X',p.x!=null?p.x:0,-2000,2000,1),
+        renderSlider(id,'y','Y',p.y!=null?p.y:0,-2000,2000,1),
+        renderSlider(id,'w','Width',fw,1,4000,1),
+        renderSlider(id,'h','Height',fh,1,4000,1),
+        `<div class="ctrl-row fill-mode-row">
+          <span class="ctrl-label">Fit</span>
+          <div class="toggle-wrap img-fit-toggle" data-lid="${id}">
+            <button class="toggle-opt${fit==='cover'?' active':''}" data-fit="cover">Cover</button>
+            <button class="toggle-opt${fit==='contain'?' active':''}" data-fit="contain">Contain</button>
+            <button class="toggle-opt${fit==='stretch'?' active':''}" data-fit="stretch">Stretch</button>
+          </div>
+        </div>`
+      ].join('');
+    }
 
     case 'noise-warp':
       return [
@@ -1750,6 +1881,181 @@ function wirePropertiesZone(l) {
       });
     });
   });
+
+  // Wire image-fit toggle
+  panel.querySelectorAll('.img-fit-toggle').forEach(wrap => {
+    wrap.querySelectorAll('[data-fit]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const fit = btn.dataset.fit;
+        if (l.properties.fit === fit) return;
+        l.properties.fit = fit;
+        wrap.querySelectorAll('[data-fit]').forEach(b => b.classList.toggle('active', b.dataset.fit === fit));
+        snapshot();
+      });
+    });
+  });
+
+  // Wire mesh-gradient colour rows (uses the standard color picker component)
+  panel.querySelectorAll('.mg-colors-list').forEach(list => {
+    const lid = parseInt(list.dataset.lid);
+    const layerRef = layers.find(x => x.id === lid);
+    if (!layerRef) return;
+
+    // Color picker (native) live-update
+    list.querySelectorAll('input.mg-color-cp').forEach(cp => {
+      const idx = parseInt(cp.dataset.idx);
+      const sid = `mg-sw-${lid}-${idx}`;
+      const hid = `mg-hex-${lid}-${idx}`;
+      cp.addEventListener('input', () => {
+        const arr = Array.isArray(layerRef.properties.colors) ? layerRef.properties.colors.slice() : [];
+        arr[idx] = cp.value;
+        layerRef.properties.colors = arr;
+        const sw = document.getElementById(sid);
+        if (sw) sw.style.background = cp.value;
+        const hx = document.getElementById(hid);
+        if (hx && document.activeElement !== hx) hx.value = cp.value.toUpperCase();
+        needsRecompile = true;
+        mgRefreshPreview(lid);
+      });
+      cp.addEventListener('change', () => snapshot());
+    });
+
+    // Hex text input — commit on blur / Enter
+    list.querySelectorAll('input.mg-color-hex').forEach(hx => {
+      const idx = parseInt(hx.dataset.idx);
+      const sid = `mg-sw-${lid}-${idx}`;
+      const cid = `mg-cp-${lid}-${idx}`;
+      const commit = () => {
+        const norm = normalizeHex(hx.value);
+        const arr = Array.isArray(layerRef.properties.colors) ? layerRef.properties.colors.slice() : [];
+        if (!norm) { hx.value = (arr[idx] || '#ffffff').toUpperCase(); return; }
+        arr[idx] = norm;
+        layerRef.properties.colors = arr;
+        hx.value = norm.toUpperCase();
+        const sw = document.getElementById(sid); if (sw) sw.style.background = norm;
+        const cp = document.getElementById(cid); if (cp) cp.value = norm;
+        needsRecompile = true;
+        mgRefreshPreview(lid);
+        snapshot();
+      };
+      hx.addEventListener('blur', commit);
+      hx.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); hx.blur(); }
+        if (e.key === 'Escape') {
+          const arr = Array.isArray(layerRef.properties.colors) ? layerRef.properties.colors : [];
+          hx.value = (arr[idx] || '#ffffff').toUpperCase(); hx.blur();
+        }
+      });
+      hx.addEventListener('click', e => e.stopPropagation());
+    });
+
+    // Per-row delete button
+    list.querySelectorAll('.mg-color-del').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        mgRemovePoint(lid, parseInt(btn.dataset.idx));
+      });
+    });
+  });
+
+  // Add-color button (sibling of the list)
+  panel.querySelectorAll('.mg-color-add').forEach(btn => {
+    const lid = parseInt(btn.dataset.lid);
+    btn.addEventListener('click', () => mgAddPoint(lid));
+  });
+
+  // Bootstrap mesh-gradient preview for any present canvas
+  panel.querySelectorAll('.mg-preview-canvas').forEach(cvs => {
+    const lid = parseInt(cvs.dataset.lid);
+    mgRenderPreview(lid, cvs);
+  });
+}
+
+// ── Mesh gradient helpers ──────────────────────────────────────
+function mgAddPoint(lid) {
+  const l = layers.find(x => x.id === lid); if (!l) return;
+  const arr = Array.isArray(l.properties.colors) ? l.properties.colors.slice() : [];
+  if (arr.length >= 16) { showToast && showToast('Max 16 colors'); return; }
+  // Default new color: midpoint (perceptual) of last two colours, else last colour, else neutral
+  let next = '#888888';
+  if (arr.length >= 2) next = _mgMixHex(arr[arr.length - 2], arr[arr.length - 1]);
+  else if (arr.length === 1) next = arr[0];
+  arr.push(next);
+  l.properties.colors = arr;
+  needsRecompile = true;
+  renderRightPanel();
+  snapshot();
+}
+
+function mgRemovePoint(lid, idx) {
+  const l = layers.find(x => x.id === lid); if (!l) return;
+  const arr = Array.isArray(l.properties.colors) ? l.properties.colors.slice() : [];
+  if (arr.length <= 2) { showToast && showToast('Minimum 2 colors'); return; }
+  if (idx < 0 || idx >= arr.length) return;
+  arr.splice(idx, 1);
+  l.properties.colors = arr;
+  needsRecompile = true;
+  renderRightPanel();
+  snapshot();
+}
+
+function _mgMixHex(a, b) {
+  const parse = (h) => {
+    const m = /^#?([0-9a-f]{6})$/i.exec((h || '').trim());
+    if (!m) return null;
+    const n = parseInt(m[1], 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  };
+  const ca = parse(a), cb = parse(b);
+  if (!ca || !cb) return a || b || '#888888';
+  const mix = ca.map((v, i) => Math.round((v + cb[i]) / 2));
+  return '#' + mix.map(v => v.toString(16).padStart(2, '0')).join('');
+}
+
+function mgRefreshPreview(lid) {
+  const cvs = document.getElementById(`mg-preview-${lid}`);
+  if (cvs) mgRenderPreview(lid, cvs);
+}
+
+// Seeded PRNG for deterministic preview layout
+function mgSeededRand(seed) {
+  let s = seed | 0;
+  return () => {
+    s = (s * 16807) % 2147483647;
+    return (s & 0x7fffffff) / 2147483647;
+  };
+}
+
+function mgRenderPreview(lid, cvs) {
+  const l = layers.find(x => x.id === lid); if (!l) return;
+  const ctx = cvs.getContext('2d'); if (!ctx) return;
+  const cols = Array.isArray(l.properties.colors) && l.properties.colors.length >= 2
+    ? l.properties.colors : ['#1a1a2e', '#16213e', '#0f3460', '#533483', '#e94560'];
+  const W = cvs.width, H = cvs.height;
+  // Base fill (last color = ambient)
+  ctx.fillStyle = cols[cols.length - 1];
+  ctx.fillRect(0, 0, W, H);
+  // Seeded color-centers, painted as soft radial blobs
+  const seed = Math.max(1, Math.floor((l.properties.seed || 12) * 7 + cols.length * 13));
+  const rnd = mgSeededRand(seed);
+  const points = cols.map((c, i) => ({
+    c,
+    x: (0.1 + 0.8 * rnd()) * W,
+    y: (0.1 + 0.8 * rnd()) * H,
+    r: (0.35 + 0.35 * rnd()) * Math.max(W, H)
+  }));
+  ctx.globalCompositeOperation = 'lighter';
+  points.forEach(pt => {
+    const g = ctx.createRadialGradient(pt.x, pt.y, 0, pt.x, pt.y, pt.r);
+    g.addColorStop(0, pt.c);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+  });
+  ctx.globalCompositeOperation = 'source-over';
+  // Subtle dark overlay to tame "lighter" blowout, maintaining "mesh" feel
+  ctx.fillStyle = 'rgba(0,0,0,0.18)';
+  ctx.fillRect(0, 0, W, H);
 }
 
 // ── Modal ──────────────────────────────────────────────────────
@@ -1842,22 +2148,23 @@ function loadBlank() {
 const IS_MAC = /Mac|iPod|iPhone|iPad/.test(navigator.platform);
 const MOD_SYM = IS_MAC ? '⌘' : 'Ctrl';
 const SHORTCUTS = {
-  palette:  MOD_SYM + 'K',
-  insert:   'N',
-  capture:  'P',
-  undo:     MOD_SYM + 'Z',
-  redo:     MOD_SYM + '⇧Z',
-  new:      MOD_SYM + 'X',
-  save:     MOD_SYM + 'S',
-  open:     MOD_SYM + 'O',
-  export:   MOD_SYM + '⇧E',
-  dup:      MOD_SYM + 'D',
+  palette:       MOD_SYM + '/',
+  'layers-menu': 'N',
+  'effects-menu':'E',
+  capture:       'P',
+  undo:          MOD_SYM + 'Z',
+  redo:          MOD_SYM + '⇧Z',
+  new:           MOD_SYM + 'X',
+  save:          MOD_SYM + 'S',
+  open:          MOD_SYM + 'O',
+  export:        MOD_SYM + '⇧E',
+  dup:           MOD_SYM + 'D',
   // legacy alias — kept for any remaining data-shortcut="addlayer" references
-  addlayer: 'N'
+  addlayer:      'N'
 };
 
-// ── Topbar Menus (File + Edit + Export dropdowns) ──────────────
-const TOPBAR_MENU_IDS = ['menu-file', 'menu-edit', 'menu-export'];
+// ── Topbar Menus (File + Edit + Layers + Effects + Export + Help) ──
+const TOPBAR_MENU_IDS = ['menu-file', 'menu-edit', 'menu-layers', 'menu-effects', 'menu-export', 'menu-help'];
 function anyMenuOpen() {
   return TOPBAR_MENU_IDS.some(id => {
     const m = document.getElementById(id);
@@ -1868,15 +2175,22 @@ function closeMenus(except) {
   TOPBAR_MENU_IDS.forEach(id => {
     if (id === except) return;
     const m = document.getElementById(id);
-    if (m) m.classList.add('hidden');
+    if (m && !m.classList.contains('hidden')) {
+      m.classList.add('hidden');
+      if (id === 'menu-effects') onEffectsMenuClosed();
+    }
   });
 }
+function closeAllTopbarMenus() { closeMenus(null); }
 function openMenu(name) {
   const id = 'menu-' + name;
   const m = document.getElementById(id);
   if (!m) return;
   closeMenus(id);
-  m.classList.remove('hidden');
+  if (m.classList.contains('hidden')) {
+    m.classList.remove('hidden');
+    if (id === 'menu-effects') onEffectsMenuOpened();
+  }
 }
 function toggleMenu(event, name) {
   if (event) event.stopPropagation();
@@ -1885,7 +2199,13 @@ function toggleMenu(event, name) {
   if (!m) return;
   const willOpen = m.classList.contains('hidden');
   closeMenus(willOpen ? id : null);
-  if (willOpen) m.classList.remove('hidden'); else m.classList.add('hidden');
+  if (willOpen) {
+    m.classList.remove('hidden');
+    if (id === 'menu-effects') onEffectsMenuOpened();
+  } else {
+    m.classList.add('hidden');
+    if (id === 'menu-effects') onEffectsMenuClosed();
+  }
 }
 document.addEventListener('click', e => {
   if (!e.target.closest('.tb-menu-wrap')) closeMenus(null);
@@ -2009,7 +2329,6 @@ function renderShortcutHints() {
   const bs = document.getElementById('btn-save');  if (bs)  bs.title  = 'Save .frakt (' + SHORTCUTS.save + ')';
   const bo = document.getElementById('btn-open');  if (bo)  bo.title  = 'Open .frakt (' + SHORTCUTS.open + ')';
   const be = document.getElementById('btn-export');if (be)  be.title  = 'Export GLSL (' + SHORTCUTS.export + ')';
-  const ba = document.getElementById('btn-add-layer'); if (ba) ba.title = 'Insert layer (' + SHORTCUTS.addlayer + ')';
   const bc = document.getElementById('btn-capture'); if (bc) bc.title = 'Capture PNG (' + SHORTCUTS.capture + ')';
 }
 
@@ -2032,11 +2351,19 @@ function closeAllOverlays() {
   if (co && !co.classList.contains('hidden')) { closeConfirm(false); closed = true; }
   const no = document.getElementById('name-overlay');
   if (no && !no.classList.contains('hidden')) { closeNameDialog(null); closed = true; }
-  if (!layerPopover.classList.contains('hidden')) { closeLayerPopover(); closed = true; }
+  document.querySelectorAll('.help-overlay').forEach(ov => {
+    if (!ov.classList.contains('hidden')) { ov.classList.add('hidden'); closed = true; }
+  });
   if (!ctxMenu.classList.contains('hidden')) { closeCtxMenu(); closed = true; }
+  const fcm = document.getElementById('frame-ctx-menu');
+  if (fcm && !fcm.classList.contains('hidden')) { fcm.classList.add('hidden'); closed = true; }
   TOPBAR_MENU_IDS.forEach(id => {
     const m = document.getElementById(id);
-    if (m && !m.classList.contains('hidden')) { m.classList.add('hidden'); closed = true; }
+    if (m && !m.classList.contains('hidden')) {
+      m.classList.add('hidden');
+      if (id === 'menu-effects') onEffectsMenuClosed();
+      closed = true;
+    }
   });
   return closed;
 }
@@ -2223,8 +2550,8 @@ document.addEventListener('keydown', e => {
   if (mod && ((e.key === 'Z') || (e.key === 'z' && e.shiftKey))) { if (isTypingInField()) return; e.preventDefault(); redo(); return; }
   if (mod && e.key === 'y') { if (isTypingInField()) return; e.preventDefault(); redo(); return; }
 
-  // Cmd+K — open Command Palette (allowed from anywhere, even inside the palette itself to toggle)
-  if (mod && (e.key === 'k' || e.key === 'K')) {
+  // Cmd+/ — Command palette
+  if (mod && (e.key === '/' || e.key === '?')) {
     e.preventDefault();
     togglePalette();
     return;
@@ -2247,15 +2574,14 @@ document.addEventListener('keydown', e => {
     return;
   }
 
-  // Plain shortcuts (no modifiers) — N insert, P snapshot
+  // Plain-letter shortcuts — only when no modifier is held
   if (!mod && !e.altKey && !e.shiftKey) {
-    if (e.key === 'n' || e.key === 'N') {
-      e.preventDefault();
-      if (layerPopover.classList.contains('hidden')) openLayerPopover();
-      else closeLayerPopover();
-      return;
-    }
+    // P — Capture PNG
     if (e.key === 'p' || e.key === 'P') { e.preventDefault(); captureCanvasPNG(); return; }
+    // N — open Layers dropdown
+    if (e.key === 'n' || e.key === 'N') { e.preventDefault(); toggleMenu(null, 'layers'); return; }
+    // E — open Effects dropdown
+    if (e.key === 'e' || e.key === 'E') { e.preventDefault(); toggleMenu(null, 'effects'); return; }
   }
   // Delete / Backspace — remove selected stop (if a gradient stop is actively selected), else delete selected layer
   if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -2284,9 +2610,46 @@ document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('modal-overlay')) closeModal();
 });
 
-// ── Frame Row ──────────────────────────────────────────────────
-document.getElementById('frame-row').addEventListener('click', () => selectLayer('frame'));
-document.getElementById('frame-row').addEventListener('contextmenu', e => e.preventDefault());
+// ── Frame Row (frozen; context menu has only Canvas Settings) ──
+(function wireFrameRow() {
+  const row = document.getElementById('frame-row');
+  if (!row) return;
+  row.addEventListener('click', () => selectLayer('frame'));
+  row.addEventListener('contextmenu', e => { e.preventDefault(); openFrameCtxMenu(e); });
+})();
+
+function openFrameCtxMenu(e) {
+  const m = document.getElementById('frame-ctx-menu');
+  if (!m) return;
+  // Position near the mouse / anchor button
+  let x = 0, y = 0;
+  if (e && e.clientX != null) { x = e.clientX; y = e.clientY; }
+  else if (e && e.currentTarget) {
+    const r = e.currentTarget.getBoundingClientRect();
+    x = r.right; y = r.bottom + 4;
+  }
+  m.style.left = x + 'px';
+  m.style.top  = y + 'px';
+  m.classList.remove('hidden');
+  // Clamp into viewport
+  const pr = m.getBoundingClientRect();
+  const vw = window.innerWidth, vh = window.innerHeight;
+  if (pr.right > vw - 8) m.style.left = (vw - pr.width - 8) + 'px';
+  if (pr.bottom > vh - 8) m.style.top = (vh - pr.height - 8) + 'px';
+}
+(function wireFrameCtxMenu() {
+  const m = document.getElementById('frame-ctx-menu');
+  if (!m) return;
+  m.querySelectorAll('.ctx-item').forEach(it => {
+    it.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const a = it.dataset.action;
+      m.classList.add('hidden');
+      if (a === 'frame-settings') selectLayer('frame');
+    });
+  });
+  document.addEventListener('click', () => m.classList.add('hidden'));
+})();
 
 // ── Editable Filename (name is editable; .frakt suffix is fixed) ─
 (function wireFileName() {

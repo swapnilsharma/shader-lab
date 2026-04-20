@@ -198,8 +198,69 @@ function glslLiquidBody(prefix, id) {
   vec3 lq_result=pow(clamp(lq_col,0.0,1.0),vec3(0.4545));`;
 }
 
+function glslMeshGradientBody(id) {
+  const p = k => u('mg', id, k);
+  const cols = u('mg', id, 'cols');
+  const cnt  = u('mg', id, 'cnt');
+  // Copy uniform array into a local array so we can index it with a loop
+  // counter on all drivers (some WebGL 1 drivers reject loop-indexed reads
+  // from uniform arrays in fragment shaders even though the spec allows it).
+  let stopsCopy = '';
+  for (let i = 0; i < 16; i++) stopsCopy += `  lq_stops[${i}]=${cols}[${i}];\n`;
+  // Unrolled pair selection: guaranteed-constant indices on both sides.
+  let pairSelect = `  vec3 lq_colA=lq_stops[0],lq_colB=lq_stops[1];\n`;
+  for (let i = 1; i < 15; i++) {
+    pairSelect += `  if(lq_idx==${i}){lq_colA=lq_stops[${i}];lq_colB=lq_stops[${i+1}];}\n`;
+  }
+  return `  float lq_seed=${p('seed')};float lq_speed=${p('spd')};
+  float lq_scale=${p('sc')};float lq_turbAmp=${p('ta')};
+  float lq_turbFreq=max(${p('tf')},0.01);int lq_turbIter=int(${p('ti')});
+  float lq_waveFreq=${p('wf')};float lq_distBias=${p('db')};
+  float lq_exposure=${p('ex')};float lq_contrast=${p('co')};float lq_saturation=${p('sa')};
+  int lq_cnt=int(max(2.0,min(16.0,float(${cnt}))));
+  vec3 lq_stops[16];
+${stopsCopy}  vec2 lq_r=u_res;vec2 lq_p=(puv*lq_r*2.0-lq_r)/lq_r.y;
+  float lq_t=u_t*0.3*lq_speed;
+  float lq_sa=lq_seed*2.3999632;float lq_cs=cos(lq_sa),lq_sn=sin(lq_sa);
+  lq_p=mat2(lq_cs,-lq_sn,lq_sn,lq_cs)*lq_p;
+  float lq_sO1=fract(sin(lq_seed*127.1)*43758.5);
+  float lq_sO2=fract(sin(lq_seed*311.7)*43758.5);
+  float lq_sO3=fract(sin(lq_seed*269.5)*43758.5);
+  vec2 lq_sP=(vec2(lq_sO1,lq_sO2)-0.5)*6.2832;
+  float lq_tV=0.0,lq_tW=0.0;
+  for(float li=0.0;li<4.0;li++){
+    float lq_eph=li/4.0;
+    vec2 lq_q=lq_p*lq_scale;float lq_la=lq_sP.x,lq_ld=lq_sP.y;
+    for(int lj=2;lj<13;lj++){
+      if(lj>=lq_turbIter)break;float lq_fj=float(lj);
+      lq_q+=lq_turbAmp*sin(lq_q.yx/lq_turbFreq*lq_fj+lq_t+vec2(lq_la,lq_ld))/lq_fj;
+      lq_la+=cos(lq_fj+lq_ld*1.2+lq_q.x*2.0-lq_t+lq_sO3*lq_fj);
+      lq_ld+=sin(lq_fj*lq_q.y+lq_la+lq_sO1+lq_t);
+    }
+    float lq_v=0.5+0.5*sin(length(lq_q.yx+vec2(lq_la,lq_ld)*0.2)*lq_waveFreq+li*li+lq_sO1);
+    float lq_w=smoothstep(0.0,0.5,lq_eph)*smoothstep(1.0,0.5,lq_eph);
+    lq_tV+=lq_v*lq_w;lq_tW+=lq_w;
+  }
+  float lq_val=lq_tV/max(lq_tW,0.001);
+  lq_val=clamp((lq_val-0.3)/0.4,0.0,1.0);
+  lq_val=pow(lq_val,exp(-lq_distBias));
+  float lq_segs=float(lq_cnt-1);
+  float lq_ti=clamp(lq_val,0.0,1.0)*lq_segs;
+  int lq_idx=int(floor(lq_ti));float lq_lt=fract(lq_ti);
+  if(lq_idx>=lq_cnt-1){lq_idx=lq_cnt-2;lq_lt=1.0;}
+  if(lq_idx<0){lq_idx=0;lq_lt=0.0;}
+${pairSelect}  lq_colA=pow(lq_colA,vec3(2.2));
+  lq_colB=pow(lq_colB,vec3(2.2));
+  vec3 lq_col=mix(lq_colA,lq_colB,lq_lt)*lq_exposure;
+  float lq_lum=dot(lq_col,vec3(0.2126,0.7152,0.0722));
+  lq_col=clamp((lq_col-0.5)*lq_contrast+0.5,0.0,1.0);
+  float lq_lum2=dot(lq_col,vec3(0.2126,0.7152,0.0722));
+  lq_col=mix(vec3(lq_lum2),lq_col,lq_saturation);
+  vec3 lq_result=pow(clamp(lq_col,0.0,1.0),vec3(0.4545));`;
+}
+
 function glslMeshGradientFn(id) {
-  return `vec3 contentFn_${id}(vec2 puv){\n${glslLiquidBody('mg',id)}\n  return lq_result;\n}\n`;
+  return `vec3 contentFn_${id}(vec2 puv){\n${glslMeshGradientBody(id)}\n  return lq_result;\n}\n`;
 }
 
 function glslSolidFn(id) {
@@ -207,16 +268,35 @@ function glslSolidFn(id) {
 }
 
 function glslImageFn(id) {
+  const xU  = u('im',id,'x');
+  const yU  = u('im',id,'y');
+  const wU  = u('im',id,'w');
+  const hU  = u('im',id,'h');
+  const fmU = u('im',id,'fit');
   return `vec3 contentFn_${id}(vec2 puv){
-  if(uHasImage>0.5){
-    float ar=u_res.x/u_res.y;float iar=uImgAr;
-    vec2 iuv=puv-0.5;
-    if(ar>iar){iuv.y*=ar/iar;}else{iuv.x*=iar/ar;}
-    iuv+=0.5;
-    if(iuv.x>=0.0&&iuv.x<=1.0&&iuv.y>=0.0&&iuv.y<=1.0)
-      return texture2D(uImage,iuv).rgb;
+  if(uHasImage<0.5) return vec3(0.0);
+  vec2 cvs=u_res;
+  vec2 pix=puv*cvs;
+  vec2 boxC=cvs*0.5+vec2(${xU},-${yU});
+  vec2 boxHS=vec2(max(${wU},1.0),max(${hU},1.0))*0.5;
+  vec2 lp=pix-boxC;
+  if(abs(lp.x)>boxHS.x||abs(lp.y)>boxHS.y) return vec3(0.0);
+  vec2 boxUv=lp/boxHS*0.5+0.5;
+  float boxAR=max(${wU},1.0)/max(${hU},1.0);
+  float iAR=max(uImgAr,0.0001);
+  vec2 iuv;
+  if(${fmU}<0.5){
+    if(boxAR>iAR){ iuv.x=boxUv.x; iuv.y=(boxUv.y-0.5)*(iAR/boxAR)+0.5; }
+    else         { iuv.y=boxUv.y; iuv.x=(boxUv.x-0.5)*(boxAR/iAR)+0.5; }
+  } else if(${fmU}<1.5){
+    if(boxAR>iAR){ iuv.y=boxUv.y; iuv.x=(boxUv.x-0.5)*(boxAR/iAR)+0.5; }
+    else         { iuv.x=boxUv.x; iuv.y=(boxUv.y-0.5)*(iAR/boxAR)+0.5; }
+    if(iuv.x<0.0||iuv.x>1.0||iuv.y<0.0||iuv.y>1.0) return vec3(0.0);
+  } else {
+    iuv=boxUv;
   }
-  return vec3(0.0);
+  iuv.y=1.0-iuv.y;
+  return texture2D(uImage,clamp(iuv,vec2(0.0),vec2(1.0))).rgb;
 }\n`;
 }
 
@@ -235,9 +315,11 @@ function glslUniformDecls(layers) {
         s += `uniform int ${u('gr',id,'cnt')};\n`; break;
       case 'mesh-gradient':
         s += `uniform float ${u('mg',id,'seed')},${u('mg',id,'spd')},${u('mg',id,'sc')},${u('mg',id,'ta')},${u('mg',id,'tf')},${u('mg',id,'ti')},${u('mg',id,'wf')},${u('mg',id,'db')},${u('mg',id,'ex')},${u('mg',id,'co')},${u('mg',id,'sa')};\n`;
-        s += `uniform vec3 ${u('mg',id,'c0')},${u('mg',id,'c1')},${u('mg',id,'c2')},${u('mg',id,'c3')},${u('mg',id,'c4')};\n`; break;
+        s += `uniform vec3 ${u('mg',id,'cols')}[16];\n`;
+        s += `uniform int ${u('mg',id,'cnt')};\n`; break;
       case 'image':
-        break; // uses shared uImage, uHasImage, uImgAr
+        s += `uniform float ${u('im',id,'x')},${u('im',id,'y')},${u('im',id,'w')},${u('im',id,'h')},${u('im',id,'fit')};\n`;
+        break; // also uses shared uImage, uHasImage, uImgAr
       case 'noise-warp':
         s += `uniform float ${u('nw',id,'str')},${u('nw',id,'sc')},${u('nw',id,'sp')},${u('nw',id,'oc')},${u('nw',id,'ang')};\n`; break;
       case 'pixelate':
@@ -619,6 +701,18 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         const [r,g,b] = hexToRgb(p.color || '#888888');
         glCtx.uniform3f(ul(u('sl',id,'c')), r, g, b); break;
       }
+      case 'image': {
+        const fw = Math.max(1, p.w != null ? p.w : frameState.w);
+        const fh = Math.max(1, p.h != null ? p.h : frameState.h);
+        glCtx.uniform1f(ul(u('im',id,'x')), p.x != null ? p.x : 0);
+        glCtx.uniform1f(ul(u('im',id,'y')), p.y != null ? p.y : 0);
+        glCtx.uniform1f(ul(u('im',id,'w')), fw);
+        glCtx.uniform1f(ul(u('im',id,'h')), fh);
+        const fit = (p.fit || 'cover');
+        const fitV = fit === 'cover' ? 0 : fit === 'contain' ? 1 : 2;
+        glCtx.uniform1f(ul(u('im',id,'fit')), fitV);
+        break;
+      }
       case 'gradient': {
         glCtx.uniform1f(ul(u('gr',id,'seed')), p.seed     != null ? p.seed      : 42);
         glCtx.uniform1f(ul(u('gr',id,'spd')),  p.speed    != null ? p.speed     : 1.0);
@@ -657,10 +751,18 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         glCtx.uniform1f(ul(u('mg',id,'ex')),  p.exposure||1.1);
         glCtx.uniform1f(ul(u('mg',id,'co')),  p.contrast||1.1);
         glCtx.uniform1f(ul(u('mg',id,'sa')),  p.saturation||1.0);
-        const c0=hexToRgb(p.color0||'#00001A'),c1=hexToRgb(p.color1||'#2962FF'),c2=hexToRgb(p.color2||'#40BCFF'),c3=hexToRgb(p.color3||'#FFB8B5'),c4=hexToRgb(p.color4||'#FFC14F');
-        glCtx.uniform3f(ul(u('mg',id,'c0')),...c0);glCtx.uniform3f(ul(u('mg',id,'c1')),...c1);
-        glCtx.uniform3f(ul(u('mg',id,'c2')),...c2);glCtx.uniform3f(ul(u('mg',id,'c3')),...c3);
-        glCtx.uniform3f(ul(u('mg',id,'c4')),...c4);
+        let mgCols = Array.isArray(p.colors) && p.colors.length >= 2 ? p.colors
+                   : [p.color0||'#1a1a2e', p.color1||'#16213e', p.color2||'#0f3460', p.color3||'#533483', p.color4||'#e94560'];
+        mgCols = mgCols.slice(0, 16);
+        const cnt = mgCols.length;
+        const arr = new Float32Array(16 * 3);
+        for (let i = 0; i < 16; i++) {
+          const hex = i < cnt ? mgCols[i] : mgCols[cnt - 1];
+          const [r,g,b] = hexToRgb(hex || '#000000');
+          arr[i*3]=r; arr[i*3+1]=g; arr[i*3+2]=b;
+        }
+        glCtx.uniform3fv(ul(u('mg',id,'cols')), arr);
+        glCtx.uniform1i(ul(u('mg',id,'cnt')), cnt);
         break;
       }
       case 'noise-warp': {
@@ -822,9 +924,18 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
 }
 
 // ── WebGL setup ────────────────────────────────────────────────
+// Status DOM elements are optional — absent when the Live/error indicator has
+// been removed from the statusbar.
 const errEl  = document.getElementById('status-error');
 const dotEl  = document.getElementById('status-dot');
 const txtEl  = document.getElementById('status-text');
+function setStatus(kind, msg) {
+  if (errEl) errEl.textContent = (kind === 'error' || kind === 'link') ? (msg || '') : '';
+  if (dotEl) dotEl.className = kind === 'error' || kind === 'link'
+    ? 'statusbar-dot statusbar-dot--error'
+    : 'statusbar-dot statusbar-dot--live';
+  if (txtEl) txtEl.textContent = kind === 'error' ? 'Error' : 'Live';
+}
 const VERT   = `attribute vec2 p;void main(){gl_Position=vec4(p,0.0,1.0);}`;
 const vbuf   = gl.createBuffer();
 gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
@@ -845,19 +956,16 @@ function compile() {
   const vs = mkShader(gl, gl.VERTEX_SHADER, VERT);
   const fs = mkShader(gl, gl.FRAGMENT_SHADER, fsrc);
   if (!vs || !fs) {
-    errEl.textContent = gl.getShaderInfoLog(fs || vs);
-    dotEl.className = 'statusbar-dot statusbar-dot--error';
-    txtEl.textContent = 'Error'; return;
+    setStatus('error', gl.getShaderInfoLog(fs || vs));
+    return;
   }
   const p2 = gl.createProgram();
   gl.attachShader(p2, vs); gl.attachShader(p2, fs); gl.linkProgram(p2);
   if (!gl.getProgramParameter(p2, gl.LINK_STATUS)) {
-    errEl.textContent = 'Link: ' + gl.getProgramInfoLog(p2);
-    dotEl.className = 'statusbar-dot statusbar-dot--error'; return;
+    setStatus('link', 'Link: ' + gl.getProgramInfoLog(p2));
+    return;
   }
-  errEl.textContent = '';
-  dotEl.className = 'statusbar-dot statusbar-dot--live';
-  txtEl.textContent = 'Live';
+  setStatus('live');
   if (prog) gl.deleteProgram(prog);
   prog = p2; gl.useProgram(prog);
   const pl = gl.getAttribLocation(prog, 'p');

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>frakt</title>
+  <title>frakt - Shaders for the rest of us</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@700&display=swap" rel="stylesheet">
@@ -49,30 +49,9 @@
   <div class="pop-item" data-ae-type="scanlines"><canvas class="pop-thumb" data-thumb="scanlines" width="48" height="36"></canvas><span class="pop-name">Scanlines</span></div>
 </div>
 
-<!-- ═══ ADD LAYER POPOVER ═══ -->
-<div class="layer-popover hidden" id="layer-popover">
-  <div class="pop-label">CONTENT</div>
-  <div class="pop-item" data-type="solid"><canvas class="pop-thumb" data-thumb="solid" width="48" height="36"></canvas><span class="pop-name">Solid</span></div>
-  <div class="pop-item" data-type="gradient"><canvas class="pop-thumb" data-thumb="gradient" width="48" height="36"></canvas><span class="pop-name">Gradient</span></div>
-  <div class="pop-item" data-type="mesh-gradient"><canvas class="pop-thumb" data-thumb="mesh-gradient" width="48" height="36"></canvas><span class="pop-name">Mesh Gradient</span></div>
-  <div class="pop-item" data-type="image"><canvas class="pop-thumb" data-thumb="image" width="48" height="36"></canvas><span class="pop-name">Image</span></div>
-  <div class="pop-item" data-type="wave"><canvas class="pop-thumb" data-thumb="wave" width="48" height="36"></canvas><span class="pop-name">Wave</span></div>
-  <div class="pop-item" data-type="rectangle"><canvas class="pop-thumb" data-thumb="rectangle" width="48" height="36"></canvas><span class="pop-name">Rectangle</span></div>
-  <div class="pop-item" data-type="circle"><canvas class="pop-thumb" data-thumb="circle" width="48" height="36"></canvas><span class="pop-name">Circle</span></div>
-  <div class="pop-divider"></div>
-  <div class="pop-label">EFFECTS</div>
-  <div class="pop-item" data-type="noise-warp"><canvas class="pop-thumb" data-thumb="noise-warp" width="48" height="36"></canvas><span class="pop-name">Noise Warp</span></div>
-  <div class="pop-item" data-type="liquid"><canvas class="pop-thumb" data-thumb="liquid" width="48" height="36"></canvas><span class="pop-name">Liquid</span></div>
-  <div class="pop-item" data-type="ripple"><canvas class="pop-thumb" data-thumb="ripple" width="48" height="36"></canvas><span class="pop-name">Ripple</span></div>
-  <div class="pop-item" data-type="grain"><canvas class="pop-thumb" data-thumb="grain" width="48" height="36"></canvas><span class="pop-name">Grain</span></div>
-  <div class="pop-item" data-type="chromatic-aberration"><canvas class="pop-thumb" data-thumb="chromatic-aberration" width="48" height="36"></canvas><span class="pop-name">Chromatic Aberration</span></div>
-  <div class="pop-item" data-type="vignette"><canvas class="pop-thumb" data-thumb="vignette" width="48" height="36"></canvas><span class="pop-name">Vignette</span></div>
-  <div class="pop-item" data-type="color-grade"><canvas class="pop-thumb" data-thumb="color-grade" width="48" height="36"></canvas><span class="pop-name">Color Grade</span></div>
-  <div class="pop-item" data-type="duotone"><canvas class="pop-thumb" data-thumb="duotone" width="48" height="36"></canvas><span class="pop-name">Duotone</span></div>
-  <div class="pop-item" data-type="bloom"><canvas class="pop-thumb" data-thumb="bloom" width="48" height="36"></canvas><span class="pop-name">Bloom</span></div>
-  <div class="pop-item" data-type="posterize"><canvas class="pop-thumb" data-thumb="posterize" width="48" height="36"></canvas><span class="pop-name">Posterize</span></div>
-  <div class="pop-item" data-type="pixelate"><canvas class="pop-thumb" data-thumb="pixelate" width="48" height="36"></canvas><span class="pop-name">Pixelate</span></div>
-  <div class="pop-item" data-type="scanlines"><canvas class="pop-thumb" data-thumb="scanlines" width="48" height="36"></canvas><span class="pop-name">Scanlines</span></div>
+<!-- ═══ FRAME CONTEXT MENU ═══ -->
+<div class="ctx-menu hidden" id="frame-ctx-menu">
+  <div class="ctx-item" data-action="frame-settings"><span class="ctx-label">Canvas Settings</span></div>
 </div>
 
 <!-- ═══ MAIN APP ═══ -->
@@ -84,6 +63,7 @@
       <div class="topbar-l1-left">
         <img class="app-icon" src="assets/frakt-ico-24x24.png" alt="frakt" width="24" height="24">
         <span class="app-name">frakt</span>
+        <span class="app-beta">BETA</span>
         <span class="app-tagline">Shaders for the rest of us</span>
       </div>
       <div class="topbar-spacer"></div>
@@ -97,7 +77,7 @@
     <div class="topbar-line topbar-line--2">
       <div class="topbar-l2-left">
         <div class="tb-menu-wrap" data-menu="file">
-          <button class="tb-menu-btn" id="btn-file-menu" onclick="toggleMenu(event,'file')">File <span class="tb-caret">▾</span></button>
+          <button class="tb-menu-btn" id="btn-file-menu" onclick="toggleMenu(event,'file')">File</span></button>
           <div class="tb-menu hidden" id="menu-file">
             <div class="tb-menu-item" data-act="new"><span class="tb-menu-label">New</span><span class="tb-menu-sc" data-shortcut="new"></span></div>
             <div class="tb-menu-item" data-act="open"><span class="tb-menu-label">Open</span><span class="tb-menu-sc" data-shortcut="open"></span></div>
@@ -105,7 +85,7 @@
           </div>
         </div>
         <div class="tb-menu-wrap" data-menu="edit">
-          <button class="tb-menu-btn" id="btn-edit-menu" onclick="toggleMenu(event,'edit')">Edit <span class="tb-caret">▾</span></button>
+          <button class="tb-menu-btn" id="btn-edit-menu" onclick="toggleMenu(event,'edit')">Edit</span></button>
           <div class="tb-menu hidden" id="menu-edit">
             <div class="tb-menu-item" data-act="undo"><span class="tb-menu-label">Undo</span><span class="tb-menu-sc" data-shortcut="undo"></span></div>
             <div class="tb-menu-item" data-act="redo"><span class="tb-menu-label">Redo</span><span class="tb-menu-sc" data-shortcut="redo"></span></div>
@@ -117,7 +97,51 @@
             <div class="tb-menu-item" data-act="palette"><span class="tb-menu-label">Command palette…</span><span class="tb-menu-sc" data-shortcut="palette"></span></div>
           </div>
         </div>
-        <button class="tb2-btn" id="btn-insert-top" title="Insert layer"><span>Insert</span><span class="tb2-sc" data-shortcut="insert"></span></button>
+        <div class="tb-menu-wrap" data-menu="layers">
+          <button class="tb-menu-btn" id="btn-layers-menu" onclick="toggleMenu(event,'layers')">Layers <span class="tb-menu-sc tb-btn-sc" data-shortcut="layers-menu"></span></button>
+          <div class="tb-menu hidden" id="menu-layers">
+            <div class="tb-menu-item" data-act="add-layer" data-type="solid"><span class="tb-menu-label">Solid</span></div>
+            <div class="tb-menu-item" data-act="add-layer" data-type="gradient"><span class="tb-menu-label">Gradient</span></div>
+            <div class="tb-menu-item" data-act="add-layer" data-type="mesh-gradient"><span class="tb-menu-label">Mesh Gradient</span></div>
+            <div class="tb-menu-item" data-act="add-layer" data-type="image"><span class="tb-menu-label">Image</span></div>
+            <div class="tb-menu-item" data-act="add-layer" data-type="wave"><span class="tb-menu-label">Wave</span></div>
+            <div class="tb-menu-divider"></div>
+            <div class="tb-menu-item" data-act="add-layer" data-type="rectangle"><span class="tb-menu-label">Rectangle</span></div>
+            <div class="tb-menu-item" data-act="add-layer" data-type="circle"><span class="tb-menu-label">Circle</span></div>
+          </div>
+        </div>
+        <div class="tb-menu-wrap" data-menu="effects">
+          <button class="tb-menu-btn" id="btn-effects-menu" onclick="toggleMenu(event,'effects')">Effects <span class="tb-menu-sc tb-btn-sc" data-shortcut="effects-menu"></span></button>
+          <div class="tb-menu tb-menu--effects hidden" id="menu-effects">
+            <div class="tb-fx-section-label">DISTORT</div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="noise-warp"><canvas class="pop-thumb" data-thumb="noise-warp" width="48" height="36"></canvas><span class="tb-menu-label">Noise Warp</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="liquid"><canvas class="pop-thumb" data-thumb="liquid" width="48" height="36"></canvas><span class="tb-menu-label">Liquid</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="ripple"><canvas class="pop-thumb" data-thumb="ripple" width="48" height="36"></canvas><span class="tb-menu-label">Ripple</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="pixelate"><canvas class="pop-thumb" data-thumb="pixelate" width="48" height="36"></canvas><span class="tb-menu-label">Pixelate</span></div>
+            <div class="tb-menu-divider"></div>
+            <div class="tb-fx-section-label">STYLIZE</div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="grain"><canvas class="pop-thumb" data-thumb="grain" width="48" height="36"></canvas><span class="tb-menu-label">Grain</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="vignette"><canvas class="pop-thumb" data-thumb="vignette" width="48" height="36"></canvas><span class="tb-menu-label">Vignette</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="bloom"><canvas class="pop-thumb" data-thumb="bloom" width="48" height="36"></canvas><span class="tb-menu-label">Bloom</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="scanlines"><canvas class="pop-thumb" data-thumb="scanlines" width="48" height="36"></canvas><span class="tb-menu-label">Scanlines</span></div>
+            <div class="tb-menu-divider"></div>
+            <div class="tb-fx-section-label">COLOR</div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="color-grade"><canvas class="pop-thumb" data-thumb="color-grade" width="48" height="36"></canvas><span class="tb-menu-label">Color Grade</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="duotone"><canvas class="pop-thumb" data-thumb="duotone" width="48" height="36"></canvas><span class="tb-menu-label">Duotone</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="posterize"><canvas class="pop-thumb" data-thumb="posterize" width="48" height="36"></canvas><span class="tb-menu-label">Posterize</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="chromatic-aberration"><canvas class="pop-thumb" data-thumb="chromatic-aberration" width="48" height="36"></canvas><span class="tb-menu-label">Chromatic Aberration</span></div>
+          </div>
+        </div>
+        <div class="tb-menu-wrap" data-menu="help">
+          <button class="tb-menu-btn" id="btn-help" onclick="toggleMenu(event,'help')">Help</button>
+          <div class="tb-menu hidden" id="menu-help">
+            <div class="tb-menu-item" data-act="help-shortcuts"><span class="tb-menu-label">Keyboard Shortcuts</span></div>
+            <div class="tb-menu-item" data-act="help-whatsnew"><span class="tb-menu-label">What's New</span></div>
+            <div class="tb-menu-item" data-act="help-bug"><span class="tb-menu-label">Report a Bug</span></div>
+            <div class="tb-menu-divider"></div>
+            <div class="tb-menu-item" data-act="help-about"><span class="tb-menu-label">About Frakt</span></div>
+          </div>
+        </div>
       </div>
       <div class="topbar-l2-center">
         <span class="topbar-file-wrap">
@@ -148,14 +172,14 @@
     <aside class="panel-left">
       <div class="panel-header">
         <span class="panel-label">LAYERS</span>
-        <button class="btn-add-layer" id="btn-add-layer" title="Insert layer">+ Insert<span class="btn-shortcut" data-shortcut="addlayer"></span></button>
       </div>
       <div class="layer-stack" id="layer-stack"></div>
       <div class="frame-layer-area">
         <div class="frame-sep"></div>
         <div class="frame-row" id="frame-row" onclick="selectLayer('frame')">
-          <span class="layer-icon-frame">□</span>
-          <span class="frame-name">Frame</span>
+          <span class="frame-lock" aria-hidden="true"><svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="#444" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="0.8"/><path d="M4.5 6.5V4.5a2.5 2.5 0 0 1 5 0v2"/></svg></span>
+          <span class="frame-name">background</span>
+          <button class="frame-ctx-btn" id="frame-ctx-btn" title="Frame options" onclick="event.stopPropagation(); openFrameCtxMenu(event)">···</button>
         </div>
       </div>
     </aside>
@@ -186,11 +210,7 @@
 
   <!-- STATUSBAR -->
   <footer class="statusbar">
-    <div class="statusbar-left">
-      <span class="statusbar-dot statusbar-dot--live" id="status-dot"></span>
-      <span class="statusbar-text" id="status-text">Live</span>
-      <span class="statusbar-error" id="status-error"></span>
-    </div>
+    <div class="statusbar-left"></div>
     <div class="statusbar-center">
       Built by <a class="statusbar-link" href="https://x.com/swapnilsharmakr" target="_blank" rel="noopener">Swapnil</a>
     </div>
@@ -246,6 +266,142 @@
       <span class="cmd-hint"><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
       <span class="cmd-hint"><kbd>↵</kbd> run</span>
       <span class="cmd-hint"><kbd>esc</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ KEYBOARD SHORTCUTS MODAL ═══ -->
+<div class="help-overlay hidden" id="help-shortcuts-overlay">
+  <div class="help-dialog">
+    <div class="help-header">
+      <span class="help-title">Keyboard Shortcuts</span>
+      <button class="help-close" data-close="help-shortcuts-overlay">×</button>
+    </div>
+    <div class="help-body">
+      <div class="help-cols">
+        <div class="help-col">
+          <div class="help-group">
+            <div class="help-group-label">GENERAL</div>
+            <div class="help-row"><span class="help-row-label">Command Palette</span><span class="help-row-sc" data-shortcut="palette"></span></div>
+            <div class="help-row"><span class="help-row-label">Layers menu</span><span class="help-row-sc" data-shortcut="layers-menu"></span></div>
+            <div class="help-row"><span class="help-row-label">Effects menu</span><span class="help-row-sc" data-shortcut="effects-menu"></span></div>
+            <div class="help-row"><span class="help-row-label">Show Shortcuts</span><span class="help-row-sc" data-shortcut="shortcuts"></span></div>
+            <div class="help-row"><span class="help-row-label">Play / Pause</span><span class="help-row-sc">Space</span></div>
+            <div class="help-row"><span class="help-row-label">Take Snapshot</span><span class="help-row-sc" data-shortcut="capture"></span></div>
+          </div>
+          <div class="help-group">
+            <div class="help-group-label">EDIT</div>
+            <div class="help-row"><span class="help-row-label">Undo</span><span class="help-row-sc" data-shortcut="undo"></span></div>
+            <div class="help-row"><span class="help-row-label">Redo</span><span class="help-row-sc" data-shortcut="redo"></span></div>
+            <div class="help-row"><span class="help-row-label">Duplicate Layer</span><span class="help-row-sc" data-shortcut="dup"></span></div>
+            <div class="help-row"><span class="help-row-label">Delete Layer</span><span class="help-row-sc">⌫</span></div>
+          </div>
+        </div>
+        <div class="help-col">
+          <div class="help-group">
+            <div class="help-group-label">LAYERS</div>
+            <div class="help-row"><span class="help-row-label">New File</span><span class="help-row-sc" data-shortcut="new"></span></div>
+            <div class="help-row"><span class="help-row-label">Open File</span><span class="help-row-sc" data-shortcut="open"></span></div>
+            <div class="help-row"><span class="help-row-label">Save</span><span class="help-row-sc" data-shortcut="save"></span></div>
+            <div class="help-row"><span class="help-row-label">Rename Layer</span><span class="help-row-sc">↵</span></div>
+            <div class="help-row"><span class="help-row-label">Select Next/Prev</span><span class="help-row-sc">↑ ↓</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ WHAT'S NEW MODAL ═══ -->
+<div class="help-overlay hidden" id="help-whatsnew-overlay">
+  <div class="help-dialog help-dialog--narrow">
+    <div class="help-header">
+      <span class="help-title">What's New</span>
+      <button class="help-close" data-close="help-whatsnew-overlay">×</button>
+    </div>
+    <div class="help-body">
+      <div class="changelog-entry">
+        <div class="changelog-version">v0.6 <span class="changelog-date">· April 2026</span></div>
+        <ul class="changelog-list">
+          <li>Image layer now supports position, size, and fit modes (Cover, Contain, Stretch)</li>
+          <li>Mesh gradients now take 4–16 colour points with a live preview</li>
+          <li>Split Insert menu into dedicated Layers and Effects dropdowns</li>
+          <li>Redesigned Frame block, cleaner status bar, Help menu, BETA tag</li>
+          <li>Image rendering no longer flips upside-down</li>
+        </ul>
+      </div>
+      <div class="changelog-entry">
+        <div class="changelog-version">v0.5</div>
+        <ul class="changelog-list">
+          <li>Per-layer attached effects</li>
+          <li>Command palette (⌘K)</li>
+          <li>Snapshot export, GLSL export, Shadertoy export</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ REPORT A BUG MODAL ═══ -->
+<div class="help-overlay hidden" id="help-bug-overlay">
+  <div class="help-dialog help-dialog--narrow">
+    <div class="help-header">
+      <span class="help-title">Report a bug</span>
+      <button class="help-close" data-close="help-bug-overlay">×</button>
+    </div>
+    <div class="help-body help-contact-body">
+      <p class="help-lede">Report a bug, or just get in touch. I read every message.</p>
+      <div class="contact-row">
+        <span class="contact-email">hello@frakt.app</span>
+        <button class="contact-copy-btn" data-copy-email="hello@frakt.app">Copy</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ABOUT MODAL ═══ -->
+<div class="help-overlay hidden" id="help-about-overlay">
+  <div class="help-dialog help-dialog--narrow">
+    <div class="help-header">
+      <span class="help-title">About Frakt</span>
+      <button class="help-close" data-close="help-about-overlay">×</button>
+    </div>
+    <div class="help-body help-about-body">
+      <div class="about-hero">
+        <img class="about-icon-big" src="assets/frakt-ico-128.png" alt="frakt" width="96" height="96">
+        <div class="about-hero-meta">
+          <span class="app-beta">BETA</span>
+          <span class="about-version">v0.6</span>
+        </div>
+      </div>
+
+      <div class="about-divider"></div>
+
+      <div class="about-story">
+        <p>Frakt started as a selfish project. I wanted beautiful shader backgrounds for my own work but every path to getting them required either writing GLSL from scratch or paying for tools that locked the output behind their ecosystem.</p>
+        <p>So I built Frakt — a layer-based shader creator that exports real, runnable code. The name is a compression of "fragment" and "fractal".</p>
+      </div>
+
+      <div class="about-divider"></div>
+
+      <div class="about-contact">
+        <div class="about-section-label">GET IN TOUCH</div>
+        <div class="contact-row">
+          <span class="contact-email">hello@frakt.app</span>
+          <button class="contact-copy-btn" data-copy-email="hello@frakt.app">Copy</button>
+        </div>
+      </div>
+
+      <div class="about-divider"></div>
+
+      <div class="about-footer">
+        <span class="about-byline-text">Built by Swapnil</span>
+        <a class="about-x-link" href="https://x.com/swaaaapnilaaa" target="_blank" rel="noopener">
+          <span class="about-x-glyph">&#120143;</span>
+          <span class="about-x-handle">@swaaaapnilaaa</span>
+          <span class="about-x-arrow">&#8599;</span>
+        </a>
+      </div>
     </div>
   </div>
 </div>
