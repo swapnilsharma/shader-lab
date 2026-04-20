@@ -894,51 +894,173 @@ function frame(now) {
 }
 
 // ── Mini Renderers (Modal Gallery) ────────────────────────────
+// Bespoke per-preset fragment shaders. Each stands alone, 2 uniforms only
+// (u_t, u_res), so 8 concurrent WebGL contexts stay cheap and can't OOM.
+
+const MINI_HEAD = `precision mediump float;
+uniform float u_t;
+uniform vec2 u_res;
+float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float n2(vec2 p){
+  vec2 i=floor(p),f=fract(p);
+  float a=h21(i),b=h21(i+vec2(1.0,0.0));
+  float c=h21(i+vec2(0.0,1.0)),d=h21(i+vec2(1.0,1.0));
+  vec2 u=f*f*(3.0-2.0*f);
+  return mix(a,b,u.x)+(c-a)*u.y*(1.0-u.x)+(d-b)*u.x*u.y;
+}
+void main(){
+  vec2 uv=gl_FragCoord.xy/u_res.xy;
+  vec2 p=uv*2.0-1.0;
+  p.x*=u_res.x/u_res.y;
+  float t=u_t;
+`;
+const MINI_TAIL = `  gl_FragColor=vec4(col,1.0);\n}`;
+
+const MINI_PRESET_SHADERS = {
+  // Aurora — flowing green/teal bands with purple highlights
+  aurora: MINI_HEAD + `
+  float y = uv.y;
+  float b1 = sin(uv.x*3.0 + t*0.6 + sin(uv.x*7.0+t*0.3)*0.5)*0.5+0.5;
+  float b2 = sin(uv.x*4.0 - t*0.4 + uv.y*2.0)*0.5+0.5;
+  float band = smoothstep(0.35,0.55, b1*0.6+b2*0.4 - abs(y-0.55)*1.1);
+  vec3 green = vec3(0.15, 0.85, 0.55);
+  vec3 teal  = vec3(0.1, 0.5, 0.9);
+  vec3 purp  = vec3(0.55, 0.25, 0.9);
+  vec3 col = mix(vec3(0.02,0.04,0.08), teal, band*0.7);
+  col = mix(col, green, band*(0.6+0.4*sin(t*0.5+uv.x*4.0)));
+  col += purp * band * 0.35 * smoothstep(0.6, 0.9, b1);
+` + MINI_TAIL,
+
+  // Silk — diagonal gradient with sine-warped bands, warm purple/pink
+  silk: MINI_HEAD + `
+  float w = sin(uv.x*5.0 + uv.y*3.0 + t*0.4)*0.12;
+  float g = uv.x*0.7 + uv.y*0.3 + w;
+  vec3 a = vec3(0.25, 0.05, 0.35);
+  vec3 b = vec3(0.95, 0.55, 0.75);
+  vec3 c = vec3(0.15, 0.05, 0.2);
+  vec3 col = mix(a, b, g);
+  col = mix(col, c, smoothstep(0.7, 1.0, abs(sin(g*6.0+t*0.3))));
+  col += 0.08*sin(uv.y*30.0 + t);
+` + MINI_TAIL,
+
+  // Plasma — classic 4-term sine sum, RGB phase-shifted cosine palette
+  plasma: MINI_HEAD + `
+  float v = sin(p.x*3.0 + t);
+  v += sin((p.y*2.5 + t)*1.3);
+  v += sin((p.x + p.y + t*0.7)*2.0);
+  v += sin(length(p)*4.0 - t*0.8);
+  v *= 0.25;
+  vec3 col = 0.5 + 0.5*cos(6.2831*(v + vec3(0.0, 0.33, 0.66)) + t*0.3);
+` + MINI_TAIL,
+
+  // Ember — radial gradient orange→red→black with noise offset
+  ember: MINI_HEAD + `
+  float r = length(p*vec2(1.0,1.2)) + n2(p*3.0+t*0.4)*0.25;
+  float heat = 1.0 - smoothstep(0.2, 1.1, r);
+  vec3 col = vec3(0.02, 0.0, 0.0);
+  col = mix(col, vec3(0.6, 0.08, 0.02), smoothstep(0.0, 0.5, heat));
+  col = mix(col, vec3(1.0, 0.45, 0.1), smoothstep(0.4, 0.85, heat));
+  col = mix(col, vec3(1.0, 0.95, 0.75), smoothstep(0.85, 1.0, heat));
+  col += n2(p*8.0 + t*1.2)*0.06*heat;
+` + MINI_TAIL,
+
+  // Holo — rainbow diagonal shimmer
+  holo: MINI_HEAD + `
+  float s = fract(uv.x*0.8 + uv.y*0.3 + t*0.15);
+  vec3 col = 0.5 + 0.5*cos(6.2831*(s + vec3(0.0, 0.33, 0.66)));
+  float shimmer = sin((uv.x+uv.y)*25.0 + t*3.0)*0.5+0.5;
+  col += shimmer*0.08;
+  col *= 0.75 + 0.25*sin(uv.y*10.0 + t);
+` + MINI_TAIL,
+
+  // Cosmos — twinkling stars with horizontal nebula band
+  cosmos: MINI_HEAD + `
+  vec3 col = vec3(0.02, 0.02, 0.06);
+  float neb = smoothstep(0.55, 0.0, abs(uv.y-0.5)) * (0.5+0.5*sin(uv.x*4.0+t*0.3));
+  col += mix(vec3(0.15,0.05,0.35), vec3(0.05,0.1,0.4), uv.x) * neb * 0.55;
+  vec2 g = floor(uv*vec2(40.0, 30.0));
+  float star = h21(g);
+  float on = step(0.97, star);
+  float tw = 0.5 + 0.5*sin(t*3.0 + star*30.0);
+  vec2 cell = fract(uv*vec2(40.0, 30.0)) - 0.5;
+  float pt = smoothstep(0.35, 0.0, length(cell));
+  col += vec3(1.0)*on*tw*pt*0.9;
+` + MINI_TAIL,
+
+  // Glitch — horizontal bands + occasional RGB channel offset
+  glitch: MINI_HEAD + `
+  float tf = floor(t*6.0);
+  float band = floor(uv.y*18.0 + tf);
+  float bh = h21(vec2(band, tf));
+  float off = (h21(vec2(band*3.1, tf+1.0)) - 0.5) * step(0.7, bh) * 0.25;
+  vec2 suv = vec2(uv.x + off, uv.y);
+  float cyc = step(0.98, fract(sin(tf)*43758.5453));
+  float r = h21(floor(suv*vec2(30.0, 18.0)) + tf*0.3);
+  float g = h21(floor((suv+vec2(0.01*cyc,0.0))*vec2(30.0, 18.0)) + tf*0.3);
+  float b = h21(floor((suv-vec2(0.01*cyc,0.0))*vec2(30.0, 18.0)) + tf*0.3);
+  vec3 col = vec3(r,g,b);
+  col = mix(vec3(dot(col, vec3(0.33))), col, 0.8);
+  col *= 0.4 + 0.6*step(0.2, fract(uv.y*40.0+tf*0.1));
+` + MINI_TAIL,
+};
+
 function createMiniRenderer(cvs, presetName) {
-  const preset = PRESETS[presetName]; if (!preset) return null;
-  const mgl = cvs.getContext('webgl'); if (!mgl) return null;
+  const fsrc = MINI_PRESET_SHADERS[presetName];
+  if (!fsrc) return null;
 
-  // Assign temporary IDs
-  let mid = 200;
-  const mlayers = preset.layers.map(l => ({
-    ...l, id: ++mid,
-    visible: true,
-    opacity: l.opacity !== undefined ? l.opacity : 1.0,
-    blendMode: l.blendMode || 'normal',
-    properties: { ...(l.properties || {}) }
-  }));
-  const mfs = { bg: preset.bg, w: 160, h: 120 };
+  const mgl = cvs.getContext('webgl', { antialias: true, preserveDrawingBuffer: false });
+  if (!mgl) return null;
 
-  const mNoise = initNoiseTex(mgl);
-  const fsrc = buildFragFromLayers(mlayers, mfs);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = cvs.clientWidth || 148, H = cvs.clientHeight || 110;
+  cvs.width = Math.round(W * dpr);
+  cvs.height = Math.round(H * dpr);
+
   const vs = mkShader(mgl, mgl.VERTEX_SHADER, VERT);
   const fs = mkShader(mgl, mgl.FRAGMENT_SHADER, fsrc);
   if (!vs || !fs) return null;
   const mp = mgl.createProgram();
   mgl.attachShader(mp, vs); mgl.attachShader(mp, fs); mgl.linkProgram(mp);
-  if (!mgl.getProgramParameter(mp, mgl.LINK_STATUS)) return null;
+  if (!mgl.getProgramParameter(mp, mgl.LINK_STATUS)) { mgl.deleteProgram(mp); return null; }
   mgl.useProgram(mp);
+
   const mvb = mgl.createBuffer();
   mgl.bindBuffer(mgl.ARRAY_BUFFER, mvb);
   mgl.bufferData(mgl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), mgl.STATIC_DRAW);
   const mpl = mgl.getAttribLocation(mp, 'p');
-  mgl.enableVertexAttribArray(mpl); mgl.vertexAttribPointer(mpl, 2, mgl.FLOAT, false, 0, 0);
-  mgl.viewport(0, 0, 160, 120);
+  mgl.enableVertexAttribArray(mpl);
+  mgl.vertexAttribPointer(mpl, 2, mgl.FLOAT, false, 0, 0);
+  mgl.viewport(0, 0, cvs.width, cvs.height);
 
-  let running = true, lastF = 0;
+  const uT = mgl.getUniformLocation(mp, 'u_t');
+  const uR = mgl.getUniformLocation(mp, 'u_res');
+
+  let running = true, lastF = 0, rafId = 0;
   const t0 = performance.now();
+
   function mframe(now) {
     if (!running) return;
     if (now - lastF >= 1000/24) {
       lastF = now;
-      setUniformsForLayers(mgl, mp, mlayers, mfs, (now-t0)/1000, mNoise, null, false, 1.0);
+      mgl.uniform1f(uT, (now - t0) / 1000);
+      mgl.uniform2f(uR, cvs.width, cvs.height);
       mgl.drawArrays(mgl.TRIANGLE_STRIP, 0, 4);
     }
-    requestAnimationFrame(mframe);
+    rafId = requestAnimationFrame(mframe);
   }
-  requestAnimationFrame(mframe);
+  rafId = requestAnimationFrame(mframe);
 
-  const entry = { stop: () => { running = false; } };
+  const entry = {
+    stop: () => {
+      running = false;
+      if (rafId) cancelAnimationFrame(rafId);
+      try { mgl.deleteProgram(mp); } catch(e) {}
+      try { mgl.deleteBuffer(mvb); } catch(e) {}
+      try { mgl.deleteShader(vs); mgl.deleteShader(fs); } catch(e) {}
+      const ext = mgl.getExtension('WEBGL_lose_context');
+      if (ext) { try { ext.loseContext(); } catch(e) {} }
+    }
+  };
   miniRenderers.push(entry);
   return entry;
 }
@@ -946,6 +1068,272 @@ function createMiniRenderer(cvs, presetName) {
 function stopAllMiniRenderers() {
   miniRenderers.forEach(r => r.stop());
   miniRenderers = [];
+}
+
+// ── Layer Insert Thumbnails (popover) ─────────────────────────
+// Tiny 48×36 shaders, one per layer type. Lazily instantiated when the
+// popover opens, destroyed on close. 20fps cap, 2 uniforms each.
+
+const THUMB_HEAD = `precision mediump float;
+uniform float u_t;
+uniform vec2 u_res;
+float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float n2(vec2 p){
+  vec2 i=floor(p),f=fract(p);
+  float a=h21(i),b=h21(i+vec2(1.0,0.0));
+  float c=h21(i+vec2(0.0,1.0)),d=h21(i+vec2(1.0,1.0));
+  vec2 u=f*f*(3.0-2.0*f);
+  return mix(a,b,u.x)+(c-a)*u.y*(1.0-u.x)+(d-b)*u.x*u.y;
+}
+void main(){
+  vec2 uv=gl_FragCoord.xy/u_res.xy;
+  vec2 p=uv*2.0-1.0;
+  p.x*=u_res.x/u_res.y;
+  float t=u_t;
+`;
+const THUMB_TAIL = `  gl_FragColor=vec4(col,1.0);\n}`;
+
+const THUMB_SHADERS = {
+  // ── CONTENT ─────────────────────────────────────────────────
+  solid: THUMB_HEAD + `
+  vec3 col = vec3(0.55, 0.3, 0.85) * (0.85 + 0.15*sin(t*1.2));
+` + THUMB_TAIL,
+
+  gradient: THUMB_HEAD + `
+  float a = t*0.4;
+  float g = uv.x*cos(a) + uv.y*sin(a);
+  vec3 col = mix(vec3(0.95,0.4,0.6), vec3(0.2,0.5,0.95), g);
+` + THUMB_TAIL,
+
+  'mesh-gradient': THUMB_HEAD + `
+  vec2 c1 = vec2(0.3+0.15*sin(t*0.7), 0.3+0.1*cos(t*0.6));
+  vec2 c2 = vec2(0.7+0.15*cos(t*0.8), 0.7+0.1*sin(t*0.5));
+  float d1 = 1.0 - smoothstep(0.0, 0.6, length(uv-c1));
+  float d2 = 1.0 - smoothstep(0.0, 0.6, length(uv-c2));
+  vec3 col = vec3(0.1, 0.05, 0.3);
+  col = mix(col, vec3(0.95, 0.4, 0.5), d1);
+  col = mix(col, vec3(0.3, 0.7, 0.95), d2*0.75);
+` + THUMB_TAIL,
+
+  image: THUMB_HEAD + `
+  // Mountain silhouette + sun, mimicking a picture
+  vec3 sky = mix(vec3(0.95,0.75,0.45), vec3(0.3,0.35,0.65), uv.y);
+  float sun = smoothstep(0.15, 0.12, length(uv - vec2(0.7+0.05*sin(t*0.5), 0.62)));
+  float m1 = step(0.3 + 0.25*sin(uv.x*7.0+1.0), uv.y) * 0.0 + step(uv.y, 0.35 + 0.1*sin(uv.x*8.0));
+  vec3 col = mix(vec3(0.1,0.08,0.15), sky, step(0.35+0.1*sin(uv.x*8.0), uv.y));
+  col = mix(col, vec3(1.0,0.85,0.5), sun);
+` + THUMB_TAIL,
+
+  wave: THUMB_HEAD + `
+  vec3 bg = vec3(0.08, 0.1, 0.16);
+  float y = 0.5 + 0.18*sin(uv.x*8.0 + t*2.0);
+  float line = smoothstep(0.04, 0.0, abs(uv.y - y));
+  vec3 col = mix(bg, vec3(0.4, 0.85, 0.95), line);
+` + THUMB_TAIL,
+
+  rectangle: THUMB_HEAD + `
+  vec3 bg = vec3(0.1);
+  vec2 d = abs(uv - 0.5);
+  float rect = step(max(d.x/0.28, d.y/0.22), 1.0);
+  vec3 fill = vec3(0.85, 0.55, 0.3);
+  vec3 col = mix(bg, fill * (0.9 + 0.1*sin(t)), rect);
+` + THUMB_TAIL,
+
+  circle: THUMB_HEAD + `
+  vec3 bg = vec3(0.1);
+  float d = length((uv-0.5)*vec2(u_res.x/u_res.y, 1.0));
+  float c = smoothstep(0.22, 0.20, d);
+  vec3 col = mix(bg, vec3(0.4, 0.85, 0.65) * (0.9+0.1*sin(t*1.5)), c);
+` + THUMB_TAIL,
+
+  // ── EFFECTS ─────────────────────────────────────────────────
+  'noise-warp': THUMB_HEAD + `
+  vec2 w = vec2(n2(uv*4.0+t*0.5), n2(uv*4.0-t*0.4)) - 0.5;
+  vec2 suv = uv + w*0.25;
+  vec3 col = mix(vec3(0.2,0.5,0.8), vec3(0.95,0.6,0.85), suv.x);
+  col *= 0.7 + 0.3*sin(suv.y*10.0 + t);
+` + THUMB_TAIL,
+
+  liquid: THUMB_HEAD + `
+  float s = sin(uv.y*10.0 + t*2.0)*0.1;
+  float g = uv.x + s;
+  vec3 col = mix(vec3(0.1,0.2,0.5), vec3(0.8,0.9,1.0), g);
+  col += 0.1*sin(uv.y*20.0 + t*3.0);
+` + THUMB_TAIL,
+
+  ripple: THUMB_HEAD + `
+  vec2 c = (uv-0.5)*vec2(u_res.x/u_res.y, 1.0);
+  float d = length(c);
+  float r = sin(d*30.0 - t*4.0)*0.5+0.5;
+  r *= smoothstep(0.5, 0.0, d);
+  vec3 col = mix(vec3(0.05,0.1,0.2), vec3(0.4,0.7,0.95), r);
+` + THUMB_TAIL,
+
+  grain: THUMB_HEAD + `
+  vec3 base = mix(vec3(0.3,0.3,0.35), vec3(0.55,0.55,0.6), uv.y);
+  float g = h21(floor(uv*vec2(u_res.x, u_res.y)) + floor(t*30.0));
+  vec3 col = base + (g-0.5)*0.35;
+` + THUMB_TAIL,
+
+  'chromatic-aberration': THUMB_HEAD + `
+  float off = 0.03 + 0.02*sin(t*1.5);
+  float r = smoothstep(0.5, 0.0, length(uv - vec2(0.5+off, 0.5)));
+  float g = smoothstep(0.5, 0.0, length(uv - 0.5));
+  float b = smoothstep(0.5, 0.0, length(uv - vec2(0.5-off, 0.5)));
+  vec3 col = vec3(r, g, b);
+` + THUMB_TAIL,
+
+  vignette: THUMB_HEAD + `
+  vec3 base = mix(vec3(0.85,0.75,0.6), vec3(0.5,0.3,0.4), uv.y);
+  float v = 1.0 - smoothstep(0.35, 0.8, length((uv-0.5)*vec2(u_res.x/u_res.y, 1.0)));
+  vec3 col = base * (0.1 + 0.9*v);
+` + THUMB_TAIL,
+
+  'color-grade': THUMB_HEAD + `
+  float g = uv.x;
+  vec3 col = vec3(g);
+  col = mix(col, col * vec3(1.2, 0.95, 0.7) + vec3(0.05, 0.02, -0.02), 0.7 + 0.3*sin(t));
+` + THUMB_TAIL,
+
+  duotone: THUMB_HEAD + `
+  float lum = n2(uv*3.0 + t*0.3);
+  vec3 a = vec3(0.1, 0.05, 0.35);
+  vec3 b = vec3(1.0, 0.55, 0.7);
+  vec3 col = mix(a, b, lum);
+` + THUMB_TAIL,
+
+  bloom: THUMB_HEAD + `
+  vec2 c = (uv-0.5)*vec2(u_res.x/u_res.y, 1.0);
+  float d = length(c);
+  float core = smoothstep(0.15, 0.0, d);
+  float glow = smoothstep(0.6, 0.0, d) * 0.6;
+  vec3 col = vec3(0.05, 0.05, 0.1);
+  col += vec3(0.95, 0.85, 0.5) * (core + glow*(0.7+0.3*sin(t*2.0)));
+` + THUMB_TAIL,
+
+  posterize: THUMB_HEAD + `
+  float g = uv.x + 0.1*sin(t);
+  g = floor(g*5.0)/5.0;
+  vec3 col = mix(vec3(0.2,0.1,0.4), vec3(1.0,0.75,0.35), g);
+` + THUMB_TAIL,
+
+  pixelate: THUMB_HEAD + `
+  vec2 puv = floor(uv*vec2(8.0, 6.0))/vec2(8.0, 6.0);
+  vec3 col = 0.5 + 0.5*cos(6.2831*(puv.x+puv.y+t*0.3) + vec3(0.0, 2.0, 4.0));
+` + THUMB_TAIL,
+
+  scanlines: THUMB_HEAD + `
+  vec3 base = mix(vec3(0.2,0.4,0.7), vec3(0.8,0.4,0.5), uv.x);
+  float sc = 0.5 + 0.5*sin(uv.y*u_res.y*1.2 + t*3.0);
+  vec3 col = base * (0.55 + 0.45*sc);
+` + THUMB_TAIL,
+};
+
+// Single shared WebGL context for ALL thumbnails. Each item is a 2D canvas
+// that receives a drawImage copy of the shared render target. This avoids
+// exceeding Chrome's ~16 WebGL context limit when the popover has 19 items.
+
+let _thumbGl = null;
+let _thumbGlCanvas = null;
+let _thumbQuadBuf = null;
+const _thumbProgs = new Map();   // type -> { prog, uT, uR, pl } or null
+let _thumbActiveItems = [];       // [{ ctx2d, type, w, h }]
+let _thumbRafId = 0;
+let _thumbT0 = 0;
+let _thumbLastF = 0;
+let thumbRenderers = [];          // retained for external status checks; mirrors item count
+
+function _ensureThumbGl() {
+  if (_thumbGl) return _thumbGl;
+  _thumbGlCanvas = document.createElement('canvas');
+  _thumbGlCanvas.width = 96;   // 48 * 2 for dpr
+  _thumbGlCanvas.height = 72;  // 36 * 2 for dpr
+  const gl = _thumbGlCanvas.getContext('webgl', { antialias: false, preserveDrawingBuffer: true });
+  if (!gl) return null;
+  _thumbGl = gl;
+  const buf = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+  _thumbQuadBuf = buf;
+  return gl;
+}
+
+function _compileThumbProgram(type) {
+  if (_thumbProgs.has(type)) return _thumbProgs.get(type);
+  const gl = _thumbGl;
+  const fsrc = THUMB_SHADERS[type];
+  if (!fsrc) { _thumbProgs.set(type, null); return null; }
+  const vs = mkShader(gl, gl.VERTEX_SHADER, VERT);
+  const fs = mkShader(gl, gl.FRAGMENT_SHADER, fsrc);
+  if (!vs || !fs) { _thumbProgs.set(type, null); return null; }
+  const p = gl.createProgram();
+  gl.attachShader(p, vs); gl.attachShader(p, fs); gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) { _thumbProgs.set(type, null); return null; }
+  const info = {
+    prog: p,
+    uT: gl.getUniformLocation(p, 'u_t'),
+    uR: gl.getUniformLocation(p, 'u_res'),
+    pl: gl.getAttribLocation(p, 'p'),
+  };
+  _thumbProgs.set(type, info);
+  return info;
+}
+
+function _thumbFrame(now) {
+  if (!_thumbActiveItems.length) { _thumbRafId = 0; return; }
+  if (now - _thumbLastF >= 1000/20) {
+    _thumbLastF = now;
+    const gl = _thumbGl;
+    const t = (now - _thumbT0) / 1000;
+    gl.bindBuffer(gl.ARRAY_BUFFER, _thumbQuadBuf);
+    gl.viewport(0, 0, _thumbGlCanvas.width, _thumbGlCanvas.height);
+    for (const item of _thumbActiveItems) {
+      const info = _compileThumbProgram(item.type);
+      if (!info) continue;
+      gl.useProgram(info.prog);
+      gl.enableVertexAttribArray(info.pl);
+      gl.vertexAttribPointer(info.pl, 2, gl.FLOAT, false, 0, 0);
+      gl.uniform1f(info.uT, t);
+      gl.uniform2f(info.uR, _thumbGlCanvas.width, _thumbGlCanvas.height);
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+      try {
+        item.ctx2d.clearRect(0, 0, item.w, item.h);
+        item.ctx2d.drawImage(_thumbGlCanvas, 0, 0, item.w, item.h);
+      } catch(e) {}
+    }
+  }
+  _thumbRafId = requestAnimationFrame(_thumbFrame);
+}
+
+function startPopoverThumbs(popoverEl) {
+  stopAllThumbRenderers();
+  const gl = _ensureThumbGl();
+  if (!gl) return;
+  _thumbT0 = performance.now();
+  _thumbLastF = 0;
+  _thumbActiveItems = [];
+  popoverEl.querySelectorAll('canvas.pop-thumb').forEach(cvs => {
+    const type = cvs.dataset.thumb;
+    if (!type || !THUMB_SHADERS[type]) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    cvs.width = 48 * dpr;
+    cvs.height = 36 * dpr;
+    cvs.style.width = '48px';
+    cvs.style.height = '36px';
+    const ctx2d = cvs.getContext('2d');
+    if (!ctx2d) return;
+    _thumbActiveItems.push({ ctx2d, type, w: cvs.width, h: cvs.height });
+  });
+  thumbRenderers = _thumbActiveItems.slice();
+  if (_thumbActiveItems.length && !_thumbRafId) {
+    _thumbRafId = requestAnimationFrame(_thumbFrame);
+  }
+}
+
+function stopAllThumbRenderers() {
+  if (_thumbRafId) { cancelAnimationFrame(_thumbRafId); _thumbRafId = 0; }
+  _thumbActiveItems = [];
+  thumbRenderers = [];
 }
 
 // ── PNG Capture (@2x, instant) ─────────────────────────────────

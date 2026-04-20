@@ -568,8 +568,13 @@ function openLayerPopover() {
   layerPopover.style.left = r.left + 'px';
   layerPopover.style.top  = (r.bottom + 4) + 'px';
   layerPopover.classList.remove('hidden');
+  startPopoverThumbs(layerPopover);
+  clampPopoverToViewport(layerPopover, r);
 }
-function closeLayerPopover() { layerPopover.classList.add('hidden'); }
+function closeLayerPopover() {
+  layerPopover.classList.add('hidden');
+  stopAllThumbRenderers();
+}
 
 ['btn-insert-top', 'btn-add-layer'].forEach(id => {
   const b = document.getElementById(id);
@@ -593,12 +598,56 @@ const effectPopover = document.getElementById('effect-popover');
 let effectPopoverLayerId = null;
 function openEffectPopover(anchorEl, layerId) {
   const r = anchorEl.getBoundingClientRect();
-  effectPopover.style.left = (r.right - 160) + 'px';
+  effectPopover.style.left = (r.right - 240) + 'px';
   effectPopover.style.top  = (r.bottom + 4) + 'px';
   effectPopover.classList.remove('hidden');
   effectPopoverLayerId = layerId;
+  startPopoverThumbs(effectPopover);
+  clampPopoverToViewport(effectPopover, r);
 }
-function closeEffectPopover() { effectPopover.classList.add('hidden'); effectPopoverLayerId = null; }
+
+// Clamp a popover so it stays fully within the viewport. If there isn't
+// enough room below the anchor, anchor above instead. If it still
+// overflows (very tall popover, small viewport), the element's own
+// max-height + overflow-y styles take care of scrolling.
+function clampPopoverToViewport(popEl, anchorRect) {
+  const margin = 8;
+  const vw = window.innerWidth, vh = window.innerHeight;
+  // Temporarily reset any max-height override we set so we can measure natural height
+  popEl.style.maxHeight = '';
+  const pr = popEl.getBoundingClientRect();
+
+  // Horizontal clamp
+  let left = pr.left;
+  if (left + pr.width > vw - margin) left = vw - pr.width - margin;
+  if (left < margin) left = margin;
+  popEl.style.left = left + 'px';
+
+  // Vertical clamp: prefer below anchor, fall back to above, finally clamp height.
+  const spaceBelow = vh - anchorRect.bottom - margin;
+  const spaceAbove = anchorRect.top - margin;
+  let top;
+  if (pr.height <= spaceBelow) {
+    top = anchorRect.bottom + 4;
+  } else if (pr.height <= spaceAbove) {
+    top = anchorRect.top - pr.height - 4;
+  } else {
+    // Doesn't fit either side; pick the bigger and let overflow-y scroll handle it.
+    if (spaceBelow >= spaceAbove) {
+      top = anchorRect.bottom + 4;
+      popEl.style.maxHeight = (spaceBelow - 4) + 'px';
+    } else {
+      top = margin;
+      popEl.style.maxHeight = (spaceAbove - 4) + 'px';
+    }
+  }
+  popEl.style.top = top + 'px';
+}
+function closeEffectPopover() {
+  effectPopover.classList.add('hidden');
+  effectPopoverLayerId = null;
+  stopAllThumbRenderers();
+}
 effectPopover.querySelectorAll('.pop-item').forEach(item => {
   item.addEventListener('click', () => {
     if (effectPopoverLayerId != null) addAttachedEffect(effectPopoverLayerId, item.dataset.aeType);
@@ -1713,6 +1762,13 @@ function openModal() {
 function closeModal() {
   document.getElementById('modal-overlay').classList.add('hidden');
   stopAllMiniRenderers();
+  // If the canvas has nothing loaded (e.g. dismissed on boot), fall back to blank
+  if (!layers || layers.length === 0) {
+    frameState.bg = frameState.bg || '#111111';
+    history = []; historyIdx = -1;
+    renderUI(); needsRecompile = true;
+    snapshot();
+  }
 }
 
 function populateGallery() {
@@ -1725,7 +1781,9 @@ function populateGallery() {
     card.className = 'preset-card';
     const cvs = document.createElement('canvas');
     cvs.className = 'preset-card-canvas';
-    cvs.width = 160; cvs.height = 120;
+    cvs.width = 148; cvs.height = 110;
+    cvs.style.width = '148px';
+    cvs.style.height = '110px';
     const label = document.createElement('div');
     label.className = 'preset-card-label';
     label.textContent = name;
