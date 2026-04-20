@@ -909,8 +909,8 @@ input.swatch-hex-input:focus {
   position: fixed; inset: 0; z-index: 1000;
   background: rgba(0,0,0,0.85);
   display: flex; align-items: center; justify-content: center;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  /* backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px); */
 }
 .modal-overlay.hidden { display: none; }
 .modal {
@@ -921,20 +921,82 @@ input.swatch-hex-input:focus {
   width: 720px;
   max-width: 90vw;
 }
-.modal-header {
-  margin-bottom: 20px;
-  text-align: left;
+/* Welcome header (logo + greeting + section label) */
+.welcome-header {
+  display: flex; flex-direction: column; align-items: center;
+  margin-bottom: 8px;
 }
-.modal-title {
-  font-family: var(--font-mono);
-  font-size: 13px; font-weight: 500;
-  color: #555; text-transform: uppercase;
-  letter-spacing: 0.12em;
+
+@keyframes greetingInIcon {
+  0% {
+    opacity: 1;
+    transform: scale(3);
+    position: relative;
+    top: 240px;
+  }
+
+  /* 16% {
+    position: relative;
+    top: 240px;
+  } */
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    position: relative;
+    top: 0px;
+  }
 }
+
+@keyframes greetingIn {
+  from {
+    opacity: 0;
+    transform: translateY(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.welcome-logo {
+    animation: greetingInIcon 0.8s 1s ease forwards;
+    width: 120px;
+    height: 120px;
+    border-radius: 16px;
+    margin-bottom: 16px;
+    display: block;
+    image-rendering: -webkit-optimize-contrast;
+        transform: scale(3);
+    position: relative;
+    top: 240px;
+}
+
+.greeting {
+    animation: greetingIn 0.9s 2s ease forwards;
+    text-align: center;
+    font-size: 40px;
+    font-weight: 700;
+    letter-spacing: -0.06em;
+    color: var(--text-primary);
+    margin-bottom: 40px;
+    opacity: 0;
+}
+.welcome-section-label {
+  animation: greetingIn 1s 3.2s ease forwards;
+  opacity: 0;
+    font-size: 11px;
+    color: #ccc;
+    text-transform: uppercase;
+    text-align: center;
+    margin-bottom: 8px;
+}
+
 .preset-gallery {
+  animation: greetingIn 1s 3.2s ease forwards;
+  opacity: 0;
   display: grid;
   grid-template-columns: repeat(4, 148px);
-  gap: 16px 20px;
+  gap: 16px 24px;
+  justify-content: center;
 }
 .preset-card {
   display: flex; flex-direction: column; gap: 8px;

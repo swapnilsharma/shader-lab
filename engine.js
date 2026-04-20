@@ -2059,9 +2059,49 @@ function mgRenderPreview(lid, cvs) {
 }
 
 // ── Modal ──────────────────────────────────────────────────────
+const WELCOME_GREETINGS = [
+  "Shaders for the rest of us.",
+  "Welcome, makers.",
+  "Welcome, designers.",
+  "Let's make something beautiful.",
+  "Go ahead. Break the grid.",
+  "Your canvas. Your rules.",
+  "Make it move.",
+  "Start with a vibe.",
+  "Something's about to look really good.",
+  "Let's do something fun.",
+  "This one's for the builders.",
+  "Ready when you are.",
+  "What are we making today?",
+  "Pick a mood. We'll do the rest.",
+  "Pixels, but make it art.",
+  "Not your average gradient.",
+  "Make it weird. Make it yours.",
+  "Code is the canvas.",
+  "Beautiful things take seconds here.",
+  "The GPU is ready. Are you?",
+];
+let _lastGreetingIdx = -1;
+function pickGreeting() {
+  if (WELCOME_GREETINGS.length <= 1) return WELCOME_GREETINGS[0] || '';
+  let i = Math.floor(Math.random() * WELCOME_GREETINGS.length);
+  if (i === _lastGreetingIdx) i = (i + 1) % WELCOME_GREETINGS.length;
+  _lastGreetingIdx = i;
+  return WELCOME_GREETINGS[i];
+}
+function refreshGreeting() {
+  const el = document.getElementById('welcome-greeting');
+  if (!el) return;
+  el.textContent = pickGreeting();
+  // Reset the CSS animation by cloning the node, so fade-up fires on every open.
+  const fresh = el.cloneNode(true);
+  el.parentNode.replaceChild(fresh, el);
+}
+
 function openModal() {
   const overlay = document.getElementById('modal-overlay');
   overlay.classList.remove('hidden');
+  refreshGreeting();
   populateGallery();
 }
 
