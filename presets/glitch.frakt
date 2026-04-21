@@ -1,0 +1,28 @@
+{
+  "version": "1",
+  "name": "glitch",
+  "canvas": { "background": "#000000" },
+  "layers": [
+    { "type": "scanlines", "name": "Scanlines", "properties": {
+      "count": 140, "dark": 0.28, "soft": 0.28, "scroll": 1, "scrollspd": 0.45
+    }},
+    { "type": "chromatic-aberration", "name": "Chromatic Aberration", "properties": {
+      "spread": 0.018, "angle": 0
+    }},
+    { "type": "posterize", "name": "Posterize", "properties": {
+      "bands": 5, "mix": 0.8,
+      "c1": "#00FFCC", "c2": "#0AA680", "c3": "#083F33", "c4": "#000000"
+    }},
+    { "type": "gradient", "name": "Gradient", "properties": {
+      "seed": 99, "speed": 0.5, "freqX": 2.4, "freqY": 6.0,
+      "angle": 90, "scale": 1.0, "amplitude": 2.2, "softness": 0.5, "blend": 0.6,
+      "stops": [
+        { "color": "#000000" },
+        { "color": "#006E4A" },
+        { "color": "#00FFCC" },
+        { "color": "#002A1A" },
+        { "color": "#000000" }
+      ]
+    }}
+  ]
+}

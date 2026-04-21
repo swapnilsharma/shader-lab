@@ -1,0 +1,17 @@
+{
+  "version": "1",
+  "name": "plasma",
+  "canvas": { "background": "#140033" },
+  "layers": [
+    { "type": "chromatic-aberration", "name": "Chromatic Aberration", "properties": {
+      "spread": 0.0025, "angle": 0
+    }},
+    { "type": "mesh-gradient", "name": "Mesh Gradient", "properties": {
+      "seed": 85, "speed": 0.22, "scale": 0.48,
+      "turbAmp": 0.28, "turbFreq": 0.18, "turbIter": 4,
+      "waveFreq": 2.0, "distBias": 0.0,
+      "exposure": 1.02, "contrast": 1.0, "saturation": 1.05,
+      "colors": ["#FF2EB0", "#FFD84A", "#2EE6FF", "#7B2FFF", "#FF2EB0"]
+    }}
+  ]
+}

@@ -1,0 +1,17 @@
+{
+  "version": "1",
+  "name": "aurora",
+  "canvas": { "background": "#020816" },
+  "layers": [
+    { "type": "color-grade", "name": "Color Grade", "properties": {
+      "contrast": 1.05, "sat": 1.15, "bright": 0.0, "hue": 0
+    }},
+    { "type": "mesh-gradient", "name": "Mesh Gradient", "properties": {
+      "seed": 42, "speed": 0.12, "scale": 0.35,
+      "turbAmp": 0.22, "turbFreq": 0.22, "turbIter": 3,
+      "waveFreq": 1.6, "distBias": 0.0,
+      "exposure": 1.05, "contrast": 1.0, "saturation": 1.1,
+      "colors": ["#020816", "#0F4C6B", "#1FC8A8", "#26E07A", "#7B2FFF", "#020816"]
+    }}
+  ]
+}

@@ -3,7 +3,7 @@
    Fully dark, achromatic. All richness from the canvas.
    ================================================================ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap');
 
 /* ── Tokens ── */
 :root {
@@ -15,7 +15,7 @@
   --text-secondary: #666666;
   --error:        #e54545;
   --font-ui:      'Inter', system-ui, -apple-system, sans-serif;
-  --font-mono:    'JetBrains Mono', 'Fira Mono', monospace;
+  --font-mono:    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
   --radius:       3px;
   --topbar-h:     80px;
   --statusbar-h:  26px;
@@ -1049,15 +1049,31 @@ input.swatch-hex-input:focus {
     margin-bottom: 40px;
     opacity: 0;
 }
-.welcome-section-label {
+.welcome-section-row {
   animation: greetingIn 1s 3.2s ease forwards;
   opacity: 0;
-    font-size: 11px;
-    color: #ccc;
-    text-transform: uppercase;
-    text-align: center;
-    margin-bottom: 8px;
+  display: flex; align-items: center; justify-content: center;
+  gap: 18px;
+  margin-bottom: 8px;
 }
+.welcome-section-label {
+  font-size: 11px;
+  color: #ccc;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.welcome-view-all {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #888;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: color 0.15s ease;
+}
+.welcome-view-all:hover { color: #fff; }
 
 .preset-gallery {
   animation: greetingIn 1s 3.2s ease forwards;
@@ -1078,6 +1094,51 @@ input.swatch-hex-input:focus {
   opacity: 1;
 }
 .modal--gallery .preset-card { animation: none; opacity: 1; }
+
+/* Gallery card: thumb wraps the canvas so Remix overlay can sit over
+   the thumbnail only (not the label below). */
+.preset-card-thumb {
+  position: relative;
+  width: 148px;
+  height: 110px;
+  border-radius: 6px;
+  overflow: hidden;
+}
+.preset-card--gallery .preset-card-canvas {
+  display: block;
+}
+.preset-remix-pill {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) scale(0.92);
+  background: rgba(255,255,255,0.95);
+  color: #0b0b0b;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: 99px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+}
+.preset-card--gallery .preset-card-thumb::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  pointer-events: none;
+}
+.preset-card--gallery:hover .preset-card-thumb::before { opacity: 1; }
+.preset-card--gallery:hover .preset-remix-pill {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
 .gallery-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 0 2px 14px 2px;

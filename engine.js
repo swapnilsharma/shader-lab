@@ -2257,16 +2257,25 @@ function populateGalleryGrid() {
   grid.innerHTML = '';
   PRESET_ORDER.forEach(name => {
     const card = document.createElement('div');
-    card.className = 'preset-card';
+    card.className = 'preset-card preset-card--gallery';
+    // Wrap the canvas so we can absolutely-position the Remix hover
+    // button over just the thumbnail (not the label below).
+    const thumb = document.createElement('div');
+    thumb.className = 'preset-card-thumb';
     const cvs = document.createElement('canvas');
     cvs.className = 'preset-card-canvas';
     cvs.width = 148; cvs.height = 110;
     cvs.style.width = '148px';
     cvs.style.height = '110px';
+    const remix = document.createElement('div');
+    remix.className = 'preset-remix-pill';
+    remix.textContent = 'Remix';
+    thumb.appendChild(cvs);
+    thumb.appendChild(remix);
     const label = document.createElement('div');
     label.className = 'preset-card-label';
     label.textContent = name;
-    card.appendChild(cvs);
+    card.appendChild(thumb);
     card.appendChild(label);
     card.addEventListener('click', () => { closeGallery(); loadPreset(name); });
     grid.appendChild(card);
@@ -3011,9 +3020,21 @@ function onFraktUpload(input) {
   reader.readAsText(f);
 }
 
+// "See all presets" link inside the welcome — jumps to the gallery.
+(function wireWelcomeViewAll() {
+  const btn = document.getElementById('welcome-view-all');
+  if (btn) btn.addEventListener('click', e => {
+    e.stopPropagation();
+    closeModal();
+    openGallery();
+  });
+})();
+
 // ── Boot ───────────────────────────────────────────────────────
 noiseTex = initNoiseTex(gl);
 applyFrame();
-openModal();
 renderShortcutHints();
 requestAnimationFrame(frame);
+// Presets live as .frakt JSON files; fetch them all before showing the
+// welcome modal so the preview cards have scenes to render.
+loadAllPresets().then(openModal);
