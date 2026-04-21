@@ -1120,6 +1120,7 @@ function renderTypeControls(l) {
 
     case 'gradient':
       return [
+        renderGradientPalettes(l),
         renderStopsStrip(l),
         renderSlider(id,'seed','Seed',p.seed||42,0,999,1),
         renderSlider(id,'speed','Speed',p.speed||1.0,0.05,4.0,0.05),
@@ -1290,8 +1291,7 @@ function renderTypeControls(l) {
 
     case 'duotone':
       return [
-        renderColorRow(id,'shadow',p.shadow||'#000000','Shadow'),
-        renderColorRow(id,'light',p.light||'#ffffff','Light'),
+        renderDuotoneStrip(l),
         renderSlider(id,'blend','Blend',p.blend!=null?p.blend:1.0,0,1.0,0.01),
       ].join('');
 
@@ -1569,6 +1569,39 @@ function evenStopsForCss(stops) {
   return stops.map((s, i) => ({ position: i / n, color: s.color }));
 }
 
+function renderGradientPalettes(l) {
+  const id = l.id;
+  const circles = GRADIENT_PALETTES.map((pal, i) => {
+    const bg = `linear-gradient(135deg, ${pal.stops.join(', ')})`;
+    return `<button class="grad-palette" data-palette-idx="${i}" style="background:${bg};" title="${pal.name}"></button>`;
+  }).join('');
+  return `<div class="grad-palettes-row" data-palettes-lid="${id}">${circles}</div>`;
+}
+
+function renderDuotoneStrip(l) {
+  const id = l.id;
+  const shadow = (l.properties.shadow || '#000000').toUpperCase();
+  const light  = (l.properties.light  || '#ffffff').toUpperCase();
+  const bgCss  = `linear-gradient(to right, ${shadow}, ${light})`;
+  return `<div class="duotone-block" data-duotone-lid="${id}">
+    <div class="duotone-strip" style="background:${bgCss};">
+      <canvas class="duotone-hist" id="duotone-hist-${id}" width="200" height="28"></canvas>
+    </div>
+    <div class="duotone-swatches">
+      <div class="ctrl-color-row duotone-swatch-row">
+        <div class="swatch" id="cd-${id}-shadow" style="background:${shadow}" onclick="document.getElementById('cp-${id}-shadow').click()"></div>
+        <input type="text" class="swatch-hex swatch-hex-input" id="ch-${id}-shadow" value="${shadow}" spellcheck="false" maxlength="7" data-lid="${id}" data-key="shadow" data-did="cd-${id}-shadow" data-cid="cp-${id}-shadow">
+        <input type="color" class="color-input-hidden" id="cp-${id}-shadow" value="${shadow}" data-lid="${id}" data-key="shadow" data-did="cd-${id}-shadow" data-hid="ch-${id}-shadow">
+      </div>
+      <div class="ctrl-color-row duotone-swatch-row duotone-swatch-row--right">
+        <input type="text" class="swatch-hex swatch-hex-input" id="ch-${id}-light" value="${light}" spellcheck="false" maxlength="7" data-lid="${id}" data-key="light" data-did="cd-${id}-light" data-cid="cp-${id}-light">
+        <div class="swatch" id="cd-${id}-light" style="background:${light}" onclick="document.getElementById('cp-${id}-light').click()"></div>
+        <input type="color" class="color-input-hidden" id="cp-${id}-light" value="${light}" data-lid="${id}" data-key="light" data-did="cd-${id}-light" data-hid="ch-${id}-light">
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderStopsStrip(l) {
   const id = l.id;
   const stops = l.properties.stops || [];
@@ -1738,6 +1771,91 @@ function wireStopsStrip(l) {
   });
 }
 
+// ── Duotone strip: live-update gradient + optional histogram ───
+function wireDuotoneStrip(l) {
+  if (l.type !== 'duotone') return;
+  const id = l.id;
+  const block = document.querySelector(`[data-duotone-lid="${id}"]`);
+  if (!block) return;
+  const strip = block.querySelector('.duotone-strip');
+  const shadowCp = document.getElementById(`cp-${id}-shadow`);
+  const lightCp  = document.getElementById(`cp-${id}-light`);
+  const syncStrip = () => {
+    const sh = (shadowCp?.value || l.properties.shadow || '#000000').toUpperCase();
+    const lt = (lightCp?.value  || l.properties.light  || '#ffffff').toUpperCase();
+    if (strip) strip.style.background = `linear-gradient(to right, ${sh}, ${lt})`;
+  };
+  // Listen to changes on the hidden color inputs + hex inputs that belong to this duotone
+  ['shadow','light'].forEach(k => {
+    const cp = document.getElementById(`cp-${id}-${k}`);
+    const hx = document.getElementById(`ch-${id}-${k}`);
+    if (cp) cp.addEventListener('input', syncStrip);
+    if (hx) hx.addEventListener('blur',  syncStrip);
+  });
+  // Draw luminance histogram (sampled from main canvas)
+  drawDuotoneHistogram(id);
+}
+
+function drawDuotoneHistogram(layerId) {
+  const canvas = document.getElementById(`duotone-hist-${layerId}`);
+  if (!canvas) return;
+  const src = document.getElementById('gl-canvas') || document.querySelector('canvas');
+  if (!src) return;
+  try {
+    // Sample a scaled-down snapshot via an offscreen 2D canvas
+    const W = 160, H = 90;
+    const off = document.createElement('canvas'); off.width = W; off.height = H;
+    const octx = off.getContext('2d');
+    octx.drawImage(src, 0, 0, W, H);
+    const data = octx.getImageData(0, 0, W, H).data;
+    const bins = new Array(64).fill(0);
+    for (let i = 0; i < data.length; i += 4) {
+      const lum = 0.299*data[i] + 0.587*data[i+1] + 0.114*data[i+2];
+      const b = Math.min(63, Math.floor(lum / 4));
+      bins[b]++;
+    }
+    const maxBin = Math.max(...bins) || 1;
+    const ctx = canvas.getContext('2d');
+    const cw = canvas.width, ch = canvas.height;
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.fillStyle = 'rgba(255,255,255,0.08)';
+    const bw = cw / bins.length;
+    for (let i = 0; i < bins.length; i++) {
+      const h = (bins[i] / maxBin) * ch;
+      ctx.fillRect(i * bw, ch - h, bw - 0.5, h);
+    }
+  } catch (e) { /* readback may fail for tainted canvas — silently skip */ }
+}
+
+// ── Gradient palettes (8 preset stop lists) ────────────────────
+const GRADIENT_PALETTES = [
+  { name: 'Sunset',  stops: ['#FFB347','#FF6B6B','#C06C84','#6C5B7B'] },
+  { name: 'Ocean',   stops: ['#0F2027','#203A43','#2C5364','#4DD0E1'] },
+  { name: 'Aurora',  stops: ['#020D08','#00FFB3','#7B2FFF','#00CFFF'] },
+  { name: 'Ember',   stops: ['#1A0500','#FF4400','#FFAA00','#FF0055'] },
+  { name: 'Mint',    stops: ['#0E3B30','#2CE4A7','#A8F0C6','#F5FFF8'] },
+  { name: 'Dusk',    stops: ['#1F1B3A','#4B3F72','#CC527A','#F4B1C5'] },
+  { name: 'Mono',    stops: ['#0A0A0A','#3D3D3D','#9A9A9A','#F2F2F2'] },
+  { name: 'Rose',    stops: ['#2B0A1E','#8B1E3F','#E74C8F','#FFD6E8'] }
+];
+
+function wireGradientPalettes(l) {
+  if (l.type !== 'gradient') return;
+  const row = document.querySelector(`[data-palettes-lid="${l.id}"]`);
+  if (!row) return;
+  row.querySelectorAll('.grad-palette').forEach(el => {
+    el.addEventListener('click', () => {
+      const idx = parseInt(el.dataset.paletteIdx);
+      const palette = GRADIENT_PALETTES[idx];
+      if (!palette) return;
+      l.properties.stops = palette.stops.map(c => ({ color: c }));
+      needsRecompile = true;
+      snapshot();
+      renderRightPanel();
+    });
+  });
+}
+
 function normalizeHex(raw) {
   let s = (raw || '').trim();
   if (!s) return null;
@@ -1753,6 +1871,8 @@ function normalizeHex(raw) {
 function wirePropertiesZone(l) {
   const panel = document.getElementById('panel-right');
   wireStopsStrip(l);
+  wireGradientPalettes(l);
+  wireDuotoneStrip(l);
 
   // Wire opacity slider (transform zone)
   const opSlider = document.getElementById('rp-opacity');
@@ -2102,6 +2222,8 @@ function openModal() {
   const overlay = document.getElementById('modal-overlay');
   overlay.classList.remove('hidden');
   refreshGreeting();
+  // Re-shuffle the welcome's random 7 on every open
+  MODAL_PRESETS = pickModalPresets();
   populateGallery();
 }
 
@@ -2115,6 +2237,41 @@ function closeModal() {
     renderUI(); needsRecompile = true;
     snapshot();
   }
+}
+
+// ── Gallery modal (all 12 presets, no welcome chrome) ──────────
+function openGallery() {
+  const overlay = document.getElementById('gallery-overlay');
+  overlay.classList.remove('hidden');
+  populateGalleryGrid();
+}
+
+function closeGallery() {
+  document.getElementById('gallery-overlay').classList.add('hidden');
+  stopAllMiniRenderers();
+}
+
+function populateGalleryGrid() {
+  const grid = document.getElementById('gallery-grid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  PRESET_ORDER.forEach(name => {
+    const card = document.createElement('div');
+    card.className = 'preset-card';
+    const cvs = document.createElement('canvas');
+    cvs.className = 'preset-card-canvas';
+    cvs.width = 148; cvs.height = 110;
+    cvs.style.width = '148px';
+    cvs.style.height = '110px';
+    const label = document.createElement('div');
+    label.className = 'preset-card-label';
+    label.textContent = name;
+    card.appendChild(cvs);
+    card.appendChild(label);
+    card.addEventListener('click', () => { closeGallery(); loadPreset(name); });
+    grid.appendChild(card);
+    createMiniRenderer(cvs, name);
+  });
 }
 
 function populateGallery() {
@@ -2319,11 +2476,22 @@ async function exportGLSLShadertoy() {
   if (mf) mf.querySelectorAll('.tb-menu-item').forEach(it => {
     it.addEventListener('click', e => {
       e.stopPropagation();
+      // Submenu expanders: toggle child submenu, don't act
+      if (it.classList.contains('tb-menu-item--submenu')) {
+        const sub = it.querySelector('.tb-submenu');
+        if (sub) sub.classList.toggle('hidden');
+        return;
+      }
       const a = it.dataset.act;
       closeMenus(null);
       if (a === 'new')  newScene();
       if (a === 'open') openFraktFile();
       if (a === 'save') saveFraktFile();
+      if (a === 'load-preset') {
+        const name = it.dataset.preset;
+        if (name) loadPreset(name);
+      }
+      if (a === 'presets-gallery') openGallery();
     });
   });
   const me = document.getElementById('menu-export');
@@ -2387,6 +2555,8 @@ function closeAllOverlays() {
   if (po && !po.classList.contains('hidden')) { closePalette(); closed = true; }
   const mo = document.getElementById('modal-overlay');
   if (mo && !mo.classList.contains('hidden')) { closeModal(); closed = true; }
+  const go = document.getElementById('gallery-overlay');
+  if (go && !go.classList.contains('hidden')) { closeGallery(); closed = true; }
   const co = document.getElementById('confirm-overlay');
   if (co && !co.classList.contains('hidden')) { closeConfirm(false); closed = true; }
   const no = document.getElementById('name-overlay');
@@ -2645,10 +2815,20 @@ document.addEventListener('keydown', e => {
   }
 });
 
-// Close modal on overlay click
+// Close welcome modal on overlay click
 document.getElementById('modal-overlay').addEventListener('click', e => {
   if (e.target === document.getElementById('modal-overlay')) closeModal();
 });
+
+// Close gallery modal on overlay click + close-button
+(function wireGallery() {
+  const go = document.getElementById('gallery-overlay');
+  const gc = document.getElementById('gallery-close');
+  if (go) go.addEventListener('click', e => {
+    if (e.target === go) closeGallery();
+  });
+  if (gc) gc.addEventListener('click', closeGallery);
+})();
 
 // ── Frame Row (frozen; context menu has only Canvas Settings) ──
 (function wireFrameRow() {

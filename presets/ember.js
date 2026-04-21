@@ -1,0 +1,16 @@
+// Ember — hot orange/red heat glow fading to deep shadow
+PRESETS.ember = {
+  bg: '#0A0200',
+  layers: [
+    { type: 'color-grade', name: 'Color Grade', properties: {
+      contrast: 1.1, sat: 1.2, bright: -0.02, hue: 0
+    }},
+    { type: 'mesh-gradient', name: 'Mesh Gradient', properties: {
+      seed: 7, speed: 0.1, scale: 0.5,
+      turbAmp: 0.22, turbFreq: 0.22, turbIter: 3,
+      waveFreq: 1.5, distBias: 0.25,
+      exposure: 1.15, contrast: 1.02, saturation: 1.15,
+      colors: ['#0A0200', '#3A0700', '#B21A00', '#FF5B00', '#FFC24A', '#FFE8B0']
+    }}
+  ]
+};

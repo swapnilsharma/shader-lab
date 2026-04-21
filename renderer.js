@@ -1002,119 +1002,34 @@ function frame(now) {
 }
 
 // ── Mini Renderers (Modal Gallery) ────────────────────────────
-// Bespoke per-preset fragment shaders. Each stands alone, 2 uniforms only
-// (u_t, u_res), so 8 concurrent WebGL contexts stay cheap and can't OOM.
+// Preview each preset card using the EXACT same layer pipeline as the main
+// engine (buildFragFromLayers + setUniformsForLayers) so whatever you see in
+// the welcome modal is what you get when you click Load.
 
-const MINI_HEAD = `precision mediump float;
-uniform float u_t;
-uniform vec2 u_res;
-float h21(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-float n2(vec2 p){
-  vec2 i=floor(p),f=fract(p);
-  float a=h21(i),b=h21(i+vec2(1.0,0.0));
-  float c=h21(i+vec2(0.0,1.0)),d=h21(i+vec2(1.0,1.0));
-  vec2 u=f*f*(3.0-2.0*f);
-  return mix(a,b,u.x)+(c-a)*u.y*(1.0-u.x)+(d-b)*u.x*u.y;
+// Build the real preset layer array (same pipeline as the main engine).
+// Skips layer types that need external assets (image) for preview accuracy.
+function buildPresetLayersForPreview(presetName) {
+  const preset = (typeof PRESETS !== 'undefined') ? PRESETS[presetName] : null;
+  if (!preset) return null;
+  // Isolate id space so preview ids don't collide with the main scene.
+  const savedCounter = (typeof layerIdCounter !== 'undefined') ? layerIdCounter : 0;
+  if (typeof layerIdCounter !== 'undefined') layerIdCounter = 0;
+  const previewLayers = preset.layers
+    .filter(l => l.type !== 'image')
+    .map(l => {
+      const layer = createLayer(l.type, l.properties || {});
+      if (l.name) layer.name = l.name;
+      if (l.opacity !== undefined) layer.opacity = l.opacity;
+      if (l.blendMode) layer.blendMode = l.blendMode;
+      return layer;
+    });
+  if (typeof layerIdCounter !== 'undefined') layerIdCounter = savedCounter;
+  return { layers: previewLayers, bg: preset.bg };
 }
-void main(){
-  vec2 uv=gl_FragCoord.xy/u_res.xy;
-  vec2 p=uv*2.0-1.0;
-  p.x*=u_res.x/u_res.y;
-  float t=u_t;
-`;
-const MINI_TAIL = `  gl_FragColor=vec4(col,1.0);\n}`;
-
-const MINI_PRESET_SHADERS = {
-  // Aurora — flowing green/teal bands with purple highlights
-  aurora: MINI_HEAD + `
-  float y = uv.y;
-  float b1 = sin(uv.x*3.0 + t*0.6 + sin(uv.x*7.0+t*0.3)*0.5)*0.5+0.5;
-  float b2 = sin(uv.x*4.0 - t*0.4 + uv.y*2.0)*0.5+0.5;
-  float band = smoothstep(0.35,0.55, b1*0.6+b2*0.4 - abs(y-0.55)*1.1);
-  vec3 green = vec3(0.15, 0.85, 0.55);
-  vec3 teal  = vec3(0.1, 0.5, 0.9);
-  vec3 purp  = vec3(0.55, 0.25, 0.9);
-  vec3 col = mix(vec3(0.02,0.04,0.08), teal, band*0.7);
-  col = mix(col, green, band*(0.6+0.4*sin(t*0.5+uv.x*4.0)));
-  col += purp * band * 0.35 * smoothstep(0.6, 0.9, b1);
-` + MINI_TAIL,
-
-  // Silk — diagonal gradient with sine-warped bands, warm purple/pink
-  silk: MINI_HEAD + `
-  float w = sin(uv.x*5.0 + uv.y*3.0 + t*0.4)*0.12;
-  float g = uv.x*0.7 + uv.y*0.3 + w;
-  vec3 a = vec3(0.25, 0.05, 0.35);
-  vec3 b = vec3(0.95, 0.55, 0.75);
-  vec3 c = vec3(0.15, 0.05, 0.2);
-  vec3 col = mix(a, b, g);
-  col = mix(col, c, smoothstep(0.7, 1.0, abs(sin(g*6.0+t*0.3))));
-  col += 0.08*sin(uv.y*30.0 + t);
-` + MINI_TAIL,
-
-  // Plasma — classic 4-term sine sum, RGB phase-shifted cosine palette
-  plasma: MINI_HEAD + `
-  float v = sin(p.x*3.0 + t);
-  v += sin((p.y*2.5 + t)*1.3);
-  v += sin((p.x + p.y + t*0.7)*2.0);
-  v += sin(length(p)*4.0 - t*0.8);
-  v *= 0.25;
-  vec3 col = 0.5 + 0.5*cos(6.2831*(v + vec3(0.0, 0.33, 0.66)) + t*0.3);
-` + MINI_TAIL,
-
-  // Ember — radial gradient orange→red→black with noise offset
-  ember: MINI_HEAD + `
-  float r = length(p*vec2(1.0,1.2)) + n2(p*3.0+t*0.4)*0.25;
-  float heat = 1.0 - smoothstep(0.2, 1.1, r);
-  vec3 col = vec3(0.02, 0.0, 0.0);
-  col = mix(col, vec3(0.6, 0.08, 0.02), smoothstep(0.0, 0.5, heat));
-  col = mix(col, vec3(1.0, 0.45, 0.1), smoothstep(0.4, 0.85, heat));
-  col = mix(col, vec3(1.0, 0.95, 0.75), smoothstep(0.85, 1.0, heat));
-  col += n2(p*8.0 + t*1.2)*0.06*heat;
-` + MINI_TAIL,
-
-  // Holo — rainbow diagonal shimmer
-  holo: MINI_HEAD + `
-  float s = fract(uv.x*0.8 + uv.y*0.3 + t*0.15);
-  vec3 col = 0.5 + 0.5*cos(6.2831*(s + vec3(0.0, 0.33, 0.66)));
-  float shimmer = sin((uv.x+uv.y)*25.0 + t*3.0)*0.5+0.5;
-  col += shimmer*0.08;
-  col *= 0.75 + 0.25*sin(uv.y*10.0 + t);
-` + MINI_TAIL,
-
-  // Cosmos — twinkling stars with horizontal nebula band
-  cosmos: MINI_HEAD + `
-  vec3 col = vec3(0.02, 0.02, 0.06);
-  float neb = smoothstep(0.55, 0.0, abs(uv.y-0.5)) * (0.5+0.5*sin(uv.x*4.0+t*0.3));
-  col += mix(vec3(0.15,0.05,0.35), vec3(0.05,0.1,0.4), uv.x) * neb * 0.55;
-  vec2 g = floor(uv*vec2(40.0, 30.0));
-  float star = h21(g);
-  float on = step(0.97, star);
-  float tw = 0.5 + 0.5*sin(t*3.0 + star*30.0);
-  vec2 cell = fract(uv*vec2(40.0, 30.0)) - 0.5;
-  float pt = smoothstep(0.35, 0.0, length(cell));
-  col += vec3(1.0)*on*tw*pt*0.9;
-` + MINI_TAIL,
-
-  // Glitch — horizontal bands + occasional RGB channel offset
-  glitch: MINI_HEAD + `
-  float tf = floor(t*6.0);
-  float band = floor(uv.y*18.0 + tf);
-  float bh = h21(vec2(band, tf));
-  float off = (h21(vec2(band*3.1, tf+1.0)) - 0.5) * step(0.7, bh) * 0.25;
-  vec2 suv = vec2(uv.x + off, uv.y);
-  float cyc = step(0.98, fract(sin(tf)*43758.5453));
-  float r = h21(floor(suv*vec2(30.0, 18.0)) + tf*0.3);
-  float g = h21(floor((suv+vec2(0.01*cyc,0.0))*vec2(30.0, 18.0)) + tf*0.3);
-  float b = h21(floor((suv-vec2(0.01*cyc,0.0))*vec2(30.0, 18.0)) + tf*0.3);
-  vec3 col = vec3(r,g,b);
-  col = mix(vec3(dot(col, vec3(0.33))), col, 0.8);
-  col *= 0.4 + 0.6*step(0.2, fract(uv.y*40.0+tf*0.1));
-` + MINI_TAIL,
-};
 
 function createMiniRenderer(cvs, presetName) {
-  const fsrc = MINI_PRESET_SHADERS[presetName];
-  if (!fsrc) return null;
+  const built = buildPresetLayersForPreview(presetName);
+  if (!built) return null;
 
   const mgl = cvs.getContext('webgl', { antialias: true, preserveDrawingBuffer: false });
   if (!mgl) return null;
@@ -1124,13 +1039,27 @@ function createMiniRenderer(cvs, presetName) {
   cvs.width = Math.round(W * dpr);
   cvs.height = Math.round(H * dpr);
 
+  const miniFrameState = { w: cvs.width, h: cvs.height, bg: built.bg };
+
+  // Noise texture (each context needs its own — cannot share across WebGL contexts)
+  const miniNoiseTex = initNoiseTex(mgl);
+
+  const fsrc = buildFragFromLayers(built.layers, miniFrameState);
   const vs = mkShader(mgl, mgl.VERTEX_SHADER, VERT);
   const fs = mkShader(mgl, mgl.FRAGMENT_SHADER, fsrc);
   if (!vs || !fs) return null;
   const mp = mgl.createProgram();
   mgl.attachShader(mp, vs); mgl.attachShader(mp, fs); mgl.linkProgram(mp);
-  if (!mgl.getProgramParameter(mp, mgl.LINK_STATUS)) { mgl.deleteProgram(mp); return null; }
+  if (!mgl.getProgramParameter(mp, mgl.LINK_STATUS)) {
+    console.error('Mini preset link failed:', presetName, mgl.getProgramInfoLog(mp));
+    mgl.deleteProgram(mp);
+    return null;
+  }
   mgl.useProgram(mp);
+
+  // Bind noise sampler to texture unit 1 (matches main engine convention)
+  const uNoise = mgl.getUniformLocation(mp, 'uNoise');
+  if (uNoise) mgl.uniform1i(uNoise, 1);
 
   const mvb = mgl.createBuffer();
   mgl.bindBuffer(mgl.ARRAY_BUFFER, mvb);
@@ -1140,9 +1069,6 @@ function createMiniRenderer(cvs, presetName) {
   mgl.vertexAttribPointer(mpl, 2, mgl.FLOAT, false, 0, 0);
   mgl.viewport(0, 0, cvs.width, cvs.height);
 
-  const uT = mgl.getUniformLocation(mp, 'u_t');
-  const uR = mgl.getUniformLocation(mp, 'u_res');
-
   let running = true, lastF = 0, rafId = 0;
   const t0 = performance.now();
 
@@ -1150,8 +1076,9 @@ function createMiniRenderer(cvs, presetName) {
     if (!running) return;
     if (now - lastF >= 1000/24) {
       lastF = now;
-      mgl.uniform1f(uT, (now - t0) / 1000);
-      mgl.uniform2f(uR, cvs.width, cvs.height);
+      const t = (now - t0) / 1000;
+      // No image in previews — pass null/empty for image params
+      setUniformsForLayers(mgl, mp, built.layers, miniFrameState, t, miniNoiseTex, null, false, 1.0);
       mgl.drawArrays(mgl.TRIANGLE_STRIP, 0, 4);
     }
     rafId = requestAnimationFrame(mframe);
@@ -1165,6 +1092,7 @@ function createMiniRenderer(cvs, presetName) {
       try { mgl.deleteProgram(mp); } catch(e) {}
       try { mgl.deleteBuffer(mvb); } catch(e) {}
       try { mgl.deleteShader(vs); mgl.deleteShader(fs); } catch(e) {}
+      try { if (miniNoiseTex) mgl.deleteTexture(miniNoiseTex); } catch(e) {}
       const ext = mgl.getExtension('WEBGL_lose_context');
       if (ext) { try { ext.loseContext(); } catch(e) {} }
     }

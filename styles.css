@@ -234,6 +234,22 @@ svg { display: block; }
 .tb-menu-item--disabled:hover { background: transparent; color: #444; }
 .tb-menu-divider { height: 1px; background: #222; margin: 4px 0; }
 
+/* Submenu (Presets) */
+.tb-menu-item--submenu { position: relative; }
+.tb-submenu {
+  position: absolute;
+  left: calc(100% - 4px); top: -4px;
+  min-width: 160px;
+  background: #1a1a1a;
+  border: 1px solid #2a2a2a;
+  border-radius: 4px;
+  padding: 4px 0;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  z-index: 310;
+}
+.tb-submenu.hidden { display: none; }
+.tb-menu-item--submenu:hover > .tb-submenu { display: block; }
+
 /* Effects menu (wider, with thumbnails) */
 .tb-menu--effects { width: 260px; max-height: calc(100vh - 100px); overflow-y: auto; }
 .tb-menu--effects::-webkit-scrollbar { width: 6px; }
@@ -559,17 +575,17 @@ svg { display: block; }
   display: flex; align-items: center; gap: 8px;
   height: 32px; padding: 0 12px;
   cursor: pointer; color: var(--text-secondary);
-  background: #0d0d0d;
+  background: #0d0d0da8;
   user-select: none;
 }
-.frame-row:hover { background: #141414; color: var(--text-primary); }
-.frame-row.selected { background: #181818; color: var(--text-primary); }
+.frame-row:hover { background: #0d0d0d; color: var(--text-primary); }
+.frame-row.selected { background: #0d0d0d; color: var(--text-primary); }
 .frame-lock {
   flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
   width: 14px; height: 14px; line-height: 0;
 }
 .frame-lock svg { display: block; }
-.frame-name { font-size: 11px; flex: 1; }
+.frame-name { font-size: 11px; flex: 1; font-style: italic;}
 .frame-ctx-btn {
   background: transparent; border: none; color: var(--text-secondary);
   padding: 2px 6px; border-radius: 3px; cursor: pointer;
@@ -801,6 +817,59 @@ input.swatch-hex-input:focus {
 .stops-add:hover:not(:disabled) { border-color: #555; color: var(--text-primary); }
 .stops-add:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/* ── Gradient palette presets row ── */
+.grad-palettes-row {
+  display: flex; gap: 6px; align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.grad-palette {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.1);
+  padding: 0;
+  cursor: pointer;
+  flex: none;
+  transition: box-shadow 0.12s ease, transform 0.12s ease;
+}
+.grad-palette:hover {
+  box-shadow: 0 0 0 1px #e0e0e0;
+  transform: translateY(-1px);
+}
+
+/* ── Duotone strip ── */
+.duotone-block {
+  margin-bottom: 12px;
+}
+.duotone-strip {
+  position: relative;
+  width: 100%; height: 16px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+.duotone-hist {
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  display: block;
+}
+.duotone-swatches {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 8px;
+}
+.duotone-swatch-row {
+  flex: 1; min-width: 0;
+  margin-bottom: 0 !important;
+}
+.duotone-swatch-row--right {
+  flex-direction: row-reverse;
+}
+.duotone-swatch-row--right .swatch-hex {
+  text-align: right;
+}
+
 /* ── Toast ── */
 .toast {
   position: fixed;
@@ -998,6 +1067,41 @@ input.swatch-hex-input:focus {
   gap: 16px 24px;
   justify-content: center;
 }
+
+/* ── Preset gallery modal (all 12, no welcome chrome) ── */
+.modal--gallery {
+  width: 860px;
+  max-width: 92vw;
+}
+.modal--gallery .preset-gallery {
+  animation: none;
+  opacity: 1;
+}
+.modal--gallery .preset-card { animation: none; opacity: 1; }
+.gallery-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 2px 14px 2px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.gallery-title {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  color: #ccc;
+  text-transform: uppercase;
+}
+.gallery-close {
+  width: 28px; height: 28px;
+  background: transparent;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 4px;
+  color: #999;
+  font-size: 18px; line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.12s, color 0.12s;
+}
+.gallery-close:hover { border-color: #e0e0e0; color: #fff; }
 .preset-card {
   display: flex; flex-direction: column; gap: 8px;
   cursor: pointer;
