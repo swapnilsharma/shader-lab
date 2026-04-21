@@ -1,14 +1,17 @@
 // ================================================================
-// SHADER LAB — Preset scenes (bundled)
+// SHADER LAB — Preset scenes
 // ================================================================
-// Preset scenes are shipped inline as JS objects so the app boots
-// with zero network dependencies (works from file:// or any server).
-// Each entry uses the EXACT same schema as a user-saved .frakt file:
-//   { bg, layers: [{ type, name, opacity?, blendMode?, properties }] }
+// Canonical source: /presets/*.frakt (human-readable JSON, same
+// schema as a user-saved .frakt file). Edit those to tune presets.
 //
-// The canonical human-readable copies live in /presets/*.frakt —
-// they mirror the data below one-for-one. If you edit a preset,
-// update both places so downloadable samples stay in sync.
+// Fallback: the inline PRESETS object below mirrors the .frakt
+// files. On boot, loadAllPresets() fetches the /presets/*.frakt
+// copies and overlays whatever it gets back on top of this inline
+// data. So:
+//   - on a server: .frakt edits take effect
+//   - on file:// (where fetch fails): the inline fallback is used
+//     so the app still boots with working presets
+// Keep the two in sync when you change one.
 
 const PRESETS = {
   aurora: {
@@ -18,7 +21,7 @@ const PRESETS = {
         contrast: 1.05, sat: 1.15, bright: 0.0, hue: 0
       }},
       { type: 'mesh-gradient', name: 'Mesh Gradient', properties: {
-        seed: 42, speed: 0.12, scale: 0.35,
+        seed: 42, speed: 1.36, scale: 0.35,
         turbAmp: 0.22, turbFreq: 0.22, turbIter: 3,
         waveFreq: 1.6, distBias: 0.0,
         exposure: 1.05, contrast: 1.0, saturation: 1.1,
@@ -70,7 +73,7 @@ const PRESETS = {
         contrast: 1.1, sat: 1.2, bright: -0.02, hue: 0
       }},
       { type: 'mesh-gradient', name: 'Mesh Gradient', properties: {
-        seed: 7, speed: 0.1, scale: 0.5,
+        seed: 7, speed: 0.9, scale: 0.5,
         turbAmp: 0.22, turbFreq: 0.22, turbIter: 3,
         waveFreq: 1.5, distBias: 0.25,
         exposure: 1.15, contrast: 1.02, saturation: 1.15,
@@ -89,7 +92,7 @@ const PRESETS = {
         spread: 0.002, angle: 45
       }},
       { type: 'gradient', name: 'Gradient', properties: {
-        seed: 33, speed: 0.1, freqX: 0.7, freqY: 2.6,
+        seed: 33, speed: 1.3, freqX: 0.7, freqY: 2.6,
         angle: 25, scale: 1.0, amplitude: 1.6, softness: 1.1, blend: 0.55,
         stops: [
           { color: '#BFF0FF' },
@@ -113,7 +116,7 @@ const PRESETS = {
         contrast: 1.08, sat: 1.2, bright: -0.04, hue: 0
       }},
       { type: 'mesh-gradient', name: 'Mesh Gradient', properties: {
-        seed: 55, speed: 0.05, scale: 0.36,
+        seed: 55, speed: 1.1, scale: 0.36,
         turbAmp: 0.22, turbFreq: 0.22, turbIter: 3,
         waveFreq: 1.5, distBias: 0.0,
         exposure: 1.02, contrast: 1.02, saturation: 1.15,
@@ -136,7 +139,7 @@ const PRESETS = {
         c1: '#00FFCC', c2: '#0AA680', c3: '#083F33', c4: '#000000'
       }},
       { type: 'gradient', name: 'Gradient', properties: {
-        seed: 99, speed: 0.5, freqX: 2.4, freqY: 6.0,
+        seed: 99, speed: 1.4, freqX: 2.4, freqY: 6.0,
         angle: 90, scale: 1.0, amplitude: 2.2, softness: 0.5, blend: 0.6,
         stops: [
           { color: '#000000' },
@@ -176,7 +179,7 @@ const PRESETS = {
         amount: 0.022, size: 1.0, animated: 1, streak: 0, sangle: 90, slen: 6
       }},
       { type: 'gradient', name: 'Gradient', properties: {
-        seed: 11, speed: 0.06, freqX: 0.7, freqY: 2.0,
+        seed: 11, speed: 1.8, freqX: 0.7, freqY: 2.0,
         angle: 35, scale: 1.0, amplitude: 1.2, softness: 1.2, blend: 0.45,
         stops: [
           { color: '#0D0D10' },
@@ -246,7 +249,7 @@ const PRESETS = {
         contrast: 1.05, sat: 0.7, bright: -0.04, hue: 0
       }},
       { type: 'mesh-gradient', name: 'Mesh Gradient', properties: {
-        seed: 77, speed: 0.06, scale: 0.42,
+        seed: 77, speed: 1.2, scale: 0.42,
         turbAmp: 0.22, turbFreq: 0.22, turbIter: 3,
         waveFreq: 1.6, distBias: 0.0,
         exposure: 1.1, contrast: 1.0, saturation: 1.05,
@@ -275,8 +278,43 @@ function pickModalPresets() {
 
 let MODAL_PRESETS = pickModalPresets();
 
-// Kept as an async shim so engine.js boot (`loadAllPresets().then(openModal)`)
-// still works without changes. No network I/O — just re-shuffles.
+// Normalize one .frakt JSON blob into the PRESETS[name] shape.
+function frakt2preset(data) {
+  const bg = (data.canvas && data.canvas.background) || '#111111';
+  const layers = Array.isArray(data.layers) ? data.layers.map(l => ({
+    type: l.type,
+    name: l.name,
+    opacity: l.opacity,
+    blendMode: l.blendMode,
+    properties: l.properties || {}
+  })) : [];
+  return { bg, layers };
+}
+
+// Fetch all /presets/*.frakt files in parallel and overlay whatever
+// succeeds onto the inline PRESETS. Anything that fails (file://,
+// 404, bad JSON) silently keeps its inline fallback. Returns a
+// promise so engine.js can `await` it before opening the modal.
 async function loadAllPresets() {
+  const results = await Promise.allSettled(
+    PRESET_ORDER.map(async name => {
+      const res = await fetch(`presets/${name}.frakt`, { cache: 'no-cache' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      return { name, preset: frakt2preset(data) };
+    })
+  );
+  let overridden = 0, failed = 0;
+  results.forEach(r => {
+    if (r.status === 'fulfilled' && r.value) {
+      PRESETS[r.value.name] = r.value.preset;
+      overridden++;
+    } else {
+      failed++;
+    }
+  });
+  if (failed > 0) {
+    console.info(`[presets] ${overridden}/${PRESET_ORDER.length} loaded from /presets/*.frakt; ${failed} using inline fallback.`);
+  }
   MODAL_PRESETS = pickModalPresets();
 }

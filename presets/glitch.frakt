@@ -14,7 +14,7 @@
       "c1": "#00FFCC", "c2": "#0AA680", "c3": "#083F33", "c4": "#000000"
     }},
     { "type": "gradient", "name": "Gradient", "properties": {
-      "seed": 99, "speed": 0.5, "freqX": 2.4, "freqY": 6.0,
+      "seed": 99, "speed": 1.4, "freqX": 2.4, "freqY": 6.0,
       "angle": 90, "scale": 1.0, "amplitude": 2.2, "softness": 0.5, "blend": 0.6,
       "stops": [
         { "color": "#000000" },

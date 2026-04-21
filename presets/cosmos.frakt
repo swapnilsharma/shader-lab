@@ -10,7 +10,7 @@
       "contrast": 1.08, "sat": 1.2, "bright": -0.04, "hue": 0
     }},
     { "type": "mesh-gradient", "name": "Mesh Gradient", "properties": {
-      "seed": 55, "speed": 0.05, "scale": 0.36,
+      "seed": 55, "speed": 1.1, "scale": 0.36,
       "turbAmp": 0.22, "turbFreq": 0.22, "turbIter": 3,
       "waveFreq": 1.5, "distBias": 0.0,
       "exposure": 1.02, "contrast": 1.02, "saturation": 1.15,
