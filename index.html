@@ -10,6 +10,12 @@
   <link rel="stylesheet" href="styles.css">
   <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
   
+  <!-- JSZip (client-side zip bundling for Export) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <!-- iro.js (colour picker popover) -->
+  <script src="https://cdn.jsdelivr.net/npm/@jaames/iro@5/dist/iro.min.js"></script>
+
   <!-- Sentry (error tracking) -->
   <script src="https://js.sentry-cdn.com/da959cc59806a411b766faea97de98b1.min.js" crossorigin="anonymous"></script>
 
@@ -215,10 +221,10 @@
         <div class="tb-menu-wrap" data-menu="export">
           <button class="tb-export-btn" id="btn-export" onclick="toggleMenu(event,'export')">Export <span class="tb-caret tb-caret--dark">▾</span></button>
           <div class="tb-menu tb-menu--right hidden" id="menu-export">
-            <div class="tb-menu-item" data-act="export-shadertoy"><span class="tb-menu-label">GLSL / Shadertoy</span></div>
-            <div class="tb-menu-item" data-act="export-raw"><span class="tb-menu-label">Raw GLSL</span></div>
+            <div class="tb-menu-item" data-act="export-vanilla"><span class="tb-menu-label">Vanilla HTML</span></div>
+            <div class="tb-menu-item" data-act="export-three"><span class="tb-menu-label">Three.js</span></div>
+            <div class="tb-menu-item" data-act="export-shadertoy"><span class="tb-menu-label">Shadertoy</span></div>
             <div class="tb-menu-divider"></div>
-            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Three.js</span><span class="tb-menu-soon">coming soon</span></div>
             <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Framer</span><span class="tb-menu-soon">coming soon</span></div>
             <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Android</span><span class="tb-menu-soon">coming soon</span></div>
           </div>
@@ -240,7 +246,7 @@
         <div class="frame-sep"></div>
         <div class="frame-row" id="frame-row" onclick="selectLayer('frame')">
           <span class="frame-lock" aria-hidden="true"><svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke="#444" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6.5" width="8" height="5" rx="0.8"/><path d="M4.5 6.5V4.5a2.5 2.5 0 0 1 5 0v2"/></svg></span>
-          <span class="frame-name">Composition</span>
+          <span class="frame-name">Background</span>
           <button class="frame-ctx-btn" id="frame-ctx-btn" title="Frame options" onclick="event.stopPropagation(); openFrameCtxMenu(event)">···</button>
         </div>
       </div>

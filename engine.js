@@ -820,10 +820,13 @@ function renderLeftPanel() {
 
 // ── Right Panel ────────────────────────────────────────────────
 function renderRightPanel() {
+  // Any open iro popover belongs to the previous render — drop it.
+  closeIroPopover();
   const panel = document.getElementById('panel-right');
   if (selectedLayerId === 'frame') {
     panel.innerHTML = renderFrameZone();
     wireFrameZone();
+    attachIroPopovers(panel);
     return;
   }
   const l = layers.find(l => l.id === selectedLayerId);
@@ -845,6 +848,7 @@ function renderRightPanel() {
   wirePropertiesZone(l);
   wireRpHeaderName(l);
   if (isContentLayer(l.type)) wireEffectsZone(l);
+  attachIroPopovers(panel);
 }
 
 function wireRpHeaderName(l) {
@@ -961,7 +965,10 @@ window.addEventListener('resize', () => updateShapeOutline());
   const liveSyncSlider = (layerId, key, value) => {
     const sl = document.getElementById(`s-${layerId}-${key}`);
     const v  = document.getElementById(`v-${layerId}-${key}`);
-    if (sl) sl.value = value;
+    if (sl) {
+      sl.value = value;
+      sl.style.setProperty('--fill', sliderFill(sl.value, sl.min, sl.max));
+    }
     if (v)  v.textContent = typeof value === 'number' && !Number.isInteger(value) ? (Math.round(value*100)/100) : String(Math.round(value));
   };
 
@@ -1062,7 +1069,7 @@ function renderTransformZone(l) {
     <div class="rp-zone-label">Transform</div>
     <div class="ctrl-row">
       <span class="ctrl-label">Opacity</span>
-      <input type="range" class="ctrl-slider" id="rp-opacity" min="0" max="1" step="0.01" value="${l.opacity}">
+      <input type="range" class="ctrl-slider" id="rp-opacity" min="0" max="1" step="0.01" value="${l.opacity}" style="--fill:${sliderFill(l.opacity,0,1)}">
       <span class="ctrl-value" id="rp-opacity-v">${Math.round(l.opacity*100)}%</span>
     </div>
     <div class="ctrl-row">
@@ -1348,7 +1355,7 @@ function aeSlider(aeId, key, label, val, min, max, step) {
   const sid = `s-ae${aeId}-${key}`;
   return `<div class="ctrl-row">
     <span class="ctrl-label">${label}</span>
-    <input type="range" class="ctrl-slider ae-slider" id="${sid}" min="${min}" max="${max}" step="${step}" value="${val}" data-aeid="${aeId}" data-key="${key}" data-vid="${vid}">
+    <input type="range" class="ctrl-slider ae-slider" id="${sid}" min="${min}" max="${max}" step="${step}" value="${val}" data-aeid="${aeId}" data-key="${key}" data-vid="${vid}" style="--fill:${sliderFill(val,min,max)}">
     <span class="ctrl-value" id="${vid}">${fmt(val,step)}</span>
   </div>`;
 }
@@ -1444,6 +1451,7 @@ function wireEffectsZone(l) {
       ae.properties[key] = parseFloat(sl.value);
       const v = document.getElementById(sl.dataset.vid);
       if (v) v.textContent = fmt(sl.value, sl.step);
+      sl.style.setProperty('--fill', sliderFill(sl.value, sl.min, sl.max));
       needsRecompile = true;
     });
     sl.addEventListener('change', () => snapshot());
@@ -1493,7 +1501,7 @@ function renderFrameZone() {
     </div>
     <div class="ctrl-row" style="margin-top:10px;">
       <span class="ctrl-label">Radius</span>
-      <input type="range" class="ctrl-slider" id="frame-radius-sl" min="0" max="50" step="1" value="${fs.radius}" oninput="onFrameRadius(this.value)">
+      <input type="range" class="ctrl-slider" id="frame-radius-sl" min="0" max="50" step="1" value="${fs.radius}" style="--fill:${sliderFill(fs.radius,0,50)}" oninput="onFrameRadius(this.value);this.style.setProperty('--fill',(this.value-this.min)/((this.max-this.min)||1))">
       <span class="ctrl-value" id="frame-radius-val">${fs.radius}%</span>
     </div>
   </div>
@@ -1627,12 +1635,19 @@ function renderStopsStrip(l) {
 }
 
 // ── Control Renderers ──────────────────────────────────────────
+// Normalized 0..1 fill used by the CSS gradient "fill left of thumb"
+// treatment. Clamped so out-of-range values don't overflow the track.
+function sliderFill(val, min, max) {
+  const span = (parseFloat(max) - parseFloat(min)) || 1;
+  return Math.max(0, Math.min(1, (parseFloat(val) - parseFloat(min)) / span));
+}
 function renderSlider(layerId, key, label, val, min, max, step) {
   const vid = `v-${layerId}-${key}`;
   const sid = `s-${layerId}-${key}`;
+  const fill = sliderFill(val, min, max);
   return `<div class="ctrl-row">
     <span class="ctrl-label">${label}</span>
-    <input type="range" class="ctrl-slider" id="${sid}" min="${min}" max="${max}" step="${step}" value="${val}" data-lid="${layerId}" data-key="${key}" data-vid="${vid}">
+    <input type="range" class="ctrl-slider" id="${sid}" min="${min}" max="${max}" step="${step}" value="${val}" data-lid="${layerId}" data-key="${key}" data-vid="${vid}" style="--fill:${fill}">
     <span class="ctrl-value" id="${vid}">${fmt(val,step)}</span>
   </div>`;
 }
@@ -1868,6 +1883,130 @@ function normalizeHex(raw) {
   return null;
 }
 
+// ── iro.js colour popover ─────────────────────────────────────
+// A single floating popover shared across all colour pickers (Solid,
+// Gradient stops, Mesh points, Shape fill, Duotone shadow/light,
+// Frame background). We keep the existing hidden <input type="color">
+// elements as model state: the popover drives them via dispatched
+// `input`/`change` events, so every existing wiring site continues
+// to work unchanged.
+let _iroCurrent = null;
+function closeIroPopover() {
+  if (!_iroCurrent) return;
+  const { wrap, cleanup, hidden } = _iroCurrent;
+  _iroCurrent = null;
+  try { cleanup && cleanup(); } catch (e) {}
+  if (wrap && wrap.parentNode) wrap.parentNode.removeChild(wrap);
+  if (hidden) hidden.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
+function openIroPopover(hidden, anchor) {
+  if (typeof iro === 'undefined') {
+    // iro.js failed to load — fall back to a harmless no-op so the
+    // swatch still appears clickable. The hidden input's value stays
+    // whatever it was. We log once for visibility.
+    if (!window._iroWarned) { console.warn('[frakt] iro.js not available'); window._iroWarned = true; }
+    return;
+  }
+  closeIroPopover();
+  const wrap = document.createElement('div');
+  wrap.className = 'iro-popover';
+  wrap.addEventListener('mousedown', e => e.stopPropagation());
+  document.body.appendChild(wrap);
+
+  const wheelHost = document.createElement('div');
+  wheelHost.className = 'iro-wheel-host';
+  wrap.appendChild(wheelHost);
+
+  const hexInput = document.createElement('input');
+  hexInput.type = 'text';
+  hexInput.className = 'iro-popover-hex';
+  hexInput.spellcheck = false;
+  hexInput.maxLength = 7;
+  const startHex = normalizeHex(hidden.value) || '#ffffff';
+  hexInput.value = startHex.toUpperCase();
+  wrap.appendChild(hexInput);
+
+  const picker = new iro.ColorPicker(wheelHost, {
+    width: 160,
+    color: startHex,
+    layout: [
+      { component: iro.ui.Wheel },
+      { component: iro.ui.Slider, options: { sliderType: 'value' } }
+    ]
+  });
+
+  picker.on('color:change', color => {
+    const hex = color.hexString;
+    hidden.value = hex;
+    hidden.dispatchEvent(new Event('input', { bubbles: true }));
+    if (document.activeElement !== hexInput) hexInput.value = hex.toUpperCase();
+  });
+
+  hexInput.addEventListener('input', () => {
+    const norm = normalizeHex(hexInput.value);
+    if (norm) { try { picker.color.hexString = norm; } catch (e) {} }
+  });
+  hexInput.addEventListener('blur', () => {
+    const norm = normalizeHex(hexInput.value);
+    hexInput.value = (norm || hidden.value || '#ffffff').toUpperCase();
+  });
+  hexInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); hexInput.blur(); closeIroPopover(); }
+    if (e.key === 'Escape') { e.preventDefault(); closeIroPopover(); }
+  });
+
+  // Position the popover near the anchor (or hidden input if no anchor)
+  const rect = (anchor || hidden).getBoundingClientRect();
+  const POP_W = 208; // 184 content + 12*2 padding + 2 border
+  const POP_H_EST = 260;
+  let left = rect.left;
+  if (left + POP_W > window.innerWidth - 8) left = window.innerWidth - POP_W - 8;
+  if (left < 8) left = 8;
+  let top = rect.bottom + 6;
+  if (top + POP_H_EST > window.innerHeight - 8) {
+    const above = rect.top - POP_H_EST - 6;
+    top = above > 8 ? above : Math.max(8, window.innerHeight - POP_H_EST - 8);
+  }
+  wrap.style.left = left + 'px';
+  wrap.style.top  = top  + 'px';
+
+  const onDocMouse = e => { if (!wrap.contains(e.target)) closeIroPopover(); };
+  const onKey = e => { if (e.key === 'Escape') closeIroPopover(); };
+  // Delay attach so the opening click doesn't immediately close us
+  setTimeout(() => {
+    document.addEventListener('mousedown', onDocMouse, true);
+    document.addEventListener('keydown', onKey);
+  }, 0);
+
+  const cleanup = () => {
+    document.removeEventListener('mousedown', onDocMouse, true);
+    document.removeEventListener('keydown', onKey);
+  };
+  _iroCurrent = { wrap, cleanup, hidden };
+}
+
+// Monkey-patch .click() on every hidden colour input so any existing
+// trigger (swatch onclick, programmatic .click()) routes to iro.
+function attachIroPopovers(root) {
+  const scope = root || document;
+  scope.querySelectorAll('input[type="color"].color-input-hidden').forEach(cp => {
+    if (cp._iroAttached) return;
+    cp._iroAttached = true;
+    cp.click = function () {
+      const row = cp.closest('.ctrl-color-row, .stop-row, .duotone-swatch-row, .mg-color-row');
+      let anchor = null;
+      if (row) anchor = row.querySelector('.swatch, .stop-sw');
+      // Frame background swatch lives outside a .ctrl-color-row in some layouts
+      if (!anchor && cp.id === 'bg-cp') anchor = document.getElementById('bg-swatch');
+      openIroPopover(cp, anchor);
+    };
+  });
+  // Stops use a .stop-sw that directly calls cp.click() via a JS handler
+  // (wireStopsStrip). That path also goes through our patched .click, so
+  // no extra wiring needed.
+}
+
 function wirePropertiesZone(l) {
   const panel = document.getElementById('panel-right');
   wireStopsStrip(l);
@@ -1881,6 +2020,7 @@ function wirePropertiesZone(l) {
     opSlider.addEventListener('input', () => {
       updateLayerOpacity(l.id, opSlider.value);
       if (opVal) opVal.textContent = Math.round(opSlider.value*100)+'%';
+      opSlider.style.setProperty('--fill', sliderFill(opSlider.value, opSlider.min, opSlider.max));
     });
     opSlider.addEventListener('change', () => snapshot());
   }
@@ -1897,6 +2037,7 @@ function wirePropertiesZone(l) {
       updateLayerProp(l.id, key, parseFloat(sl.value));
       const vEl = document.getElementById(vid);
       if (vEl) vEl.textContent = fmt(sl.value, sl.step);
+      sl.style.setProperty('--fill', sliderFill(sl.value, sl.min, sl.max));
     });
     sl.addEventListener('change', () => snapshot());
     // Click on value → inline edit
@@ -2443,32 +2584,632 @@ async function newScene() {
   closeMenus(null);
 }
 
-// ── Export helpers ─────────────────────────────────────────────
-async function exportRawGLSL() { closeMenus(null); return copyCode(); }
-async function exportGLSLShadertoy() {
-  closeMenus(null);
-  const defaultName = (typeof fileName !== 'undefined' && fileName.trim()) ? fileName.trim() : 'shader';
-  const chosen = await showNameDialog({ title: 'Export Shadertoy', defaultName, ext: '.glsl', okLabel: 'Export' });
-  if (!chosen) return;
-  const raw = buildFragFromLayers(layers, frameState);
-  const body = raw
-    .replace(/^precision[^;]+;\s*/m, '')
-    .replace(/uniform\s+vec2\s+u_res\s*;\s*/, '')
-    .replace(/uniform\s+float\s+u_t\s*;\s*/, '')
-    .replace(/void\s+main\s*\(\s*\)\s*\{([\s\S]*)\}/, (_, inner) => {
-      return 'void mainImage( out vec4 fragColor, in vec2 fragCoord ) {\n'
-        + '  vec2 u_res = iResolution.xy;\n'
-        + '  float u_t  = iTime;\n'
-        + '  vec2 gl_FragCoord_ = fragCoord;\n'
-        + inner.replace(/gl_FragCoord/g, 'gl_FragCoord_')
-               .replace(/gl_FragColor/g, 'fragColor')
-        + '}';
-    });
-  const blob = new Blob([body], { type: 'text/plain' });
+// ── Export (Round 8, revised) ──────────────────────────────────
+// Three export targets. The common problem we're solving: an exported
+// snapshot has to run _on its own_, without Frakt around to feed it
+// uniform values every frame. So instead of exporting the shader + a
+// side-channel uniform dict, we bake the uniform values directly into
+// the GLSL (const/global with initializer) and ship a single file that
+// just opens and plays.
+//
+//   - Shadertoy    → copy transformed GLSL to clipboard (uniforms inlined)
+//   - Vanilla HTML → zip with a self-contained index.html + shader.glsl
+//   - Three.js     → zip with a self-contained index.html + shader.glsl
+//
+// Both zips: the index.html works when double-clicked from disk. No
+// module imports from relative URLs (file:// blocks that); all code is
+// inline in a single <script> tag.
+
+// Walk the same uniform-set logic the engine uses, but capture every
+// (name, value) pair into a plain dict. Used by the uniform inliner.
+function extractFraktUniforms(layersArg, frameStateArg, imgAr) {
+  const uniforms = {};
+  const fakeGl = {
+    getUniformLocation: (_p, n) => n,
+    uniform1f:  (n, v)        => { uniforms[n] = { t: 'f',   v }; },
+    uniform1i:  (n, v)        => { uniforms[n] = { t: 'i',   v }; },
+    uniform2f:  (n, a, b)     => { uniforms[n] = { t: '2f',  v: [a, b] }; },
+    uniform3f:  (n, a, b, c)  => { uniforms[n] = { t: '3f',  v: [a, b, c] }; },
+    uniform3fv: (n, arr)      => { uniforms[n] = { t: '3fv', v: Array.from(arr) }; },
+    uniform1fv: (n, arr)      => { uniforms[n] = { t: '1fv', v: Array.from(arr) }; },
+    activeTexture: () => {},
+    bindTexture:   () => {},
+    TEXTURE0: 0, TEXTURE1: 1, TEXTURE_2D: 0
+  };
+  setUniformsForLayers(fakeGl, null, layersArg, frameStateArg, 0, null, null, false, imgAr || 1.0);
+  // u_t and u_res stay as real uniforms (the host drives them per-frame).
+  delete uniforms.u_t;
+  delete uniforms.u_res;
+  return uniforms;
+}
+
+// Serialize the uploaded image (if any) into a PNG data URL so the
+// exported bundle is self-contained.
+function fraktImageDataUrl() {
+  if (!hasBaseImage || !baseImageElement) return null;
+  try {
+    const c = document.createElement('canvas');
+    c.width  = baseImageElement.naturalWidth  || baseImageElement.width  || 1;
+    c.height = baseImageElement.naturalHeight || baseImageElement.height || 1;
+    c.getContext('2d').drawImage(baseImageElement, 0, 0);
+    return c.toDataURL('image/png');
+  } catch (e) {
+    console.warn('Image-to-dataURL failed:', e);
+    return null;
+  }
+}
+
+function fraktExportFileName() {
+  const n = (typeof fileName !== 'undefined' && fileName && fileName.trim()) ? fileName.trim() : 'shader';
+  return n.replace(/[^\w\-]+/g, '_') || 'shader';
+}
+
+async function fraktCopyToClipboard(text) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (_) { /* fall through */ }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  } catch (_) { return false; }
+}
+
+function downloadBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = chosen + '.glsl'; a.click();
-  URL.revokeObjectURL(url);
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Format a float as a GLSL float literal. Ensures there's a decimal
+// point (`1` → `1.0`) so the value is parsed as `float`, not `int`.
+function fglsl(n) {
+  if (!isFinite(n)) return '0.0';
+  let s = (+n).toFixed(6);
+  // Trim trailing zeros but keep at least one digit after the dot
+  s = s.replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '.0');
+  if (!/\./.test(s)) s += '.0';
+  return s;
+}
+
+// ── Uniform inliner ─────────────────────────────────────────────
+// Replaces `uniform <type> <name>[<n>]?;` declarations with concrete
+// values baked from the extracted uniforms dict. Returns the modified
+// shader plus an array of init statements that must run once inside
+// main() (or mainImage), for non-scalar / array uniforms that need
+// per-index assignment.
+function inlineUniformsInShader(raw, uniforms) {
+  // Strip host-provided uniforms — they stay as real uniforms so the
+  // runtime can feed u_t/u_res per frame (and image uniforms are bound
+  // when the image texture is ready).
+  let body = raw;
+
+  // Array uniform: `uniform <type> <name>[<n>];` → non-const global +
+  // per-index init inside main()
+  const arrayInits = [];
+  body = body.replace(/^\s*uniform\s+(\w+)\s+(\w+)\s*\[\s*(\d+)\s*\]\s*;\s*$/gm, (m, type, name, size) => {
+    const u = uniforms[name];
+    const n = parseInt(size, 10);
+    if (!u) return `${type} ${name}[${n}];`; // unknown — default-init to 0
+    if (type === 'vec3' && u.t === '3fv') {
+      const v = u.v;
+      for (let i = 0; i < n; i++) {
+        const r = v[i*3]   != null ? v[i*3]   : 0;
+        const g = v[i*3+1] != null ? v[i*3+1] : 0;
+        const b = v[i*3+2] != null ? v[i*3+2] : 0;
+        arrayInits.push(`  ${name}[${i}] = vec3(${fglsl(r)}, ${fglsl(g)}, ${fglsl(b)});`);
+      }
+      return `${type} ${name}[${n}];`;
+    }
+    if (type === 'float' && u.t === '1fv') {
+      const v = u.v;
+      for (let i = 0; i < n; i++) {
+        arrayInits.push(`  ${name}[${i}] = ${fglsl(v[i] != null ? v[i] : 0)};`);
+      }
+      return `${type} ${name}[${n}];`;
+    }
+    return `${type} ${name}[${n}];`;
+  });
+
+  // Scalar / vector uniforms: `uniform <type> <names>;` (possibly comma-list)
+  body = body.replace(/^\s*uniform\s+(\w+)\s+([^;\n]+?);\s*$/gm, (m, type, names) => {
+    const nameList = names.split(',').map(x => x.trim()).filter(Boolean);
+    const out = nameList.map(name => {
+      // Leave the ones we WANT to keep as uniforms alone.
+      if (name === 'u_t' || name === 'u_res' ||
+          name === 'uImage' || name === 'uHasImage' || name === 'uImgAr') {
+        return `uniform ${type} ${name};`;
+      }
+      const u = uniforms[name];
+      if (!u) return `${type} ${name};`; // unknown → global default 0
+      if (type === 'float' && u.t === 'f') return `float ${name} = ${fglsl(u.v)};`;
+      if (type === 'int'   && u.t === 'i') return `int ${name} = ${(u.v|0)};`;
+      if (type === 'vec2'  && u.t === '2f') return `vec2 ${name} = vec2(${fglsl(u.v[0])}, ${fglsl(u.v[1])});`;
+      if (type === 'vec3'  && u.t === '3f') return `vec3 ${name} = vec3(${fglsl(u.v[0])}, ${fglsl(u.v[1])}, ${fglsl(u.v[2])});`;
+      // Fall back: declare as a zero-initialized global so the shader still links.
+      return `${type} ${name};`;
+    }).join('\n');
+    return out;
+  });
+
+  return { body, arrayInits };
+}
+
+// ── Shadertoy transform ─────────────────────────────────────────
+// Shadertoy supplies iTime / iResolution and expects mainImage(). So:
+//   * strip `precision`, u_res/u_t/image uniforms
+//   * stub out texture2D(uImage, ...) with a neutral colour
+//   * replace all remaining uniforms with baked constant values
+//   * wrap void main() into mainImage(), injecting shims for u_res,
+//     u_t and gl_FragCoord, plus any array uniform init statements.
+function transformShaderForShadertoy(raw, uniforms) {
+  // 1. Strip declarations Shadertoy owns.
+  let body = raw
+    .replace(/^\s*precision[^;]+;\s*$/gm, '')
+    .replace(/^\s*(?:varying|attribute)\s[^;]+;\s*$/gm, '')
+    .replace(/^\s*uniform\s+vec2\s+u_res\s*;\s*$/gm, '')
+    .replace(/^\s*uniform\s+float\s+u_t\s*;\s*$/gm, '')
+    .replace(/^\s*uniform\s+sampler2D\s+uImage\s*;\s*$/gm, '')
+    .replace(/^\s*uniform\s+float\s+uHasImage\s*;\s*$/gm, '')
+    .replace(/^\s*uniform\s+float\s+uImgAr\s*;\s*$/gm, '')
+    .replace(/texture2D\s*\(\s*uImage\s*,[^)]*\)/g, 'vec4(0.2,0.2,0.2,1.0)')
+    .replace(/\buHasImage\b/g, '0.0')
+    .replace(/\buImgAr\b/g, '1.0');
+
+  // 2. Inline every remaining uniform with its baked value.
+  const { body: inlined, arrayInits } = inlineUniformsInShader(body, uniforms);
+  body = inlined;
+
+  // 3. Wrap main() into mainImage().
+  const initBlock = arrayInits.length ? arrayInits.join('\n') + '\n' : '';
+  body = body.replace(/void\s+main\s*\(\s*\)\s*\{([\s\S]*)\}\s*$/m, (_, inner) => {
+    return 'void mainImage( out vec4 fragColor, in vec2 fragCoord ) {\n'
+      + '  vec2 u_res = iResolution.xy;\n'
+      + '  float u_t  = iTime;\n'
+      + '  vec2 gl_FragCoord_ = fragCoord;\n'
+      + initBlock
+      + inner.replace(/gl_FragCoord\b/g, 'gl_FragCoord_')
+             .replace(/gl_FragColor\b/g, 'fragColor')
+      + '}';
+  });
+  return body;
+}
+
+async function exportShadertoy() {
+  closeMenus(null);
+  try {
+    const raw = buildFragFromLayers(layers, frameState);
+    const uniforms = extractFraktUniforms(layers, frameState, imageAspectRatio);
+    const out = transformShaderForShadertoy(raw, uniforms);
+    const ok = await fraktCopyToClipboard(out);
+    if (ok) showToast('Copied to clipboard — paste into Shadertoy');
+    else    showToast('Copy failed — check clipboard permissions', true);
+  } catch (e) {
+    console.error('Shadertoy export failed:', e);
+    showToast('Export failed — see console', true);
+  }
+}
+
+// ── Standalone shader transformer (for Vanilla / Three.js) ─────
+// Bakes uniforms into a shader that still expects u_t + u_res (both
+// fed per frame by the host). Returns a shader source plus the array
+// init statements to inject at the top of main().
+function bakeShaderForStandalone(raw, uniforms) {
+  const { body, arrayInits } = inlineUniformsInShader(raw, uniforms);
+  if (!arrayInits.length) return body;
+  // Inject array inits right inside main() { ... }
+  return body.replace(/void\s+main\s*\(\s*\)\s*\{/, m => m + '\n' + arrayInits.join('\n') + '\n');
+}
+
+// ── Vanilla HTML bundle ────────────────────────────────────────
+// A single-file index.html — everything (runtime + shader + uniforms)
+// lives in one non-module <script> block so the page works when opened
+// directly from disk (file://).
+//
+// The generated file is heavily commented so anyone who opens it can
+// copy the shader + the 40-line WebGL runtime into their own page.
+function tplVanillaIndexHtml(name, w, h, bakedShader, imageSrc) {
+  // Image-loading snippet. Only emitted if the scene uses an image
+  // layer; keeps the minimal case truly minimal.
+  const imgLoad = imageSrc ? `
+  // ── Optional: load the image the scene references. The shader
+  // samples it as uImage, with uHasImage (0/1) and uImgAr
+  // (image aspect ratio) telling it whether an image is present.
+  (function loadImg(){
+    var img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = function(){
+      var tex = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      var uI = gl.getUniformLocation(prog, 'uImage');
+      var uH = gl.getUniformLocation(prog, 'uHasImage');
+      var uA = gl.getUniformLocation(prog, 'uImgAr');
+      if (uI) gl.uniform1i(uI, 0);
+      if (uH) gl.uniform1f(uH, 1);
+      if (uA) gl.uniform1f(uA, img.width / img.height);
+    };
+    img.src = ${JSON.stringify(imageSrc)};
+  })();
+` : '';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${name} — Frakt shader</title>
+
+<!--
+  ============================================================
+  ${name} — WebGL shader exported from Frakt
+  ============================================================
+
+  Everything this page needs is inline:
+    • HTML + CSS        → layout for the canvas + the caption
+    • Fragment shader   → const FRAG string inside <script>
+    • WebGL runtime     → 40-ish lines inside <script>
+    • Image (if any)    → base64 data URL inside <script>
+
+  No build step, no dependencies, no network calls. Double-click
+  the file and it plays. To lift the shader into your own page,
+  see the HOW TO EMBED section at the bottom of this file.
+-->
+
+<style>
+  /* Dark-themed page chrome. The only styles that actually affect
+     the shader are the ones on .stage and #frakt-canvas — feel free
+     to strip everything else. */
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 40px 20px; background: #0d0d0d; color: #d0d0d0;
+         font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+  main { max-width: 1200px; margin: 0 auto; }
+
+  /* The stage wraps the canvas, and centers via inline-block + text-align.
+     overflow-x: auto means the page scrolls horizontally rather than
+     squishing the canvas when the viewport is narrower than ${w}px. */
+  .stage-wrap { overflow-x: auto; text-align: center; }
+  .stage { position: relative; display: inline-block; padding: 24px;
+           background: #111; border: 1px solid #1a1a1a; border-radius: 8px;
+           text-align: left; }
+
+  /* Canvas is rendered at exactly the size picked in Frakt (${w}×${h} CSS
+     pixels). The internal framebuffer is scaled by devicePixelRatio so
+     the image stays crisp on retina displays. */
+  #frakt-canvas { display: block; width: ${w}px; height: ${h}px;
+                  border-radius: 4px; background: #000; }
+
+  .credit { position: absolute; right: 36px; bottom: 36px; font-size: 10px;
+            color: #555; letter-spacing: 0.1em; text-transform: uppercase;
+            font-family: ui-monospace, SF Mono, monospace; }
+  h2 { font-size: 11px; color: #888; letter-spacing: 0.14em; text-transform: uppercase;
+       margin: 36px 0 10px; font-weight: 600; }
+  pre { background: #141414; border: 1px solid #1a1a1a; border-radius: 6px;
+        padding: 18px 22px; margin: 0; overflow-x: auto;
+        font-family: ui-monospace, SF Mono, monospace; font-size: 12.5px;
+        line-height: 1.65; color: #c5c5c5; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<main>
+  <!-- Stage: the only DOM the shader itself cares about is #frakt-canvas. -->
+  <div class="stage-wrap">
+    <div class="stage">
+      <canvas id="frakt-canvas" width="${w}" height="${h}"></canvas>
+      <span class="credit">Designed in Frakt.app</span>
+    </div>
+  </div>
+
+  <h2>About this file</h2>
+  <pre>Self-contained WebGL shader exported from Frakt.
+All shader code + uniform values are baked into this single HTML file
+— no build step, no dependencies. Just open it in any modern browser.
+
+The canvas renders at ${w}×${h} CSS pixels. Resizing the canvas in
+your own page is as easy as changing the width/height attributes
+below and updating the style width/height to match.</pre>
+
+  <h2>How to embed the shader in your page</h2>
+  <pre>1. Copy the &lt;canvas id="frakt-canvas" ...&gt; element into your markup.
+2. Copy everything inside the &lt;script&gt; block below into your page.
+3. Adjust width / height in both the canvas attributes and the CSS
+   to whatever size you want. The shader itself is resolution-agnostic.
+4. If the shader uses an image, keep the (function loadImg(){...})()
+   block and replace the base64 data URL with your own image path.</pre>
+</main>
+
+<!--
+  ============================================================
+  RUNTIME — everything below is the WebGL plumbing.
+  ============================================================
+  Two pieces you can copy-paste independently:
+    1. The FRAG string       → the fragment shader source.
+    2. The IIFE that follows → ~40 lines of WebGL setup + the RAF loop.
+
+  The runtime expects three host-driven uniforms to exist in the shader:
+    u_t   (float)  — time in seconds since load
+    u_res (vec2)   — canvas framebuffer size (width, height)
+
+  Plus, if the shader uses an image:
+    uImage    (sampler2D)
+    uHasImage (float)  0 or 1
+    uImgAr    (float)  aspect ratio (width / height)
+
+  All other uniforms are already baked as GLSL globals — the shader
+  runs without any additional setup from JavaScript.
+-->
+<script>
+(function(){
+  // ── 1. Canvas setup ────────────────────────────────────────
+  var canvas = document.getElementById('frakt-canvas');
+  var CSS_W = ${w}, CSS_H = ${h};                // exact size from Frakt
+  var dpr   = Math.min(window.devicePixelRatio || 1, 2);
+
+  // canvas.width/height = internal framebuffer size (crisp on retina)
+  // canvas.style.width/height = CSS-pixel display size
+  canvas.width  = Math.round(CSS_W * dpr);
+  canvas.height = Math.round(CSS_H * dpr);
+  canvas.style.width  = CSS_W + 'px';
+  canvas.style.height = CSS_H + 'px';
+
+  // ── 2. WebGL context ───────────────────────────────────────
+  var gl = canvas.getContext('webgl', { antialias: true });
+  if (!gl) { document.body.innerHTML += '<p style="color:#f66">WebGL not available.</p>'; return; }
+
+  // ── 3. Shaders ────────────────────────────────────────────
+  // Vertex shader: a trivial pass-through that draws a full-screen quad.
+  // All the visual work happens in the fragment shader (FRAG below).
+  var VERT = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.0,1.0);}';
+
+  // The fragment shader, with all scene uniforms baked in as globals.
+  // Open it up — scroll past the (big) initializer block at the top
+  // and you'll find a normal-looking void main() at the bottom.
+  var FRAG = ${JSON.stringify(bakedShader)};
+
+  // Compile helper. Returns null on failure and logs the GL info log
+  // plus the offending source to the console.
+  function mkShader(type, src){
+    var s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)){
+      console.error('Shader compile error:\\n' + gl.getShaderInfoLog(s) + '\\n---\\n' + src);
+      return null;
+    }
+    return s;
+  }
+
+  var vs = mkShader(gl.VERTEX_SHADER, VERT);
+  var fs = mkShader(gl.FRAGMENT_SHADER, FRAG);
+  if (!vs || !fs) return;
+
+  // ── 4. Link program ───────────────────────────────────────
+  var prog = gl.createProgram();
+  gl.attachShader(prog, vs); gl.attachShader(prog, fs); gl.linkProgram(prog);
+  if (!gl.getProgramParameter(prog, gl.LINK_STATUS)){
+    console.error('Link error:', gl.getProgramInfoLog(prog));
+    return;
+  }
+  gl.useProgram(prog);
+
+  // ── 5. Full-screen quad geometry ──────────────────────────
+  // Four corner vertices in clip space, drawn as a TRIANGLE_STRIP.
+  // The fragment shader runs once per pixel inside the quad.
+  var vb = gl.createBuffer();
+  gl.bindBuffer(gl.ARRAY_BUFFER, vb);
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+  var pa = gl.getAttribLocation(prog, 'p');
+  gl.enableVertexAttribArray(pa);
+  gl.vertexAttribPointer(pa, 2, gl.FLOAT, false, 0, 0);
+
+  // ── 6. Uniform locations ──────────────────────────────────
+  // Everything else was inlined into the shader source, so we only
+  // need handles for the two (or five, with an image) host-driven
+  // uniforms.
+  gl.viewport(0, 0, canvas.width, canvas.height);
+  var uT = gl.getUniformLocation(prog, 'u_t');
+  var uR = gl.getUniformLocation(prog, 'u_res');
+  if (uR) gl.uniform2f(uR, canvas.width, canvas.height);
+${imgLoad}
+  // ── 7. Render loop ────────────────────────────────────────
+  // Drive u_t from performance.now() and draw one full-screen quad
+  // per frame. No state to manage — stateless pixel-shader style.
+  var t0 = performance.now();
+  function frame(){
+    var t = (performance.now() - t0) / 1000;
+    if (uT) gl.uniform1f(uT, t);
+    if (uR) gl.uniform2f(uR, canvas.width, canvas.height);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+</script>
+</body>
+</html>
+`;
+}
+
+// ── Three.js bundle ────────────────────────────────────────────
+// Single-file index.html. Three.js is imported as an ES module from a
+// CDN — that's an absolute HTTPS URL so it works from file:// (unlike
+// `./shader.js` imports). All logic is inline.
+function tplThreeIndexHtml(name, w, h, bakedShader, imageSrc) {
+  const imgBlock = imageSrc ? `
+      const imgLoader = new THREE.TextureLoader();
+      imgLoader.load(${JSON.stringify(imageSrc)}, (tex) => {
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.wrapS = THREE.ClampToEdgeWrapping;
+        tex.wrapT = THREE.ClampToEdgeWrapping;
+        material.uniforms.uImage.value    = tex;
+        material.uniforms.uHasImage.value = 1;
+        material.uniforms.uImgAr.value    = tex.image.width / tex.image.height;
+        material.needsUpdate = true;
+      });
+` : '';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>${name} — Frakt / Three.js</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 40px 20px; background: #0d0d0d; color: #d0d0d0;
+         font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; }
+  .stage { position: relative; display: flex; justify-content: center; align-items: center;
+           padding: 24px; background: #111; border: 1px solid #1a1a1a; border-radius: 8px; }
+  .stage canvas { display: block; max-width: 100%; height: auto; border-radius: 4px; background: #000; }
+  .credit { position: absolute; right: 36px; bottom: 36px; font-size: 10px;
+            color: #555; letter-spacing: 0.1em; text-transform: uppercase;
+            font-family: ui-monospace, SF Mono, monospace; }
+  h2 { font-size: 11px; color: #888; letter-spacing: 0.14em; text-transform: uppercase;
+       margin: 36px 0 10px; font-weight: 600; }
+  pre { background: #141414; border: 1px solid #1a1a1a; border-radius: 6px;
+        padding: 18px 22px; margin: 0; overflow-x: auto;
+        font-family: ui-monospace, SF Mono, monospace; font-size: 12.5px;
+        line-height: 1.65; color: #c5c5c5; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<main>
+  <div class="stage" id="stage">
+    <span class="credit">Designed in Frakt.app</span>
+  </div>
+
+  <h2>About this file</h2>
+  <pre>Self-contained Three.js demo exported from Frakt. Three.js is loaded
+from a CDN as an ES module — everything else (shader, uniform values,
+render loop) is inline. Open in any modern browser.</pre>
+</main>
+
+<script type="module">
+  import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+
+  const W = ${w}, H = ${h};
+  const fragmentShader = ${JSON.stringify(bakedShader)};
+  const vertexShader = \`
+    void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+  \`;
+
+  const material = new THREE.ShaderMaterial({
+    vertexShader,
+    fragmentShader,
+    uniforms: {
+      u_t:        { value: 0 },
+      u_res:      { value: new THREE.Vector2(W, H) },
+      uImage:     { value: null },
+      uHasImage:  { value: 0 },
+      uImgAr:     { value: 1.0 }
+    }
+  });
+${imgBlock}
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  renderer.setPixelRatio(dpr);
+  renderer.setSize(W, H, false);
+  document.getElementById('stage').insertBefore(renderer.domElement, document.querySelector('.credit'));
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), material);
+  scene.add(mesh);
+
+  const clock = new THREE.Clock();
+  function frame() {
+    material.uniforms.u_t.value = clock.getElapsedTime();
+    material.uniforms.u_res.value.set(renderer.domElement.width, renderer.domElement.height);
+    renderer.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  frame();
+</script>
+</body>
+</html>
+`;
+}
+
+// ── Single-file HTML exports ────────────────────────────────────
+// One self-contained index.html per target. Shader source + baked
+// uniforms are already inline, so there's no need to ship anything
+// alongside it.
+
+// If the project is still called 'untitled' when the user hits export,
+// ask for a sensible name so the downloaded file doesn't end up named
+// `frakt-untitled-shader.html`. Cancelling aborts the export.
+async function promptSceneNameIfUntitled() {
+  if (typeof fileName === 'string' && fileName.trim() && fileName.trim() !== 'untitled') {
+    return fileName.trim();
+  }
+  const chosen = await showNameDialog({
+    title:       'Name this scene',
+    defaultName: 'my-shader',
+    ext:         '',
+    okLabel:     'Export'
+  });
+  if (!chosen) return null;
+  const clean = chosen.trim();
+  if (!clean) return null;
+  fileName = clean;
+  const lbl = document.getElementById('topbar-file-label');
+  if (lbl) lbl.textContent = clean;
+  return clean;
+}
+
+async function exportVanillaHTML() {
+  closeMenus(null);
+  try {
+    const chosen = await promptSceneNameIfUntitled();
+    if (!chosen) return;
+    const slug     = fraktExportFileName();
+    const shader   = buildFragFromLayers(layers, frameState);
+    const uniforms = extractFraktUniforms(layers, frameState, imageAspectRatio);
+    const baked    = bakeShaderForStandalone(shader, uniforms);
+    const imgSrc   = fraktImageDataUrl();
+    const html     = tplVanillaIndexHtml(chosen, frameState.w, frameState.h, baked, imgSrc);
+    downloadBlob(new Blob([html], { type: 'text/html' }), `frakt-${slug}-shader.html`);
+    showToast('Vanilla HTML downloaded');
+  } catch (e) {
+    console.error('Vanilla export failed:', e);
+    showToast('Export failed — see console', true);
+  }
+}
+
+async function exportThreeJS() {
+  closeMenus(null);
+  try {
+    const chosen = await promptSceneNameIfUntitled();
+    if (!chosen) return;
+    const slug     = fraktExportFileName();
+    const shader   = buildFragFromLayers(layers, frameState);
+    const uniforms = extractFraktUniforms(layers, frameState, imageAspectRatio);
+    const baked    = bakeShaderForStandalone(shader, uniforms);
+    const imgSrc   = fraktImageDataUrl();
+    const html     = tplThreeIndexHtml(chosen, frameState.w, frameState.h, baked, imgSrc);
+    downloadBlob(new Blob([html], { type: 'text/html' }), `frakt-${slug}-threejs.html`);
+    showToast('Three.js HTML downloaded');
+  } catch (e) {
+    console.error('Three.js export failed:', e);
+    showToast('Export failed — see console', true);
+  }
 }
 
 // Wire Share + Avatar "Coming soon" buttons
@@ -2510,8 +3251,9 @@ async function exportGLSLShadertoy() {
       e.stopPropagation();
       const a = it.dataset.act;
       closeMenus(null);
-      if (a === 'export-shadertoy') exportGLSLShadertoy();
-      if (a === 'export-raw')       exportRawGLSL();
+      if (a === 'export-vanilla')   exportVanillaHTML();
+      if (a === 'export-three')     exportThreeJS();
+      if (a === 'export-shadertoy') exportShadertoy();
     });
   });
   const med = document.getElementById('menu-edit');
@@ -2619,8 +3361,9 @@ function buildCommands() {
     cmds.push({ group: 'Edit', label: 'Move selected layer to bottom',                      keywords: 'back bottom',           run: () => moveLayerToBottom(selectedLayerId) });
   }
   // Export
-  cmds.push({ group: 'Export', label: 'Export GLSL / Shadertoy',                          keywords: 'export glsl shader shadertoy', run: exportGLSLShadertoy });
-  cmds.push({ group: 'Export', label: 'Export Raw GLSL',                                   keywords: 'export glsl raw',         run: exportRawGLSL });
+  cmds.push({ group: 'Export', label: 'Copy Shadertoy GLSL',                               keywords: 'export glsl shader shadertoy copy', run: exportShadertoy });
+  cmds.push({ group: 'Export', label: 'Download vanilla HTML',                             keywords: 'export html vanilla webgl',         run: exportVanillaHTML });
+  cmds.push({ group: 'Export', label: 'Download Three.js HTML',                            keywords: 'export three html threejs',         run: exportThreeJS });
   // Insert Layer
   CMD_LAYER_TYPES.forEach(([t, n]) => cmds.push({ group: 'Insert Layer', label: n, keywords: 'add ' + t, run: () => addLayer(t) }));
   // Insert Effect
