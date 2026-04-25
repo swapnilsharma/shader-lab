@@ -4051,7 +4051,6 @@ function buildCommands() {
     cmds.push({ group: 'Edit', label: 'Move selected layer to bottom',                      keywords: 'back bottom',           run: () => moveLayerToBottom(selectedLayerId) });
   }
   // Export
-  cmds.push({ group: 'Export', label: 'Copy Shadertoy GLSL',                               keywords: 'export glsl shader shadertoy copy', run: exportShadertoy });
   cmds.push({ group: 'Export', label: 'Download vanilla HTML',                             keywords: 'export html vanilla webgl',         run: exportVanillaHTML });
   cmds.push({ group: 'Export', label: 'Download Three.js HTML',                            keywords: 'export three html threejs',         run: exportThreeJS });
   // Insert Layer
