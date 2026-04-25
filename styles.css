@@ -521,11 +521,18 @@ svg { display: block; }
   color: var(--text-secondary); text-transform: uppercase;
 }
 .btn-add-layer {
-  font-size: 10px; color: var(--text-secondary);
-  padding: 2px 6px; border-radius: var(--radius);
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 20px; padding: 0 7px;
+  font-family: var(--font-mono);
+  font-size: 9px; font-weight: 500; letter-spacing: 0.1em;
+  line-height: 1; color: var(--text-secondary); text-transform: uppercase;
+  background: transparent; border: none; cursor: pointer;
+  border-radius: var(--radius);
   transition: color 0.1s, background 0.1s;
 }
 .btn-add-layer:hover { color: var(--text-primary); background: #252525; }
+.btn-add-layer-plus { font-size: 12px; line-height: 1; letter-spacing: 0; }
+.btn-add-layer-label { letter-spacing: 0.1em; }
 
 /* ── Layer Stack ── */
 .layer-stack { overflow-y: auto; }
@@ -735,9 +742,9 @@ svg { display: block; }
 .ctrl-value-input {
   font-family: var(--font-mono); font-size: 9px; color: var(--text-primary);
   font-variant-numeric: tabular-nums;
-  min-width: 30px; width: 38px; text-align: right; flex-shrink: 0;
+  min-width: 30px; text-align: right; flex-shrink: 0;
   background: #1a1a1a; border: 1px solid #333333; border-radius: 2px;
-  padding: 0 2px; outline: none;
+  padding: 1px 2px; outline: none; box-sizing: border-box;
 }
 
 /* ── Color Swatches ── */
@@ -1346,6 +1353,7 @@ input.swatch-hex-input:focus {
   transition: background 0.1s;
 }
 .pop-item:hover { background: #252525; }
+.pop-item--text { padding-left: 12px; }
 .pop-thumb {
   width: 48px; height: 36px;
   display: block; border-radius: 3px;

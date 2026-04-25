@@ -86,6 +86,44 @@
   <div class="ctx-item" data-action="move-bottom"><span class="ctx-label">Move to Bottom</span></div>
 </div>
 
+<!-- ═══ ADD-LAYER POPOVER (next to LAYERS title) ═══ -->
+<div class="layer-popover hidden" id="add-layer-popover">
+  <div class="pop-label">LAYERS</div>
+  <div class="pop-item pop-item--text" data-al-type="solid"><span class="pop-name">Solid</span></div>
+  <div class="pop-item pop-item--text" data-al-type="gradient"><span class="pop-name">Gradient</span></div>
+  <div class="pop-item pop-item--text" data-al-type="linear-gradient"><span class="pop-name">Linear Gradient</span></div>
+  <div class="pop-item pop-item--text" data-al-type="radial-gradient"><span class="pop-name">Radial Gradient</span></div>
+  <div class="pop-item pop-item--text" data-al-type="mesh-gradient"><span class="pop-name">Mesh Gradient</span></div>
+  <div class="pop-item pop-item--text" data-al-type="noise-field"><span class="pop-name">Noise Field</span></div>
+  <div class="pop-item pop-item--text" data-al-type="image"><span class="pop-name">Image</span></div>
+  <div class="pop-item pop-item--text" data-al-type="wave"><span class="pop-name">Wave</span></div>
+  <div class="pop-divider"></div>
+  <div class="pop-item pop-item--text" data-al-type="rectangle"><span class="pop-name">Rectangle</span></div>
+  <div class="pop-item pop-item--text" data-al-type="circle"><span class="pop-name">Circle</span></div>
+  <div class="pop-divider"></div>
+  <div class="pop-label">EFFECTS · DISTORT</div>
+  <div class="pop-item" data-al-type="noise-warp"><canvas class="pop-thumb" data-thumb="noise-warp" width="48" height="36"></canvas><span class="pop-name">Noise Warp</span></div>
+  <div class="pop-item" data-al-type="flow-warp"><canvas class="pop-thumb" data-thumb="flow-warp" width="48" height="36"></canvas><span class="pop-name">Flow Warp</span></div>
+  <div class="pop-item" data-al-type="liquid"><canvas class="pop-thumb" data-thumb="liquid" width="48" height="36"></canvas><span class="pop-name">Liquid</span></div>
+  <div class="pop-item" data-al-type="ripple"><canvas class="pop-thumb" data-thumb="ripple" width="48" height="36"></canvas><span class="pop-name">Ripple</span></div>
+  <div class="pop-item" data-al-type="polar-remap"><canvas class="pop-thumb" data-thumb="polar-remap" width="48" height="36"></canvas><span class="pop-name">Polar Remap</span></div>
+  <div class="pop-item" data-al-type="pixelate"><canvas class="pop-thumb" data-thumb="pixelate" width="48" height="36"></canvas><span class="pop-name">Pixelate</span></div>
+  <div class="pop-divider"></div>
+  <div class="pop-label">EFFECTS · STYLIZE</div>
+  <div class="pop-item" data-al-type="grain"><canvas class="pop-thumb" data-thumb="grain" width="48" height="36"></canvas><span class="pop-name">Grain</span></div>
+  <div class="pop-item" data-al-type="vignette"><canvas class="pop-thumb" data-thumb="vignette" width="48" height="36"></canvas><span class="pop-name">Vignette</span></div>
+  <div class="pop-item" data-al-type="bloom"><canvas class="pop-thumb" data-thumb="bloom" width="48" height="36"></canvas><span class="pop-name">Bloom</span></div>
+  <div class="pop-item" data-al-type="glow"><canvas class="pop-thumb" data-thumb="glow" width="48" height="36"></canvas><span class="pop-name">Glow</span></div>
+  <div class="pop-item" data-al-type="scanlines"><canvas class="pop-thumb" data-thumb="scanlines" width="48" height="36"></canvas><span class="pop-name">Scanlines</span></div>
+  <div class="pop-divider"></div>
+  <div class="pop-label">EFFECTS · COLOR</div>
+  <div class="pop-item" data-al-type="color-grade"><canvas class="pop-thumb" data-thumb="color-grade" width="48" height="36"></canvas><span class="pop-name">Color Grade</span></div>
+  <div class="pop-item" data-al-type="duotone"><canvas class="pop-thumb" data-thumb="duotone" width="48" height="36"></canvas><span class="pop-name">Duotone</span></div>
+  <div class="pop-item" data-al-type="posterize"><canvas class="pop-thumb" data-thumb="posterize" width="48" height="36"></canvas><span class="pop-name">Posterize</span></div>
+  <div class="pop-item" data-al-type="n-tone"><canvas class="pop-thumb" data-thumb="n-tone" width="48" height="36"></canvas><span class="pop-name">N-Tone</span></div>
+  <div class="pop-item" data-al-type="chromatic-aberration"><canvas class="pop-thumb" data-thumb="chromatic-aberration" width="48" height="36"></canvas><span class="pop-name">Chromatic Aberration</span></div>
+</div>
+
 <!-- ═══ ADD ATTACHED EFFECT POPOVER (per-layer) ═══ -->
 <div class="layer-popover hidden" id="effect-popover">
   <div class="pop-label">EFFECTS</div>
@@ -247,6 +285,7 @@
     <aside class="panel-left">
       <div class="panel-header">
         <span class="panel-label">LAYERS</span>
+        <button class="btn-add-layer" id="btn-add-layer" title="Add layer or effect"><span class="btn-add-layer-plus">+</span><span class="btn-add-layer-label">ADD</span></button>
       </div>
       <div class="layer-stack" id="layer-stack"></div>
       <div class="frame-layer-area">

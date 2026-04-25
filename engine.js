@@ -924,6 +924,55 @@ document.addEventListener('click', e => {
   if (!e.target.closest('#effect-popover') && !e.target.closest('.btn-add-effect')) closeEffectPopover();
 });
 
+// ── Add-layer popover (next to LAYERS title) ──────────────────
+// One popover that covers every layer + effect type. Mirrors the
+// topbar Layers and Effects menus, but in a single panel anchored
+// to the "+" button so users don't have to drift back to the topbar.
+const addLayerPopover = document.getElementById('add-layer-popover');
+function openAddLayerPopover(anchorEl) {
+  if (!addLayerPopover) return;
+  closeMenus(null);
+  closeEffectPopover();
+  const r = anchorEl.getBoundingClientRect();
+  // Anchor below the button, left-aligned to it
+  addLayerPopover.style.left = r.left + 'px';
+  addLayerPopover.style.top  = (r.bottom + 4) + 'px';
+  addLayerPopover.classList.remove('hidden');
+  startPopoverThumbs(addLayerPopover);
+  clampPopoverToViewport(addLayerPopover, r);
+}
+function closeAddLayerPopover() {
+  if (!addLayerPopover || addLayerPopover.classList.contains('hidden')) return;
+  addLayerPopover.classList.add('hidden');
+  stopAllThumbRenderers();
+}
+if (addLayerPopover) {
+  addLayerPopover.querySelectorAll('.pop-item').forEach(item => {
+    item.addEventListener('click', e => {
+      e.stopPropagation();
+      const t = item.dataset.alType;
+      if (t) addLayer(t);
+      closeAddLayerPopover();
+    });
+  });
+}
+{
+  const _alBtn = document.getElementById('btn-add-layer');
+  if (_alBtn) {
+    _alBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      if (addLayerPopover && !addLayerPopover.classList.contains('hidden')) {
+        closeAddLayerPopover();
+      } else {
+        openAddLayerPopover(_alBtn);
+      }
+    });
+  }
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('#add-layer-popover') && !e.target.closest('#btn-add-layer')) closeAddLayerPopover();
+});
+
 // ── Drag Reorder ───────────────────────────────────────────────
 function onDragStart(e, id) {
   dragSrcId = id; e.dataTransfer.effectAllowed = 'move';
@@ -2406,6 +2455,71 @@ function attachIroPopovers(root) {
   // no extra wiring needed.
 }
 
+// ── Inline value-edit helper (slider value → input on click) ─────
+// Tab / Shift-Tab inside the input commits and jumps to the next /
+// previous slider value in the right panel — so users can chain
+// fine-tune edits without ever leaving the keyboard.
+let _pendingCtrlValueTab = null;
+function beginCtrlValueEdit(sl, vEl, vid, commitFn) {
+  const prevText = vEl.textContent;
+  const w = vEl.offsetWidth;
+  const inp = document.createElement('input');
+  inp.type = 'text';
+  inp.className = 'ctrl-value-input';
+  inp.value = prevText;
+  if (w) inp.style.width = w + 'px';
+  vEl.replaceWith(inp);
+  inp.focus(); inp.select();
+  let committed = false;
+  const commit = () => {
+    if (committed) return; committed = true;
+    const raw = parseFloat(inp.value);
+    const clamped = isNaN(raw) ? parseFloat(sl.value) : Math.min(parseFloat(sl.max), Math.max(parseFloat(sl.min), raw));
+    commitFn(clamped);
+    snapshot();
+    renderRightPanel();
+    if (_pendingCtrlValueTab) {
+      const tab = _pendingCtrlValueTab;
+      _pendingCtrlValueTab = null;
+      advanceCtrlValueFocus(tab.layerId, tab.fromVid, tab.dir);
+    }
+  };
+  const cancel = () => {
+    if (committed) return; committed = true;
+    const span = document.createElement('span');
+    span.id = vid; span.className = 'ctrl-value'; span.textContent = prevText;
+    inp.replaceWith(span);
+  };
+  inp.addEventListener('blur', commit);
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); inp.blur(); return; }
+    if (e.key === 'Escape') { committed = true; cancel(); return; }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const lid = parseInt(sl.dataset.lid, 10);
+      _pendingCtrlValueTab = { layerId: lid, fromVid: vid, dir: e.shiftKey ? -1 : 1 };
+      inp.blur();
+    }
+  });
+}
+
+// After a slider value has been committed and the right panel re-rendered,
+// find the next (or previous) slider in document order and put it into
+// inline-edit mode by clicking its value span. Includes both property
+// sliders (data-key) and animation sliders (data-anim) on the same layer.
+function advanceCtrlValueFocus(layerId, fromVid, dir) {
+  const panel = document.getElementById('panel-right');
+  if (!panel) return;
+  const sliders = Array.from(panel.querySelectorAll('.ctrl-slider[data-lid][data-vid]'))
+    .filter(s => parseInt(s.dataset.lid, 10) === layerId);
+  const idx = sliders.findIndex(s => s.dataset.vid === fromVid);
+  if (idx < 0) return;
+  const target = sliders[idx + dir];
+  if (!target) return;
+  const span = document.getElementById(target.dataset.vid);
+  if (span) span.click();
+}
+
 function wirePropertiesZone(l) {
   const panel = document.getElementById('panel-right');
   wireStopsStrip(l);
@@ -2423,6 +2537,8 @@ function wirePropertiesZone(l) {
       sl.style.setProperty('--fill', sliderFill(sl.value, sl.min, sl.max));
     });
     sl.addEventListener('change', () => snapshot());
+    const vEl = document.getElementById(vid);
+    if (vEl) vEl.addEventListener('click', () => beginCtrlValueEdit(sl, vEl, vid, v => updateLayerAnim(l.id, key, v)));
   });
   // Wire Animation paused toggle
   panel.querySelectorAll('.anim-paused-toggle[data-lid]').forEach(wrap => {
@@ -2454,8 +2570,9 @@ function wirePropertiesZone(l) {
   const blendSel = document.getElementById('rp-blend');
   if (blendSel) blendSel.addEventListener('change', () => updateLayerBlend(l.id, blendSel.value));
 
-  // Wire range sliders — live update on input, snapshot on mouseup (change)
-  panel.querySelectorAll('.ctrl-slider[data-lid]').forEach(sl => {
+  // Wire range sliders — live update on input, snapshot on mouseup (change).
+  // Skip anim-sliders here; they're wired above with their own commit path.
+  panel.querySelectorAll('.ctrl-slider[data-lid]:not(.anim-slider)').forEach(sl => {
     const key = sl.dataset.key;
     const vid = sl.dataset.vid;
     sl.addEventListener('input', () => {
@@ -2467,33 +2584,7 @@ function wirePropertiesZone(l) {
     sl.addEventListener('change', () => snapshot());
     // Click on value → inline edit
     const vEl = document.getElementById(vid);
-    if (vEl) vEl.addEventListener('click', () => {
-      const prevText = vEl.textContent;
-      const inp = document.createElement('input');
-      inp.type = 'text'; inp.className = 'ctrl-value-input';
-      inp.value = prevText;
-      vEl.replaceWith(inp); inp.focus(); inp.select();
-      let committed = false;
-      const commit = () => {
-        if (committed) return; committed = true;
-        const raw = parseFloat(inp.value);
-        const clamped = isNaN(raw) ? parseFloat(sl.value) : Math.min(parseFloat(sl.max), Math.max(parseFloat(sl.min), raw));
-        updateLayerProp(l.id, key, clamped);
-        snapshot();
-        renderRightPanel(); // re-renders & re-wires the whole panel
-      };
-      const cancel = () => {
-        if (committed) return; committed = true;
-        const span = document.createElement('span');
-        span.id = vid; span.className = 'ctrl-value'; span.textContent = prevText;
-        inp.replaceWith(span);
-      };
-      inp.addEventListener('blur', commit);
-      inp.addEventListener('keydown', e => {
-        if (e.key === 'Enter') inp.blur();
-        if (e.key === 'Escape') { committed = true; cancel(); }
-      });
-    });
+    if (vEl) vEl.addEventListener('click', () => beginCtrlValueEdit(sl, vEl, vid, v => updateLayerProp(l.id, key, v)));
   });
 
   // Wire color inputs — live update on input, snapshot on close (change).
@@ -3126,6 +3217,24 @@ function fraktImageDataUrl() {
   }
 }
 
+// Same as fraktImageDataUrl, but returns a PNG Blob so it can be packed
+// into the export ZIP as a real file alongside index.html.
+function fraktImageBlob() {
+  if (!hasBaseImage || !baseImageElement) return Promise.resolve(null);
+  return new Promise(resolve => {
+    try {
+      const c = document.createElement('canvas');
+      c.width  = baseImageElement.naturalWidth  || baseImageElement.width  || 1;
+      c.height = baseImageElement.naturalHeight || baseImageElement.height || 1;
+      c.getContext('2d').drawImage(baseImageElement, 0, 0);
+      c.toBlob(b => resolve(b), 'image/png');
+    } catch (e) {
+      console.warn('Image-to-Blob failed:', e);
+      resolve(null);
+    }
+  });
+}
+
 function fraktExportFileName() {
   const n = (typeof fileName !== 'undefined' && fileName && fileName.trim()) ? fileName.trim() : 'shader';
   return n.replace(/[^\w\-]+/g, '_') || 'shader';
@@ -3346,15 +3455,16 @@ function tplVanillaIndexHtml(name, w, h, bakedShader, imageSrc) {
   ${name} — WebGL shader exported from Frakt
   ============================================================
 
-  Everything this page needs is inline:
+  Everything this page needs ships in this folder:
     • HTML + CSS        → layout for the canvas + the caption
     • Fragment shader   → const FRAG string inside <script>
     • WebGL runtime     → 40-ish lines inside <script>
-    • Image (if any)    → base64 data URL inside <script>
+    • Image (if any)    → sibling file (e.g. image.png) loaded by URL
 
-  No build step, no dependencies, no network calls. Double-click
-  the file and it plays. To lift the shader into your own page,
-  see the HOW TO EMBED section at the bottom of this file.
+  No build step, no dependencies, no network calls. Open this file
+  via a local web server (e.g. python3 -m http.server) so the browser
+  can fetch the image. To lift the shader into your own page, see
+  the HOW TO EMBED section at the bottom of this file.
 -->
 
 <style>
@@ -3417,7 +3527,7 @@ below and updating the style width/height to match.</pre>
 3. Adjust width / height in both the canvas attributes and the CSS
    to whatever size you want. The shader itself is resolution-agnostic.
 4. If the shader uses an image, keep the (function loadImg(){...})()
-   block and replace the base64 data URL with your own image path.</pre>
+   block and update the img.src path to point to your own file.</pre>
 </main>
 
 <!--
@@ -3661,6 +3771,23 @@ async function promptSceneNameIfUntitled() {
   return clean;
 }
 
+// Build a ZIP containing index.html + image.png and download it. Used
+// by the Vanilla / Three.js exports whenever the scene references an
+// uploaded image — keeps the HTML small and lets users swap the image
+// out by replacing the file in the unzipped folder.
+async function downloadExportZip(htmlText, imageBlob, zipName) {
+  if (typeof JSZip === 'undefined') {
+    // JSZip is loaded from a CDN in index.html; if it failed to load we
+    // fall back to embedding the image as a data URL. Better than throwing.
+    throw new Error('JSZip not available');
+  }
+  const zip = new JSZip();
+  zip.file('index.html', htmlText);
+  if (imageBlob) zip.file('image.png', imageBlob);
+  const blob = await zip.generateAsync({ type: 'blob' });
+  downloadBlob(blob, zipName);
+}
+
 async function exportVanillaHTML() {
   closeMenus(null);
   try {
@@ -3670,10 +3797,16 @@ async function exportVanillaHTML() {
     const shader   = buildFragFromLayers(layers, frameState);
     const uniforms = extractFraktUniforms(layers, frameState, imageAspectRatio);
     const baked    = bakeShaderForStandalone(shader, uniforms);
-    const imgSrc   = fraktImageDataUrl();
+    const imgBlob  = await fraktImageBlob();
+    const imgSrc   = imgBlob ? 'image.png' : null;
     const html     = tplVanillaIndexHtml(chosen, frameState.w, frameState.h, baked, imgSrc);
-    downloadBlob(new Blob([html], { type: 'text/html' }), `frakt-${slug}-shader.html`);
-    showToast('Vanilla HTML downloaded');
+    if (imgBlob) {
+      await downloadExportZip(html, imgBlob, `frakt-${slug}-shader.zip`);
+      showToast('Vanilla HTML zip downloaded');
+    } else {
+      downloadBlob(new Blob([html], { type: 'text/html' }), `frakt-${slug}-shader.html`);
+      showToast('Vanilla HTML downloaded');
+    }
   } catch (e) {
     console.error('Vanilla export failed:', e);
     showToast('Export failed — see console', true);
@@ -3689,10 +3822,16 @@ async function exportThreeJS() {
     const shader   = buildFragFromLayers(layers, frameState);
     const uniforms = extractFraktUniforms(layers, frameState, imageAspectRatio);
     const baked    = bakeShaderForStandalone(shader, uniforms);
-    const imgSrc   = fraktImageDataUrl();
+    const imgBlob  = await fraktImageBlob();
+    const imgSrc   = imgBlob ? 'image.png' : null;
     const html     = tplThreeIndexHtml(chosen, frameState.w, frameState.h, baked, imgSrc);
-    downloadBlob(new Blob([html], { type: 'text/html' }), `frakt-${slug}-threejs.html`);
-    showToast('Three.js HTML downloaded');
+    if (imgBlob) {
+      await downloadExportZip(html, imgBlob, `frakt-${slug}-threejs.zip`);
+      showToast('Three.js HTML zip downloaded');
+    } else {
+      downloadBlob(new Blob([html], { type: 'text/html' }), `frakt-${slug}-threejs.html`);
+      showToast('Three.js HTML downloaded');
+    }
   } catch (e) {
     console.error('Three.js export failed:', e);
     showToast('Export failed — see console', true);
