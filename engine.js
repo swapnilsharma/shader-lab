@@ -1305,12 +1305,12 @@ function renderAnimationZone(l) {
   const speed = (typeof l.speed === 'number') ? l.speed : 1.0;
   const toff  = (typeof l.timeOffset === 'number') ? l.timeOffset : 0.0;
   const paused = !!l.paused;
-  const sFill = sliderFill(speed, -2, 2);
+  const sFill = sliderFill(speed, -5, 5);
   const oFill = sliderFill(toff, -10, 10);
   return `<div class="rp-zone"><div class="rp-zone-label">Animation</div>
     <div class="ctrl-row">
       <span class="ctrl-label">Speed</span>
-      <input type="range" class="ctrl-slider anim-slider" id="anim-spd-${id}" min="-2" max="2" step="0.01" value="${speed}" data-lid="${id}" data-anim="speed" data-vid="anim-spd-v-${id}" style="--fill:${sFill}">
+      <input type="range" class="ctrl-slider anim-slider" id="anim-spd-${id}" min="-5" max="5" step="0.01" value="${speed}" data-lid="${id}" data-anim="speed" data-vid="anim-spd-v-${id}" style="--fill:${sFill}">
       <span class="ctrl-value" id="anim-spd-v-${id}">${fmt(speed, 0.01)}</span>
     </div>
     <div class="ctrl-row">
