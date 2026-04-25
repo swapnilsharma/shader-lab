@@ -3907,6 +3907,87 @@ async function exportThreeJS() {
   if (ba) ba.addEventListener('click', e => { e.stopPropagation(); showToast('Coming soon'); });
 })();
 
+// Brand panel popups (Share / Feature / Bug)
+(function wireBrandPopups() {
+  const popupIds = ['popup-share', 'popup-feature', 'popup-bug'];
+  const popups = popupIds.map(id => document.getElementById(id)).filter(Boolean);
+  if (!popups.length) return;
+
+  function closeAll() {
+    popups.forEach(p => p.classList.add('hidden'));
+  }
+  function openOnly(id) {
+    closeAll();
+    const p = document.getElementById(id);
+    if (p) p.classList.remove('hidden');
+  }
+
+  document.querySelectorAll('.brand-link[data-popup]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const key = btn.dataset.popup;
+      const id = 'popup-' + key;
+      const target = document.getElementById(id);
+      if (!target) return;
+      if (target.classList.contains('hidden')) openOnly(id);
+      else closeAll();
+    });
+  });
+
+  document.addEventListener('click', e => {
+    const open = popups.find(p => !p.classList.contains('hidden'));
+    if (!open) return;
+    if (open.contains(e.target)) return;
+    if (e.target.closest('.brand-link[data-popup]')) return;
+    closeAll();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && popups.some(p => !p.classList.contains('hidden'))) {
+      closeAll();
+    }
+  });
+
+  document.querySelectorAll('.frakt-popup .popup-copy').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.stopPropagation();
+      let txt = btn.dataset.copy || '';
+      if (!txt && btn.dataset.copyTarget) {
+        const src = document.getElementById(btn.dataset.copyTarget);
+        if (src) txt = src.textContent.trim();
+      }
+      if (!txt) return;
+      const original = btn.textContent;
+      let ok = false;
+      try {
+        await navigator.clipboard.writeText(txt);
+        ok = true;
+      } catch (err) {
+        const ta = document.createElement('textarea');
+        ta.value = txt;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try { ok = document.execCommand('copy'); } catch (_) {}
+        ta.remove();
+      }
+      btn.textContent = ok ? 'Copied ✓' : 'Copy failed';
+      setTimeout(() => { btn.textContent = original; }, 2000);
+    });
+  });
+
+  // "How it works" close — hide the howto tile
+  const howClose = document.getElementById('brand-howto-close');
+  const howto = document.getElementById('brand-howto');
+  if (howClose && howto) {
+    howClose.addEventListener('click', e => {
+      e.stopPropagation();
+      howto.classList.add('hidden');
+    });
+  }
+})();
+
 // Wire dropdown item clicks
 (function wireMenus() {
   const mf = document.getElementById('menu-file');

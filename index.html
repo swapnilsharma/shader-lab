@@ -171,21 +171,6 @@
 <div id="app">
   <!-- TOPBAR -->
   <header class="topbar">
-    <!-- Line 1 — Identity + Right actions -->
-    <div class="topbar-line topbar-line--1">
-      <div class="topbar-l1-left">
-        <img class="app-icon" src="assets/frakt-ico-24x24.png" alt="frakt" width="24" height="24">
-        <span class="app-name">frakt</span>
-        <span class="app-beta">BETA</span>
-        <span class="app-tagline">Shaders for the rest of us</span>
-      </div>
-      <div class="topbar-spacer"></div>
-      <div class="topbar-l1-right">
-        <button class="tb-share-btn" id="btn-share" title="Coming soon">Share Frakt</button>
-        <button class="tb-avatar" id="btn-avatar" title="Coming soon">S</button>
-      </div>
-    </div>
-
     <!-- Line 2 — Tools + File name + Actions -->
     <div class="topbar-line topbar-line--2">
       <div class="topbar-l2-left">
@@ -296,10 +281,11 @@
             <div class="tb-menu-item" data-act="export-vanilla"><span class="tb-menu-label">Vanilla HTML</span></div>
             <div class="tb-menu-item" data-act="export-three"><span class="tb-menu-label">Three.js</span></div>
             <div class="tb-menu-divider"></div>
-            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Shadertoy</span><span class="tb-menu-soon">coming soon</span></div>
-            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Metal Shaders (iOS)</span><span class="tb-menu-soon">coming soon</span></div>
-            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Framer</span><span class="tb-menu-soon">coming soon</span></div>
-            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Android</span><span class="tb-menu-soon">coming soon</span></div>
+            <div class="tb-fx-section-label">Coming soon</div>
+            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Shadertoy</span></div>
+            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Metal Shaders (iOS)</span></div>
+            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Framer</span></div>
+            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Android</span></div>
           </div>
         </div>
       </div>
@@ -322,6 +308,35 @@
           <span class="layer-icon">◼</span>
           <span class="layer-name-text">Background</span>
           <button class="layer-ctx-btn" id="frame-ctx-btn" title="Frame options" onclick="event.stopPropagation(); openFrameCtxMenu(event)"><svg viewBox="0 0 14 14" width="12" height="12" fill="currentColor"><circle cx="7" cy="2.5" r="1.2"/><circle cx="7" cy="7" r="1.2"/><circle cx="7" cy="11.5" r="1.2"/></svg></button>
+        </div>
+      </div>
+      <div class="brand-panel">
+        <div class="brand-howto" id="brand-howto">
+          <div class="brand-howto-label">How it works</div>
+          <div class="brand-howto-tile">
+            <button class="brand-howto-close" id="brand-howto-close" aria-label="Hide">×</button>
+            <button class="brand-howto-play" aria-label="Play video">
+              <svg viewBox="0 0 28 28" width="40" height="40" aria-hidden="true">
+                <circle cx="14" cy="14" r="13" fill="#0d0d0d"/>
+                <polygon points="11,8.5 20,14 11,19.5" fill="#fff"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div class="brand-row">
+          <img class="brand-icon" src="assets/frakt-ico-128.png" alt="" width="32" height="32">
+          <div class="brand-text">
+            <div class="brand-name-row">
+              <span class="brand-name">frakt</span>
+              <span class="brand-beta">BETA</span>
+            </div>
+            <span class="brand-tag">Shaders for the rest of us</span>
+          </div>
+        </div>
+        <div class="brand-links">
+          <button class="brand-link" type="button" data-popup="share">Share Frakt with friends</button>
+          <button class="brand-link" type="button" data-popup="feature">Request a feature</button>
+          <button class="brand-link" type="button" data-popup="bug">Report a bug</button>
         </div>
       </div>
     </aside>
@@ -361,6 +376,48 @@
       <span id="status-dims">800 × 600</span>
     </div>
   </footer>
+</div>
+
+<!-- ═══ BRAND PANEL POPUPS ═══ -->
+<div class="frakt-popup hidden" id="popup-share">
+  <p class="popup-heading">Spread the word ✦</p>
+  <p class="popup-body">Frakt is a free shader editor for designers and builders. If you're enjoying it, share it with someone who makes things.</p>
+  <div class="popup-share-block">
+    <p class="popup-share-msg" id="popup-share-msg">Check out Frakt — shaders for the rest of us ✦
+A free shader editor that exports real code.
+https://frakt.app</p>
+    <button class="popup-copy" type="button" data-copy-target="popup-share-msg">Copy message</button>
+  </div>
+</div>
+<div class="frakt-popup hidden" id="popup-feature">
+  <p class="popup-heading">Make Frakt better 💡</p>
+  <p class="popup-body">Thanks for thinking about this. I'd love to hear what you'd wish Frakt could do — every good idea starts here.</p>
+  <div class="popup-actions">
+    <div class="popup-contact-row">
+      <span class="popup-contact-label">Email</span>
+      <span class="popup-contact-value">hello@frakt.app</span>
+      <button class="popup-copy" type="button" data-copy="hello@frakt.app">Copy</button>
+    </div>
+    <div class="popup-contact-row">
+      <span class="popup-contact-label">X / Twitter</span>
+      <a class="popup-contact-link" href="https://x.com/swaaaapnilaaa" target="_blank" rel="noopener">@swaaaapnilaaa ↗</a>
+    </div>
+  </div>
+</div>
+<div class="frakt-popup hidden" id="popup-bug">
+  <p class="popup-heading">Thanks for looking out 🔍</p>
+  <p class="popup-body">Bugs happen. Your report helps make Frakt more solid for everyone. Tell me what broke and I'll get on it.</p>
+  <div class="popup-actions">
+    <div class="popup-contact-row">
+      <span class="popup-contact-label">Email</span>
+      <span class="popup-contact-value">hello@frakt.app</span>
+      <button class="popup-copy" type="button" data-copy="hello@frakt.app">Copy</button>
+    </div>
+    <div class="popup-contact-row">
+      <span class="popup-contact-label">X / Twitter</span>
+      <a class="popup-contact-link" href="https://x.com/swaaaapnilaaa" target="_blank" rel="noopener">@swaaaapnilaaa ↗</a>
+    </div>
+  </div>
 </div>
 
 <!-- ═══ CONFIRM DIALOG ═══ -->
