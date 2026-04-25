@@ -34,10 +34,16 @@ let historyIdx = -1;
 const HISTORY_MAX = 20;
 
 function syncUndoButtons() {
+  const canUndo = historyIdx > 0;
+  const canRedo = historyIdx < history.length - 1;
   const u = document.getElementById('btn-undo');
   const r = document.getElementById('btn-redo');
-  if (u) u.disabled = historyIdx <= 0;
-  if (r) r.disabled = historyIdx >= history.length - 1;
+  if (u) u.disabled = !canUndo;
+  if (r) r.disabled = !canRedo;
+  const mu = document.getElementById('menu-edit-undo');
+  const mr = document.getElementById('menu-edit-redo');
+  if (mu) mu.classList.toggle('tb-menu-item--disabled', !canUndo);
+  if (mr) mr.classList.toggle('tb-menu-item--disabled', !canRedo);
 }
 
 function snapshot() {
@@ -133,8 +139,8 @@ function defaultProperties(type) {
     case 'image':        return { x: 0, y: 0, w: frameState.w, h: frameState.h, fit: 'cover' };
     case 'noise-warp':   return { str: 0.5, scale: 2.0, scaleX: 1.0, scaleY: 1.0, wspd: 0.12, oct: 4, iterations: 1, angle: 90, noiseType: 'value' };
     case 'wave':         return { color: '#6B7FE8', freq: 4.0, amp: 0.15, pos: 0.5, edge: 0.06, angle: 0, bands: 1, bandGap: 0.2 };
-    case 'rectangle':    return { x: 0, y: 0, w: 300, h: 200, radius: 0, blur: 0, rotation: 0, scale: 1.0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}], strokeColor: '#000000', strokeWidth: 0, strokeOpacity: 1.0, shadowColor: '#000000', shadowBlur: 0, shadowX: 0, shadowY: 0, shadowOpacity: 0.5 };
-    case 'circle':       return { x: 0, y: 0, w: 240, h: 240, blur: 0, rotation: 0, scale: 1.0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}], strokeColor: '#000000', strokeWidth: 0, strokeOpacity: 1.0, shadowColor: '#000000', shadowBlur: 0, shadowX: 0, shadowY: 0, shadowOpacity: 0.5 };
+    case 'rectangle':    return { x: 0, y: 0, w: 300, h: 200, radius: 0, blur: 0, rotation: 0, scale: 1.0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}], strokeColor: '#000000', strokeWidth: 0, strokeOpacity: 1.0, shadowColor: '#000000', shadowBlur: 0, shadowX: 0, shadowY: 0, shadowOpacity: 0 };
+    case 'circle':       return { x: 0, y: 0, w: 240, h: 240, blur: 0, rotation: 0, scale: 1.0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}], strokeColor: '#000000', strokeWidth: 0, strokeOpacity: 1.0, shadowColor: '#000000', shadowBlur: 0, shadowX: 0, shadowY: 0, shadowOpacity: 0 };
     case 'liquid':       return { seed: 12, scale: 0.42, turbAmp: 0.6, turbFreq: 0.1, turbIter: 7, waveFreq: 3.8, distBias: 0.0, exposure: 1.1, contrast: 1.1, saturation: 1.0, colors: ['#00001A', '#2962FF', '#40BCFF', '#FFB8B5', '#FFC14F'] };
     case 'grain':        return { amount: 0.08, size: 1.0, animated: 1, streak: 0, sangle: 90, slen: 6 };
     case 'chromatic-aberration': return { spread: 0.006, angle: 0 };
@@ -3941,6 +3947,7 @@ async function exportThreeJS() {
   if (med) med.querySelectorAll('.tb-menu-item').forEach(it => {
     it.addEventListener('click', e => {
       e.stopPropagation();
+      if (it.classList.contains('tb-menu-item--disabled')) return;
       const a = it.dataset.act;
       closeMenus(null);
       if (a === 'undo')      undo();

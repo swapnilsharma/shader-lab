@@ -3,7 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>frakt - Shaders for the rest of us</title>
+  <title>Frakt — Shaders for the rest of us</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="assets/frakt-ico-128.png">
+  <link rel="apple-touch-icon" href="assets/frakt-ico-128.png">
+
+  <!-- SEO / general -->
+  <meta name="description" content="Frakt — Shaders for the rest of us. A layer-based shader editor that exports real, runnable code.">
+  <meta name="author" content="Swapnil Sharma">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Frakt — Shaders for the rest of us">
+  <meta property="og:description" content="A layer-based shader editor for designers and builders. Create beautiful WebGL shaders and export them as code.">
+  <meta property="og:image" content="https://frakt.app/og-image.png">
+  <meta property="og:url" content="https://frakt.app">
+  <meta property="og:type" content="website">
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Frakt — Shaders for the rest of us">
+  <meta name="twitter:description" content="A layer-based shader editor for designers and builders. Create beautiful WebGL shaders and export them as code.">
+  <meta name="twitter:image" content="https://frakt.app/og-image.png">
+  <meta name="twitter:site" content="@swaaaapnilaaa">
+  <meta name="twitter:creator" content="@swaaaapnilaaa">
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@700&display=swap" rel="stylesheet">
@@ -193,8 +217,8 @@
         <div class="tb-menu-wrap" data-menu="edit">
           <button class="tb-menu-btn" id="btn-edit-menu" onclick="toggleMenu(event,'edit')">Edit</span></button>
           <div class="tb-menu hidden" id="menu-edit">
-            <div class="tb-menu-item" data-act="undo"><span class="tb-menu-label">Undo</span><span class="tb-menu-sc" data-shortcut="undo"></span></div>
-            <div class="tb-menu-item" data-act="redo"><span class="tb-menu-label">Redo</span><span class="tb-menu-sc" data-shortcut="redo"></span></div>
+            <div class="tb-menu-item" id="menu-edit-undo" data-act="undo"><span class="tb-menu-label">Undo</span><span class="tb-menu-sc" data-shortcut="undo"></span></div>
+            <div class="tb-menu-item" id="menu-edit-redo" data-act="redo"><span class="tb-menu-label">Redo</span><span class="tb-menu-sc" data-shortcut="redo"></span></div>
             <div class="tb-menu-divider"></div>
             <div class="tb-menu-item" data-act="rename"><span class="tb-menu-label">Rename file</span></div>
             <div class="tb-menu-item" data-act="duplicate"><span class="tb-menu-label">Duplicate layer</span><span class="tb-menu-sc" data-shortcut="dup"></span></div>
