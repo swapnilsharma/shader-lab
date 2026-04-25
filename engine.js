@@ -3977,13 +3977,31 @@ async function exportThreeJS() {
     });
   });
 
-  // "How it works" close — hide the howto tile
-  const howClose = document.getElementById('brand-howto-close');
+  // "How it works" tile — delegated click for play (swap to iframe) and close (reset/hide)
   const howto = document.getElementById('brand-howto');
-  if (howClose && howto) {
-    howClose.addEventListener('click', e => {
-      e.stopPropagation();
-      howto.classList.add('hidden');
+  const tile = howto?.querySelector('.brand-howto-tile');
+  const placeholderHTML = tile?.innerHTML;
+  if (tile && howto) {
+    tile.addEventListener('click', e => {
+      if (e.target.closest('.brand-howto-close')) {
+        e.stopPropagation();
+        if (tile.querySelector('iframe')) {
+          tile.innerHTML = placeholderHTML;
+        } else {
+          howto.classList.add('hidden');
+        }
+        return;
+      }
+      if (e.target.closest('.brand-howto-play')) {
+        e.stopPropagation();
+        tile.innerHTML = '<button class="brand-howto-close" aria-label="Close">×</button>' +
+          '<iframe width="100%" height="100%" ' +
+          'src="https://www.youtube.com/embed/hsEMfdci1Rw?si=pcngxLgNFb1tSB8v&autoplay=1&controls=0" ' +
+          'title="YouTube video player" ' +
+          'allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" ' +
+          'referrerpolicy="strict-origin-when-cross-origin" ' +
+          'allowfullscreen></iframe>';
+      }
     });
   }
 })();

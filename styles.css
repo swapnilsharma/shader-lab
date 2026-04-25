@@ -1626,13 +1626,16 @@ canvas#glcanvas.shape-dragging { cursor: grabbing; }
 .brand-howto-label { font-size: 12px; font-weight: 700; color: #fff; }
 .brand-howto-tile {
   position: relative;
-  height: 120px; border-radius: 6px;
+  height: 148px; border-radius: 6px;
   background: #d9d9d9;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
+  overflow: hidden;
 }
+.brand-howto-tile iframe { display: block; border: none; }
 .brand-howto-close {
   position: absolute; top: 4px; right: 4px;
+  z-index: 2;
   width: 20px; height: 20px; padding: 0;
   background: transparent; border: none; cursor: pointer;
   color: #000; font-size: 14px; line-height: 1;
