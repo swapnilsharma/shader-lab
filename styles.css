@@ -604,34 +604,13 @@ svg { display: block; }
 .layer-row:hover .layer-ctx-btn { opacity: 1; }
 .layer-ctx-btn:hover { color: var(--text-primary); background: #2a2a2a; }
 
-/* ── Frame Layer Row (frozen lock row at bottom) ── */
+/* ── Frame ("Background") row — pinned at bottom of layers panel ── */
+/* Uses .layer-row styling so it visually matches a regular layer row.
+   The --bg modifier italicizes the name and disables the drag affordance. */
 .frame-layer-area { flex-shrink: 0; }
-.frame-sep { height: 1px; background: var(--border); }
-.frame-row {
-  display: flex; align-items: center; gap: 8px;
-  height: 32px; padding: 0 12px;
-  cursor: pointer; color: var(--text-secondary);
-  background: #0d0d0da8;
-  user-select: none;
-}
-.frame-row:hover { background: #0d0d0d; color: var(--text-primary); }
-.frame-row.selected { background: #0d0d0d; color: var(--text-primary); }
-.frame-lock {
-  flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center;
-  width: 14px; height: 14px; line-height: 0;
-}
-.frame-lock svg { display: block; }
-.frame-name { font-size: 11px; flex: 1; font-style: italic;}
-.frame-ctx-btn {
-  background: transparent; border: none; color: var(--text-secondary);
-  padding: 2px 6px; border-radius: 3px; cursor: pointer;
-  font-size: 14px; line-height: 1; opacity: 0;
-  transition: opacity 0.1s, background 0.1s, color 0.1s;
-}
-.frame-row:hover .frame-ctx-btn { opacity: 1; }
-.frame-ctx-btn:hover { color: var(--text-primary); background: #2a2a2a; }
-/* keep old icon selector for legacy references (no longer emitted) */
-.layer-icon-frame { font-size: 10px; }
+.layer-row--bg { cursor: pointer; }
+.layer-row--bg .drag-handle { opacity: 0 !important; cursor: default; pointer-events: none; }
+.layer-row--bg .layer-name-text { font-style: italic; }
 
 /* ── Canvas Area ── */
 .canvas-area {

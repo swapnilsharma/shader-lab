@@ -6,8 +6,8 @@
 // ── State ──────────────────────────────────────────────────────
 let layers = [];           // Array<LayerObject>, index 0 = topmost in panel
 let layerIdCounter = 0;
-let selectedLayerId = null;
-let frameState = { bg: '#111111', w: 800, h: 600, radius: 0, aspect: null };
+let selectedLayerId = 'frame';
+let frameState = { bg: '#000000', w: 800, h: 600, radius: 0, aspect: null };
 // Frame radius is stored as a percentage (0-50). 50% = maximum rounding.
 function frameRadiusPx() {
   return (frameState.radius / 100) * Math.min(frameState.w, frameState.h);
@@ -1042,7 +1042,7 @@ function renderLeftPanel() {
 
   // Frame row
   const fr = document.getElementById('frame-row');
-  if (fr) fr.className = 'frame-row' + (selectedLayerId === 'frame' ? ' selected' : '');
+  if (fr) fr.classList.toggle('selected', selectedLayerId === 'frame');
 }
 
 // ── Right Panel ────────────────────────────────────────────────
@@ -3062,8 +3062,8 @@ function loadPreset(name) {
 
 function loadBlank() {
   closeModal();
-  layers = []; layerIdCounter = 0; selectedLayerId = null;
-  frameState.bg = '#111111';
+  layers = []; layerIdCounter = 0; selectedLayerId = 'frame';
+  frameState.bg = '#000000';
   history = []; historyIdx = -1;
   renderUI(); needsRecompile = true;
   snapshot();
@@ -3151,7 +3151,7 @@ async function newScene() {
     if (!ok) return;
   }
   layers = [];
-  selectedLayerId = null;
+  selectedLayerId = 'frame';
   frameState.bg = '#000000';
   fileName = 'untitled';
   const lbl = document.getElementById('topbar-file-label');
@@ -4305,7 +4305,7 @@ function showToast(msg, isError) {
 // ── Save / Open .frakt ─────────────────────────────────────────
 const KNOWN_LAYER_TYPES = new Set([
   'solid','gradient','linear-gradient','radial-gradient','noise-field','mesh-gradient','image','rectangle','circle',
-  'noise-warp','flow-warp','polar-remap','wave','liquid','grain','chromatic-aberration',
+  'noise-warp','flow-warp','polar-remap','ripple','wave','liquid','grain','chromatic-aberration',
   'vignette','color-grade','n-tone','glow','duotone','bloom','posterize','pixelate','scanlines'
 ]);
 
