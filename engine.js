@@ -80,7 +80,20 @@ function redo() {
 function hexToRgb(h) {
   h = (h || '#000000').replace('#', '');
   if (h.length === 3) h = h.split('').map(x => x+x).join('');
+  // 8-char #RRGGBBAA: alpha is stripped here so spreads into vec3 uniforms stay safe
   return [parseInt(h.slice(0,2),16)/255, parseInt(h.slice(2,4),16)/255, parseInt(h.slice(4,6),16)/255];
+}
+function hexToRgba(h) {
+  h = (h || '#000000ff').replace('#', '');
+  if (h.length === 3) h = h.split('').map(x => x+x).join('') + 'ff';
+  if (h.length === 6) h = h + 'ff';
+  if (h.length !== 8) h = '000000ff';
+  return [
+    parseInt(h.slice(0,2),16)/255,
+    parseInt(h.slice(2,4),16)/255,
+    parseInt(h.slice(4,6),16)/255,
+    parseInt(h.slice(6,8),16)/255,
+  ];
 }
 function rgbToHex(r,g,b) {
   return '#' + [r,g,b].map(v => Math.round(v*255).toString(16).padStart(2,'0')).join('');
@@ -95,7 +108,7 @@ function defaultProperties(type) {
   switch(type) {
     case 'solid':        return { color: '#3B3B6B' };
     case 'gradient':     return {
-      seed: 42, speed: 1.0, freqX: 0.9, freqY: 6.0, angle: 105,
+      seed: 42, freqX: 0.9, freqY: 6.0, angle: 105,
       amplitude: 2.1, softness: 0.74, blend: 0.54, scale: 1.0,
       stops: [
         { color: '#FF0055' },
@@ -104,29 +117,65 @@ function defaultProperties(type) {
         { color: '#AA44FF' }
       ]
     };
-    case 'mesh-gradient':return { seed: 12, speed: 0.3, scale: 0.42, turbAmp: 0.15, turbFreq: 0.1, turbIter: 7, waveFreq: 3.8, distBias: 0.0, exposure: 1.1, contrast: 1.1, saturation: 1.0, colors: ['#1e2558', '#2f3088', '#4f3aa8', '#7050c8', '#a580e0'] };
+    case 'linear-gradient': return {
+      angle: 90, blend: 0.5, scale: 1.0,
+      stops: [ { color: '#1e2558' }, { color: '#a580e0' } ]
+    };
+    case 'radial-gradient': return {
+      cx: 0.5, cy: 0.5, radius: 0.5, blend: 0.5, scale: 1.0,
+      stops: [ { color: '#FFCC00' }, { color: '#1e2558' } ]
+    };
+    case 'noise-field': return {
+      seed: 0, scale: 4.0, contrast: 1.0, oct: 4, noiseType: 'value',
+      colors: [ '#1e2558', '#4f3aa8', '#a580e0' ]
+    };
+    case 'mesh-gradient':return { seed: 12, scale: 0.42, scaleX: 1.0, scaleY: 1.0, noiseType: 'value', turbAmp: 0.15, turbFreq: 0.1, turbIter: 7, waveFreq: 3.8, distBias: 0.0, exposure: 1.1, contrast: 1.1, saturation: 1.0, colors: ['#1e2558', '#2f3088', '#4f3aa8', '#7050c8', '#a580e0'] };
     case 'image':        return { x: 0, y: 0, w: frameState.w, h: frameState.h, fit: 'cover' };
-    case 'noise-warp':   return { str: 0.5, scale: 2.0, wspd: 0.12, oct: 4, angle: 90 };
-    case 'wave':         return { color: '#6B7FE8', freq: 4.0, amp: 0.15, spd: 0.6, pos: 0.5, edge: 0.06, angle: 0 };
-    case 'rectangle':    return { x: 0, y: 0, w: 300, h: 200, radius: 0, blur: 0, rotation: 0, scale: 1.0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}] };
-    case 'circle':       return { x: 0, y: 0, w: 240, h: 240, blur: 0, rotation: 0, scale: 1.0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}] };
-    case 'liquid':       return { seed: 12, speed: 0.3, scale: 0.42, turbAmp: 0.6, turbFreq: 0.1, turbIter: 7, waveFreq: 3.8, distBias: 0.0, exposure: 1.1, contrast: 1.1, saturation: 1.0, color0: '#00001A', color1: '#2962FF', color2: '#40BCFF', color3: '#FFB8B5', color4: '#FFC14F' };
+    case 'noise-warp':   return { str: 0.5, scale: 2.0, scaleX: 1.0, scaleY: 1.0, wspd: 0.12, oct: 4, iterations: 1, angle: 90, noiseType: 'value' };
+    case 'wave':         return { color: '#6B7FE8', freq: 4.0, amp: 0.15, pos: 0.5, edge: 0.06, angle: 0, bands: 1, bandGap: 0.2 };
+    case 'rectangle':    return { x: 0, y: 0, w: 300, h: 200, radius: 0, blur: 0, rotation: 0, scale: 1.0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}], strokeColor: '#000000', strokeWidth: 0, strokeOpacity: 1.0, shadowColor: '#000000', shadowBlur: 0, shadowX: 0, shadowY: 0, shadowOpacity: 0.5 };
+    case 'circle':       return { x: 0, y: 0, w: 240, h: 240, blur: 0, rotation: 0, scale: 1.0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}], strokeColor: '#000000', strokeWidth: 0, strokeOpacity: 1.0, shadowColor: '#000000', shadowBlur: 0, shadowX: 0, shadowY: 0, shadowOpacity: 0.5 };
+    case 'liquid':       return { seed: 12, scale: 0.42, turbAmp: 0.6, turbFreq: 0.1, turbIter: 7, waveFreq: 3.8, distBias: 0.0, exposure: 1.1, contrast: 1.1, saturation: 1.0, colors: ['#00001A', '#2962FF', '#40BCFF', '#FFB8B5', '#FFC14F'] };
     case 'grain':        return { amount: 0.08, size: 1.0, animated: 1, streak: 0, sangle: 90, slen: 6 };
     case 'chromatic-aberration': return { spread: 0.006, angle: 0 };
     case 'vignette':     return { str: 0.6, soft: 0.4 };
-    case 'color-grade':  return { contrast: 1.0, sat: 1.0, bright: 0.0, hue: 0 };
-    case 'posterize':    return { bands: 5, mix: 1.0, c1: '#82C67C', c2: '#336B51', c3: '#257847', c4: '#0F4140' };
+    case 'color-grade':  return { contrast: 1.0, sat: 1.0, bright: 0.0, hue: 0, temperature: 0, tint: 0 };
+    case 'posterize':    return { bands: 5, mix: 1.0, colors: ['#82C67C', '#336B51', '#257847', '#0F4140'] };
     case 'pixelate':     return { size: 4 };
     case 'scanlines':    return { count: 120, dark: 0.4, soft: 0.3, scroll: 0, scrollspd: 0.3 };
-    case 'duotone':      return { shadow: '#000000', light: '#ffffff', blend: 1.0 };
+    case 'duotone':      return { colors: ['#000000', '#ffffff'], blend: 1.0 };
     case 'bloom':        return { threshold: 0.7, strength: 0.5, radius: 1.0 };
-    case 'ripple':       return { cx: 0.5, cy: 0.5, freq: 10.0, amp: 0.03, spd: 1.0, decay: 2.0 };
+    case 'ripple':       return { cx: 0.5, cy: 0.5, freq: 10.0, amp: 0.03, decay: 2.0 };
+    case 'n-tone':       return { bands: 4, mix: 1.0, colors: ['#0F1226', '#3A2C6E', '#A87BD9', '#FFE7CF'] };
+    case 'glow':         return { threshold: 0.7, strength: 0.8, radius: 0.5, color: '#FFD58A' };
+    case 'polar-remap':  return { cx: 0.5, cy: 0.5, twist: 0, zoom: 1.0 };
+    case 'flow-warp':    return { str: 0.3, scale: 3.0, wspd: 0.5, angle: 0, noiseType: 'value' };
     default:             return {};
   }
 }
 
-const CONTENT_TYPES_ENGINE = new Set(['solid','gradient','mesh-gradient','image','wave','rectangle','circle']);
+const CONTENT_TYPES_ENGINE = new Set(['solid','gradient','linear-gradient','radial-gradient','noise-field','mesh-gradient','image','wave','rectangle','circle']);
 function isContentLayer(type) { return CONTENT_TYPES_ENGINE.has(type); }
+
+// Layer types whose shader actually samples uTime. Only these surface the
+// Animation zone (speed / time offset / paused) in the right panel.
+const LAYER_TYPES_WITH_ANIMATION = new Set([
+  'gradient', 'mesh-gradient', 'wave', 'liquid',
+  'noise-warp', 'flow-warp', 'ripple',
+  'grain', 'scanlines'
+]);
+function layerSupportsAnimation(type) { return LAYER_TYPES_WITH_ANIMATION.has(type); }
+
+// Per-type default for layer-level speed. Picked so a freshly created layer
+// animates at the same effective rate the old per-properties speed used to.
+function defaultLayerSpeed(type) {
+  switch (type) {
+    case 'mesh-gradient': return 0.3;
+    case 'liquid':        return 0.3;
+    case 'wave':          return 0.6;
+    default:              return 1.0;
+  }
+}
 
 function layerIcon(type) {
   if (isContentLayer(type)) return '◼';
@@ -134,7 +183,7 @@ function layerIcon(type) {
 }
 
 function defaultLayerName(type) {
-  const NAMES = { solid:'Solid', gradient:'Gradient', 'mesh-gradient':'Mesh Gradient', image:'Image', 'noise-warp':'Noise Warp', wave:'Wave', rectangle:'Rectangle', circle:'Circle', liquid:'Liquid', grain:'Grain', 'chromatic-aberration':'Chromatic Aberration', vignette:'Vignette', 'color-grade':'Color Grade', posterize:'Posterize', pixelate:'Pixelate', scanlines:'Scanlines', duotone:'Duotone', bloom:'Bloom', ripple:'Ripple' };
+  const NAMES = { solid:'Solid', gradient:'Gradient', 'linear-gradient':'Linear Gradient', 'radial-gradient':'Radial Gradient', 'noise-field':'Noise Field', 'mesh-gradient':'Mesh Gradient', image:'Image', 'noise-warp':'Noise Warp', wave:'Wave', rectangle:'Rectangle', circle:'Circle', liquid:'Liquid', grain:'Grain', 'chromatic-aberration':'Chromatic Aberration', vignette:'Vignette', 'color-grade':'Color Grade', posterize:'Posterize', pixelate:'Pixelate', scanlines:'Scanlines', duotone:'Duotone', bloom:'Bloom', ripple:'Ripple', 'n-tone':'N-Tone', glow:'Glow', 'polar-remap':'Polar Remap', 'flow-warp':'Flow Warp' };
   return NAMES[type] || type;
 }
 
@@ -152,6 +201,80 @@ function migrateMeshGradientProps(props, override) {
   }
   // Clamp
   props.colors = props.colors.slice(0, 16);
+}
+
+// Legacy duotone {shadow, light} → colors[2]
+function migrateDuotoneProps(props, override) {
+  const overrideHasArr = override && Array.isArray(override.colors) && override.colors.length >= 2;
+  const hasLegacy = override && (override.shadow || override.light);
+  if (!overrideHasArr && hasLegacy) {
+    props.colors = [override.shadow || '#000000', override.light || '#ffffff'];
+  }
+  delete props.shadow; delete props.light;
+  if (!Array.isArray(props.colors) || props.colors.length < 2) {
+    props.colors = ['#000000', '#ffffff'];
+  }
+  props.colors = props.colors.slice(0, 2);
+}
+
+// Legacy posterize {c1,c2,c3,c4} → colors[4]
+function migratePosterizeProps(props, override) {
+  const overrideHasArr = override && Array.isArray(override.colors) && override.colors.length >= 4;
+  const hasLegacy = override && (override.c1 || override.c2 || override.c3 || override.c4);
+  if (!overrideHasArr && hasLegacy) {
+    props.colors = [
+      override.c1 || '#82C67C',
+      override.c2 || '#336B51',
+      override.c3 || '#257847',
+      override.c4 || '#0F4140',
+    ];
+  }
+  delete props.c1; delete props.c2; delete props.c3; delete props.c4;
+  if (!Array.isArray(props.colors) || props.colors.length < 4) {
+    props.colors = ['#82C67C', '#336B51', '#257847', '#0F4140'];
+  }
+  props.colors = props.colors.slice(0, 4);
+}
+
+// Legacy liquid {color0..color4} → colors[5]
+function migrateLiquidProps(props, override) {
+  const overrideHasArr = override && Array.isArray(override.colors) && override.colors.length >= 5;
+  const hasLegacy = override && (override.color0 || override.color1 || override.color2 || override.color3 || override.color4);
+  if (!overrideHasArr && hasLegacy) {
+    props.colors = [
+      override.color0 || '#00001A',
+      override.color1 || '#2962FF',
+      override.color2 || '#40BCFF',
+      override.color3 || '#FFB8B5',
+      override.color4 || '#FFC14F',
+    ];
+  }
+  delete props.color0; delete props.color1; delete props.color2; delete props.color3; delete props.color4;
+  if (!Array.isArray(props.colors) || props.colors.length < 5) {
+    props.colors = ['#00001A', '#2962FF', '#40BCFF', '#FFB8B5', '#FFC14F'];
+  }
+  props.colors = props.colors.slice(0, 5);
+}
+
+function migrateStopsProps(props) {
+  if (!Array.isArray(props.stops) || props.stops.length < 2) {
+    props.stops = [{ color: '#FF0055' }, { color: '#0088FF' }];
+  }
+  props.stops = props.stops.slice(0, 6).map(s => ({ color: (s && s.color) || '#ffffff' }));
+}
+
+function migrateNoiseFieldProps(props) {
+  if (!Array.isArray(props.colors) || props.colors.length < 2) {
+    props.colors = ['#1e2558', '#4f3aa8', '#a580e0'];
+  }
+  props.colors = props.colors.slice(0, 6);
+}
+
+function migrateNToneProps(props) {
+  if (!Array.isArray(props.colors) || props.colors.length < 2) {
+    props.colors = ['#0F1226', '#3A2C6E', '#A87BD9', '#FFE7CF'];
+  }
+  props.colors = props.colors.slice(0, 8);
 }
 
 function migrateGradientProps(props, override) {
@@ -177,7 +300,27 @@ function migrateGradientProps(props, override) {
 function createLayer(type, propsOverride) {
   const props = Object.assign({}, defaultProperties(type), propsOverride || {});
   if (type === 'gradient') migrateGradientProps(props, propsOverride);
+  if (type === 'linear-gradient' || type === 'radial-gradient') migrateStopsProps(props);
+  if (type === 'noise-field') migrateNoiseFieldProps(props);
   if (type === 'mesh-gradient') migrateMeshGradientProps(props, propsOverride);
+  if (type === 'duotone') migrateDuotoneProps(props, propsOverride);
+  if (type === 'posterize') migratePosterizeProps(props, propsOverride);
+  if (type === 'n-tone') migrateNToneProps(props);
+  if (type === 'liquid') migrateLiquidProps(props, propsOverride);
+
+  // Speed deduplication migration: legacy `properties.speed` (gradient,
+  // mesh-gradient, liquid) and `properties.spd` (wave, ripple) were the
+  // canonical animation rate. Move them onto layer.speed and drop from props.
+  let layerSpeed = defaultLayerSpeed(type);
+  if (props.speed != null && (type === 'gradient' || type === 'mesh-gradient' || type === 'liquid')) {
+    layerSpeed = props.speed;
+    delete props.speed;
+  }
+  if (props.spd != null && (type === 'wave' || type === 'ripple')) {
+    layerSpeed = props.spd;
+    delete props.spd;
+  }
+
   const layer = {
     id: ++layerIdCounter,
     type,
@@ -185,9 +328,23 @@ function createLayer(type, propsOverride) {
     visible: true,
     opacity: 1.0,
     blendMode: 'normal',
+    speed: layerSpeed,
+    timeOffset: 0.0,
+    paused: false,
     properties: props
   };
   if (isContentLayer(type)) layer.effects = [];
+  return layer;
+}
+
+// Ensure layer has v2 animation fields (speed/timeOffset/paused). Applied to
+// loaded presets and imported .frakt files so legacy data picks up defaults.
+function ensureV2Fields(layer) {
+  if (!layer) return layer;
+  if (typeof layer.speed !== 'number') layer.speed = 1.0;
+  if (typeof layer.timeOffset !== 'number') layer.timeOffset = 0.0;
+  if (typeof layer.paused !== 'boolean') layer.paused = false;
+  if (Array.isArray(layer.effects)) layer.effects.forEach(ensureV2Fields);
   return layer;
 }
 
@@ -239,6 +396,9 @@ function addAttachedEffect(layerId, type) {
     name: defaultLayerName(type),
     visible: true,
     opacity: 1.0,
+    speed: 1.0,
+    timeOffset: 0.0,
+    paused: false,
     properties: Object.assign({}, defaultProperties(type))
   };
   l.effects.unshift(ae);
@@ -357,6 +517,24 @@ function selectLayer(id) {
 function updateLayerProp(id, key, value) {
   const l = layers.find(l => l.id === id); if (!l) return;
   l.properties[key] = value;
+  needsRecompile = true;
+}
+
+// Update layer-level animation fields (speed, timeOffset, paused). Also
+// supports attached effects — pass the attached effect's id as `id`.
+function updateLayerAnim(id, key, value) {
+  let target = layers.find(l => l.id === id);
+  if (!target) {
+    for (const lyr of layers) {
+      if (Array.isArray(lyr.effects)) {
+        const ae = lyr.effects.find(e => e.id === id);
+        if (ae) { target = ae; break; }
+      }
+    }
+  }
+  if (!target) return;
+  if (key === 'paused') target.paused = !!value;
+  else target[key] = parseFloat(value);
   needsRecompile = true;
 }
 
@@ -842,7 +1020,8 @@ function renderRightPanel() {
     </div>
   </div>`;
   if (isContentLayer(l.type)) html += renderTransformZone(l);
-  html += renderPropertiesZone(l);
+  html += renderPropertyZones(l);
+  if (layerSupportsAnimation(l.type)) html += renderAnimationZone(l);
   if (isContentLayer(l.type)) html += renderEffectsZone(l);
   panel.innerHTML = html;
   wirePropertiesZone(l);
@@ -1064,9 +1243,12 @@ window.addEventListener('resize', () => updateShapeOutline());
 })();
 
 // ── Transform Zone ─────────────────────────────────────────────
+// Opacity + blend for every content layer, plus spatial controls (x/y/w/h,
+// rotation/scale/radius) for shapes and image layers.
 function renderTransformZone(l) {
-  return `<div class="rp-zone">
-    <div class="rp-zone-label">Transform</div>
+  const p = l.properties || {};
+  const id = l.id;
+  let rows = `
     <div class="ctrl-row">
       <span class="ctrl-label">Opacity</span>
       <input type="range" class="ctrl-slider" id="rp-opacity" min="0" max="1" step="0.01" value="${l.opacity}" style="--fill:${sliderFill(l.opacity,0,1)}">
@@ -1075,70 +1257,144 @@ function renderTransformZone(l) {
     <div class="ctrl-row">
       <span class="ctrl-label">Blend</span>
       <select class="blend-select" id="rp-blend">
-        ${['normal','multiply','screen','overlay','add','lighten','darken'].map(m => `<option value="${m}"${l.blendMode===m?' selected':''}>${m}</option>`).join('')}
+        ${['normal','multiply','screen','overlay','soft-light','color-dodge','color-burn','difference','add','lighten','darken'].map(m => `<option value="${m}"${l.blendMode===m?' selected':''}>${m}</option>`).join('')}
       </select>
+    </div>`;
+  if (l.type === 'rectangle' || l.type === 'circle') {
+    rows += renderSlider(id,'x','X',p.x!=null?p.x:0,-1000,1000,1)
+         +  renderSlider(id,'y','Y',p.y!=null?p.y:0,-1000,1000,1)
+         +  renderSlider(id,'w','Width',p.w||200,1,2000,1)
+         +  renderSlider(id,'h','Height',p.h||200,1,2000,1)
+         +  (l.type === 'rectangle' ? renderSlider(id,'radius','Radius',p.radius||0,0,500,1) : '')
+         +  renderSlider(id,'rotation','Rotation °',p.rotation||0,-180,180,1)
+         +  renderSlider(id,'scale','Scale',p.scale!=null?p.scale:1.0,0.1,4.0,0.01);
+  } else if (l.type === 'image') {
+    const fw = p.w != null ? p.w : frameState.w;
+    const fh = p.h != null ? p.h : frameState.h;
+    rows += renderSlider(id,'x','X',p.x!=null?p.x:0,-2000,2000,1)
+         +  renderSlider(id,'y','Y',p.y!=null?p.y:0,-2000,2000,1)
+         +  renderSlider(id,'w','Width',fw,1,4000,1)
+         +  renderSlider(id,'h','Height',fh,1,4000,1);
+  }
+  return `<div class="rp-zone"><div class="rp-zone-label">Transform</div>${rows}</div>`;
+}
+
+// ── Property Zones (Appearance / Effect / Detail / Anisotropy) ─
+// Every layer type splits its non-Transform, non-Animation controls into up to
+// four buckets. Empty buckets render nothing.
+function renderZone(label, html) {
+  if (!html || !String(html).trim()) return '';
+  return `<div class="rp-zone"><div class="rp-zone-label">${label}</div>${html}</div>`;
+}
+function renderPropertyZones(l) {
+  const z = getPropertyZones(l) || {};
+  return [
+    renderZone('Appearance', z.appearance),
+    renderZone('Effect',     z.effect),
+    renderZone('Detail',     z.detail),
+    renderZone('Anisotropy', z.anisotropy),
+    renderZone('Stroke',     z.stroke),
+    renderZone('Shadow',     z.shadow),
+  ].join('');
+}
+
+// Animation zone — layer-level speed/timeOffset/paused. Appears for every
+// layer so users can slow/offset/pause any layer independently.
+function renderAnimationZone(l) {
+  const id = l.id;
+  const speed = (typeof l.speed === 'number') ? l.speed : 1.0;
+  const toff  = (typeof l.timeOffset === 'number') ? l.timeOffset : 0.0;
+  const paused = !!l.paused;
+  const sFill = sliderFill(speed, -2, 2);
+  const oFill = sliderFill(toff, -10, 10);
+  return `<div class="rp-zone"><div class="rp-zone-label">Animation</div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">Speed</span>
+      <input type="range" class="ctrl-slider anim-slider" id="anim-spd-${id}" min="-2" max="2" step="0.01" value="${speed}" data-lid="${id}" data-anim="speed" data-vid="anim-spd-v-${id}" style="--fill:${sFill}">
+      <span class="ctrl-value" id="anim-spd-v-${id}">${fmt(speed, 0.01)}</span>
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">Time Offset</span>
+      <input type="range" class="ctrl-slider anim-slider" id="anim-off-${id}" min="-10" max="10" step="0.01" value="${toff}" data-lid="${id}" data-anim="timeOffset" data-vid="anim-off-v-${id}" style="--fill:${oFill}">
+      <span class="ctrl-value" id="anim-off-v-${id}">${fmt(toff, 0.01)}</span>
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-label">Playback</span>
+      <div class="toggle-wrap anim-paused-toggle" id="anim-pau-${id}" data-lid="${id}">
+        <button class="toggle-opt${!paused?' active':''}" data-pau="0">Playing</button>
+        <button class="toggle-opt${paused?' active':''}" data-pau="1">Paused</button>
+      </div>
     </div>
   </div>`;
 }
 
-// ── Shape Zone (rectangle/circle) ──────────────────────────────
-function renderShapeZone(l, isRect) {
+// Declarative zone mapping for each layer type. Empty zones are pruned in
+// renderZone. Transform/Animation are rendered separately; spatial controls
+// for shapes/image live in Transform, not here.
+function getPropertyZones(l) {
   const p = l.properties || {};
   const id = l.id;
-  const fillMode = p.fillMode === 'gradient' ? 'gradient' : 'solid';
-  const fillContent = fillMode === 'gradient'
-    ? renderStopsStrip(l)
-    : renderColorRow(id, 'color', p.color || '#E8E8E8', 'Color');
-  return [
-    renderSlider(id,'x','X',p.x!=null?p.x:0,-1000,1000,1),
-    renderSlider(id,'y','Y',p.y!=null?p.y:0,-1000,1000,1),
-    renderSlider(id,'w','Width',p.w||200,1,2000,1),
-    renderSlider(id,'h','Height',p.h||200,1,2000,1),
-    isRect ? renderSlider(id,'radius','Radius',p.radius||0,0,500,1) : '',
-    renderSlider(id,'blur','Blur',p.blur||0,0,200,1),
-    renderSlider(id,'rotation','Rotation °',p.rotation||0,-180,180,1),
-    renderSlider(id,'scale','Scale',p.scale!=null?p.scale:1.0,0.1,4.0,0.01),
-    `<div class="ctrl-row fill-mode-row">
-      <span class="ctrl-label">Fill</span>
-      <div class="toggle-wrap fill-mode-toggle" data-lid="${id}">
-        <button class="toggle-opt${fillMode==='solid'?' active':''}" data-fillmode="solid">Solid</button>
-        <button class="toggle-opt${fillMode==='gradient'?' active':''}" data-fillmode="gradient">Gradient</button>
-      </div>
-    </div>`,
-    `<div class="shape-fill">${fillContent}</div>`
-  ].join('');
-}
+  const S = (key, label, val, min, max, step) => renderSlider(id, key, label, val, min, max, step);
 
-// ── Properties Zone ────────────────────────────────────────────
-function renderPropertiesZone(l) {
-  let html = `<div class="rp-zone"><div class="rp-zone-label">Properties</div>`;
-  html += renderTypeControls(l);
-  html += `</div>`;
-  return html;
-}
-
-function renderTypeControls(l) {
-  const p = l.properties || {};
-  const id = l.id;
-  switch(l.type) {
-
+  switch (l.type) {
     case 'solid':
-      return renderColorRow(id,'color',p.color||'#888','Color');
+      return { appearance: renderColorRow(id, 'color', p.color || '#888', 'Color') };
 
     case 'gradient':
-      return [
-        renderGradientPalettes(l),
-        renderStopsStrip(l),
-        renderSlider(id,'seed','Seed',p.seed||42,0,999,1),
-        renderSlider(id,'speed','Speed',p.speed||1.0,0.05,4.0,0.05),
-        renderSlider(id,'freqX','Freq X',p.freqX||0.9,0.1,5.0,0.1),
-        renderSlider(id,'freqY','Freq Y',p.freqY||6.0,0.1,10.0,0.1),
-        renderSlider(id,'angle','Angle',p.angle||0,0,360,1),
-        renderSlider(id,'scale','Scale',p.scale!=null?p.scale:1.0,0.1,4.0,0.01),
-        renderSlider(id,'amplitude','Amplitude',p.amplitude||2.1,0.5,5.0,0.05),
-        renderSlider(id,'softness','Softness',p.softness||0.74,0.1,2.0,0.01),
-        renderSlider(id,'blend','Blend',p.blend||0.54,0.0,1.0,0.01),
-      ].join('');
+      return {
+        appearance: renderGradientPalettes(l) + renderStopsStrip(l),
+        effect: [
+          S('amplitude', 'Amplitude', p.amplitude || 2.1, 0.5, 5.0, 0.05),
+          S('softness',  'Softness',  p.softness  || 0.74, 0.1, 2.0, 0.01),
+          S('blend',     'Blend',     p.blend     || 0.54, 0.0, 1.0, 0.01),
+        ].join(''),
+        detail: [
+          S('seed',  'Seed',  p.seed  || 42,  0,   999, 1),
+          S('freqX', 'Freq X', p.freqX || 0.9, 0.1, 5.0, 0.1),
+          S('freqY', 'Freq Y', p.freqY || 6.0, 0.1, 10.0, 0.1),
+          S('scale', 'Scale', p.scale != null ? p.scale : 1.0, 0.1, 4.0, 0.01),
+        ].join(''),
+        anisotropy: S('angle', 'Angle', p.angle || 0, 0, 360, 1),
+      };
+
+    case 'linear-gradient':
+      return {
+        appearance: renderStopsStrip(l),
+        effect: S('blend', 'Smoothness', p.blend != null ? p.blend : 0.5, 0, 1, 0.01),
+        detail: S('scale', 'Scale', p.scale != null ? p.scale : 1.0, 0.1, 4.0, 0.01),
+        anisotropy: S('angle', 'Angle', p.angle != null ? p.angle : 90, 0, 360, 1),
+      };
+
+    case 'radial-gradient':
+      return {
+        appearance: renderStopsStrip(l),
+        effect: [
+          S('blend',  'Smoothness', p.blend  != null ? p.blend  : 0.5, 0, 1, 0.01),
+          S('radius', 'Radius',     p.radius != null ? p.radius : 0.5, 0.05, 2.0, 0.01),
+        ].join(''),
+        detail: [
+          S('cx', 'Center X', p.cx != null ? p.cx : 0.5, 0, 1, 0.01),
+          S('cy', 'Center Y', p.cy != null ? p.cy : 0.5, 0, 1, 0.01),
+          S('scale', 'Scale', p.scale != null ? p.scale : 1.0, 0.1, 4.0, 0.01),
+        ].join(''),
+      };
+
+    case 'noise-field': {
+      const nfCols = Array.isArray(p.colors) && p.colors.length >= 2 ? p.colors : ['#1e2558','#4f3aa8','#a580e0'];
+      const nfRows = nfCols.map((c, i) => renderColorsIdxRow(id, i, c, '')).join('');
+      return {
+        appearance: `<div class="ctrl-row" style="font-size:9px;color:var(--text-secondary);letter-spacing:0.06em;">COLORS ${nfCols.length}/6</div>${nfRows}`,
+        effect: [
+          S('contrast', 'Contrast', p.contrast || 1.0, 0.0, 3.0, 0.01),
+          renderSelect(id, 'noiseType', 'Noise', p.noiseType || 'value', ['value','perlin','worley']),
+        ].join(''),
+        detail: [
+          S('seed',  'Seed',    p.seed  != null ? p.seed : 0,    0,   999,  1),
+          S('scale', 'Scale',   p.scale != null ? p.scale : 4.0, 0.1, 16.0, 0.1),
+          S('oct',   'Octaves', p.oct   || 4, 1, 8, 1),
+        ].join(''),
+      };
+    }
 
     case 'mesh-gradient': {
       const cols = Array.isArray(p.colors) && p.colors.length >= 2 ? p.colors : ['#1e2558','#2f3088','#4f3aa8','#7050c8','#a580e0'];
@@ -1154,172 +1410,290 @@ function renderTypeControls(l) {
           <button class="mg-color-del" data-lid="${id}" data-idx="${i}" title="Remove color" tabindex="-1">×</button>
         </div>`;
       }).join('');
-      return [
-        `<div class="mg-preview-wrap"><canvas class="mg-preview-canvas" id="mg-preview-${id}" data-lid="${id}" width="240" height="160"></canvas></div>`,
-        `<div class="mg-points-zone">
-          <div class="mg-points-header">
-            <span class="mg-points-label">Colors</span>
-            <span class="mg-points-count" id="mg-cnt-${id}">${cols.length} points</span>
-          </div>
-          <div class="mg-colors-list" data-lid="${id}">${rowsHTML}</div>
-          ${cols.length < 16 ? `<button class="mg-color-add" data-lid="${id}">+ Add color</button>` : ''}
-        </div>`,
-        renderSlider(id,'seed','Seed',p.seed||12,0,999,1),
-        renderSlider(id,'speed','Speed',p.speed||0.3,0.01,2.0,0.01),
-        renderSlider(id,'scale','Scale',p.scale||0.42,0.1,2.0,0.01),
-        renderSlider(id,'turbAmp','Turbulence',p.turbAmp||0.6,0.1,2.0,0.01),
-        renderSlider(id,'turbFreq','Turb Freq',p.turbFreq||0.1,0.01,0.5,0.005),
-        renderSlider(id,'turbIter','Turb Iter',p.turbIter||7,3,12,1),
-        renderSlider(id,'waveFreq','Wave Freq',p.waveFreq||3.8,1.0,10.0,0.1),
-        renderSlider(id,'exposure','Exposure',p.exposure||1.1,0.5,2.0,0.01),
-        renderSlider(id,'contrast','Contrast',p.contrast||1.1,0.5,2.0,0.01),
-        renderSlider(id,'saturation','Saturation',p.saturation||1.0,0.0,2.0,0.01),
-      ].join('');
+      return {
+        appearance: [
+          `<div class="mg-preview-wrap"><canvas class="mg-preview-canvas" id="mg-preview-${id}" data-lid="${id}" width="240" height="160"></canvas></div>`,
+          `<div class="mg-points-zone">
+            <div class="mg-points-header">
+              <span class="mg-points-label">Colors</span>
+              <span class="mg-points-count" id="mg-cnt-${id}">${cols.length} points</span>
+            </div>
+            <div class="mg-colors-list" data-lid="${id}">${rowsHTML}</div>
+            ${cols.length < 16 ? `<button class="mg-color-add" data-lid="${id}">+ Add color</button>` : ''}
+          </div>`,
+        ].join(''),
+        effect: [
+          S('turbAmp',    'Turbulence', p.turbAmp    || 0.6, 0.1,  2.0,  0.01),
+          S('turbFreq',   'Turb Freq',  p.turbFreq   || 0.1, 0.01, 0.5,  0.005),
+          S('turbIter',   'Turb Iter',  p.turbIter   || 7,   3,    12,   1),
+          S('waveFreq',   'Wave Freq',  p.waveFreq   || 3.8, 1.0,  10.0, 0.1),
+          S('exposure',   'Exposure',   p.exposure   || 1.1, 0.5,  2.0,  0.01),
+          S('contrast',   'Contrast',   p.contrast   || 1.1, 0.5,  2.0,  0.01),
+          S('saturation', 'Saturation', p.saturation || 1.0, 0.0,  2.0,  0.01),
+        ].join(''),
+        detail: [
+          S('seed',  'Seed',  p.seed  || 12,   0,    999, 1),
+          S('scale', 'Scale', p.scale || 0.42, 0.1,  2.0, 0.01),
+          renderSelect(id, 'noiseType', 'Noise', p.noiseType || 'value', ['value','perlin','worley']),
+        ].join(''),
+        anisotropy: [
+          S('scaleX', 'Scale X', p.scaleX != null ? p.scaleX : 1.0, 0.1, 4.0, 0.01),
+          S('scaleY', 'Scale Y', p.scaleY != null ? p.scaleY : 1.0, 0.1, 4.0, 0.01),
+        ].join(''),
+      };
     }
 
     case 'image': {
       const fit = p.fit || 'cover';
-      const fw = p.w != null ? p.w : frameState.w;
-      const fh = p.h != null ? p.h : frameState.h;
-      return [
-        `<div class="img-drop-zone" onclick="document.getElementById('img-input').click()">
-          <div class="img-drop-icon">↑</div>
-          <div class="img-drop-text">${hasBaseImage ? baseImageName : 'click or drop image'}</div>
-        </div>`,
-        renderSlider(id,'x','X',p.x!=null?p.x:0,-2000,2000,1),
-        renderSlider(id,'y','Y',p.y!=null?p.y:0,-2000,2000,1),
-        renderSlider(id,'w','Width',fw,1,4000,1),
-        renderSlider(id,'h','Height',fh,1,4000,1),
-        `<div class="ctrl-row fill-mode-row">
-          <span class="ctrl-label">Fit</span>
-          <div class="toggle-wrap img-fit-toggle" data-lid="${id}">
-            <button class="toggle-opt${fit==='cover'?' active':''}" data-fit="cover">Cover</button>
-            <button class="toggle-opt${fit==='contain'?' active':''}" data-fit="contain">Contain</button>
-            <button class="toggle-opt${fit==='stretch'?' active':''}" data-fit="stretch">Stretch</button>
-          </div>
-        </div>`
-      ].join('');
+      return {
+        appearance: [
+          `<div class="img-drop-zone" onclick="document.getElementById('img-input').click()">
+            <div class="img-drop-icon">↑</div>
+            <div class="img-drop-text">${hasBaseImage ? baseImageName : 'click or drop image'}</div>
+          </div>`,
+          `<div class="ctrl-row fill-mode-row">
+            <span class="ctrl-label">Fit</span>
+            <div class="toggle-wrap img-fit-toggle" data-lid="${id}">
+              <button class="toggle-opt${fit==='cover'?' active':''}" data-fit="cover">Cover</button>
+              <button class="toggle-opt${fit==='contain'?' active':''}" data-fit="contain">Contain</button>
+              <button class="toggle-opt${fit==='stretch'?' active':''}" data-fit="stretch">Stretch</button>
+            </div>
+          </div>`,
+        ].join(''),
+      };
     }
 
     case 'noise-warp':
-      return [
-        renderSlider(id,'str','Strength',p.str||0.5,0,2.0,0.01),
-        renderSlider(id,'scale','Scale',p.scale||2.0,0.3,8.0,0.1),
-        renderSlider(id,'wspd','Drift Speed',p.wspd||0.12,0,1.0,0.01),
-        renderSlider(id,'oct','Octaves',p.oct||4,1,8,1),
-        renderSlider(id,'angle','Direction °',p.angle!=null?p.angle:90,0,360,1),
-      ].join('');
+      return {
+        effect: S('str', 'Strength', p.str || 0.5, 0, 2.0, 0.01),
+        detail: [
+          S('scale',      'Scale',       p.scale || 2.0,  0.3, 8.0, 0.1),
+          S('wspd',       'Drift Speed', p.wspd  || 0.12, 0,   1.0, 0.01),
+          S('oct',        'Octaves',     p.oct   || 4,    1,   8,   1),
+          S('iterations', 'Iterations',  p.iterations || 1, 1,  4,   1),
+          renderSelect(id, 'noiseType', 'Noise', p.noiseType || 'value', ['value','perlin','worley']),
+        ].join(''),
+        anisotropy: [
+          S('angle',  'Direction °', p.angle != null ? p.angle : 90, 0, 360, 1),
+          S('scaleX', 'Scale X',     p.scaleX != null ? p.scaleX : 1.0, 0.1, 4.0, 0.01),
+          S('scaleY', 'Scale Y',     p.scaleY != null ? p.scaleY : 1.0, 0.1, 4.0, 0.01),
+        ].join(''),
+      };
 
     case 'wave':
-      return [
-        renderColorRow(id,'color',p.color||'#6B7FE8','Color'),
-        renderSlider(id,'freq','Frequency',p.freq||4.0,0.5,20,0.1),
-        renderSlider(id,'amp','Amplitude',p.amp||0.15,0,0.7,0.005),
-        renderSlider(id,'spd','Speed',p.spd||0.6,-3,3,0.05),
-        renderSlider(id,'pos','Position',p.pos||0.5,0.02,0.98,0.01),
-        renderSlider(id,'edge','Softness',p.edge||0.06,0.003,0.9,0.003),
-        renderSlider(id,'angle','Angle °',p.angle||0,-360,360,1),
-      ].join('');
+      return {
+        appearance: renderColorRow(id, 'color', p.color || '#6B7FE8', 'Color'),
+        effect: S('amp', 'Amplitude', p.amp || 0.15, 0, 0.7, 0.005),
+        detail: [
+          S('freq',    'Frequency', p.freq    || 4.0,  0.5,   20,   0.1),
+          S('pos',     'Position',  p.pos     || 0.5,  0.02,  0.98, 0.01),
+          S('edge',    'Softness',  p.edge    || 0.06, 0.003, 0.9,  0.003),
+          S('bands',   'Bands',     p.bands   || 1,    1,     8,    1),
+          S('bandGap', 'Band Gap',  p.bandGap != null ? p.bandGap : 0.2, 0, 1, 0.01),
+        ].join(''),
+        anisotropy: S('angle', 'Angle °', p.angle || 0, -360, 360, 1),
+      };
 
     case 'rectangle':
-      return renderShapeZone(l, true);
-    case 'circle':
-      return renderShapeZone(l, false);
+    case 'circle': {
+      const fillMode = p.fillMode === 'gradient' ? 'gradient' : 'solid';
+      const fillContent = fillMode === 'gradient'
+        ? renderStopsStrip(l)
+        : renderColorRow(id, 'color', p.color || '#E8E8E8', 'Color');
+      return {
+        appearance: [
+          `<div class="ctrl-row fill-mode-row">
+            <span class="ctrl-label">Fill</span>
+            <div class="toggle-wrap fill-mode-toggle" data-lid="${id}">
+              <button class="toggle-opt${fillMode==='solid'?' active':''}" data-fillmode="solid">Solid</button>
+              <button class="toggle-opt${fillMode==='gradient'?' active':''}" data-fillmode="gradient">Gradient</button>
+            </div>
+          </div>`,
+          `<div class="shape-fill">${fillContent}</div>`,
+        ].join(''),
+        effect: S('blur', 'Blur', p.blur || 0, 0, 200, 1),
+        stroke: [
+          renderColorRow(id, 'strokeColor', p.strokeColor || '#000000', 'Color'),
+          S('strokeWidth',   'Width',   p.strokeWidth   != null ? p.strokeWidth   : 0,   0, 80,  0.5),
+          S('strokeOpacity', 'Opacity', p.strokeOpacity != null ? p.strokeOpacity : 1.0, 0, 1.0, 0.01),
+        ].join(''),
+        shadow: [
+          renderColorRow(id, 'shadowColor', p.shadowColor || '#000000', 'Color'),
+          S('shadowBlur',    'Blur',    p.shadowBlur    != null ? p.shadowBlur    : 0,   0,    200,  1),
+          S('shadowX',       'Offset X', p.shadowX      != null ? p.shadowX       : 0,  -200,  200,  1),
+          S('shadowY',       'Offset Y', p.shadowY      != null ? p.shadowY       : 0,  -200,  200,  1),
+          S('shadowOpacity', 'Opacity', p.shadowOpacity != null ? p.shadowOpacity : 0.5, 0,    1.0,  0.01),
+        ].join(''),
+      };
+    }
 
-    case 'liquid':
-      return [
-        renderSlider(id,'seed','Seed',p.seed||12,0,999,1),
-        renderSlider(id,'speed','Speed',p.speed||0.3,0.01,2.0,0.01),
-        renderSlider(id,'scale','Scale',p.scale||0.42,0.1,2.0,0.01),
-        renderSlider(id,'turbAmp','Turbulence',p.turbAmp||0.6,0.1,2.0,0.01),
-        renderSlider(id,'turbFreq','Turb Freq',p.turbFreq||0.1,0.01,0.5,0.005),
-        renderSlider(id,'turbIter','Turb Iter',p.turbIter||7,3,12,1),
-        renderSlider(id,'waveFreq','Wave Freq',p.waveFreq||3.8,1.0,10.0,0.1),
-        renderSlider(id,'exposure','Exposure',p.exposure||1.1,0.5,2.0,0.01),
-        renderSlider(id,'saturation','Saturation',p.saturation||1.0,0.0,2.0,0.01),
-        renderColorRow(id,'color0',p.color0||'#00001A','Color 1'),
-        renderColorRow(id,'color1',p.color1||'#2962FF','Color 2'),
-        renderColorRow(id,'color2',p.color2||'#40BCFF','Color 3'),
-        renderColorRow(id,'color3',p.color3||'#FFB8B5','Color 4'),
-        renderColorRow(id,'color4',p.color4||'#FFC14F','Color 5'),
-      ].join('');
+    case 'liquid': {
+      const lc = Array.isArray(p.colors) ? p.colors : [];
+      return {
+        appearance: [
+          renderColorsIdxRow(id, 0, lc[0] || '#00001A', 'Color 1'),
+          renderColorsIdxRow(id, 1, lc[1] || '#2962FF', 'Color 2'),
+          renderColorsIdxRow(id, 2, lc[2] || '#40BCFF', 'Color 3'),
+          renderColorsIdxRow(id, 3, lc[3] || '#FFB8B5', 'Color 4'),
+          renderColorsIdxRow(id, 4, lc[4] || '#FFC14F', 'Color 5'),
+        ].join(''),
+        effect: [
+          S('turbAmp',    'Turbulence', p.turbAmp    || 0.6, 0.1,  2.0,  0.01),
+          S('turbFreq',   'Turb Freq',  p.turbFreq   || 0.1, 0.01, 0.5,  0.005),
+          S('turbIter',   'Turb Iter',  p.turbIter   || 7,   3,    12,   1),
+          S('waveFreq',   'Wave Freq',  p.waveFreq   || 3.8, 1.0,  10.0, 0.1),
+          S('exposure',   'Exposure',   p.exposure   || 1.1, 0.5,  2.0,  0.01),
+          S('saturation', 'Saturation', p.saturation || 1.0, 0.0,  2.0,  0.01),
+        ].join(''),
+        detail: [
+          S('seed',  'Seed',  p.seed  || 12,   0,    999, 1),
+          S('scale', 'Scale', p.scale || 0.42, 0.1,  2.0, 0.01),
+        ].join(''),
+      };
+    }
 
     case 'grain':
-      return [
-        renderSlider(id,'amount','Amount',p.amount||0.08,0,0.5,0.005),
-        renderSlider(id,'size','Size',p.size||1.0,0.5,6,0.1),
-        renderToggle(id,'animated','Animated',p.animated||0),
-        renderToggle(id,'streak','Streaked',p.streak||0),
-        renderSlider(id,'sangle','Streak Angle',p.sangle||90,0,360,1),
-        renderSlider(id,'slen','Streak Length',p.slen||6,1,20,0.5),
-      ].join('');
+      return {
+        effect: S('amount', 'Amount', p.amount || 0.08, 0, 0.5, 0.005),
+        detail: [
+          S('size', 'Size', p.size || 1.0, 0.5, 6, 0.1),
+          renderToggle(id, 'animated', 'Animated', p.animated || 0),
+          renderToggle(id, 'streak',   'Streaked', p.streak   || 0),
+          S('slen', 'Streak Length', p.slen || 6, 1, 20, 0.5),
+        ].join(''),
+        anisotropy: S('sangle', 'Streak Angle', p.sangle || 90, 0, 360, 1),
+      };
 
     case 'chromatic-aberration':
-      return [
-        renderSlider(id,'spread','Spread',p.spread||0.006,0,0.03,0.0005),
-        renderSlider(id,'angle','Angle °',p.angle||0,0,360,1),
-      ].join('');
+      return {
+        effect: S('spread', 'Spread', p.spread || 0.006, 0, 0.03, 0.0005),
+        anisotropy: S('angle', 'Angle °', p.angle || 0, 0, 360, 1),
+      };
 
     case 'vignette':
-      return [
-        renderSlider(id,'str','Strength',p.str||0.6,0,2.0,0.01),
-        renderSlider(id,'soft','Softness',p.soft||0.4,0.05,1.5,0.01),
-      ].join('');
+      return {
+        effect: S('str',  'Strength', p.str  || 0.6, 0,    2.0, 0.01),
+        detail: S('soft', 'Softness', p.soft || 0.4, 0.05, 1.5, 0.01),
+      };
 
     case 'color-grade':
-      return [
-        renderSlider(id,'contrast','Contrast',p.contrast||1.0,0,2.0,0.01),
-        renderSlider(id,'sat','Saturation',p.sat||1.0,0,2.0,0.01),
-        renderSlider(id,'bright','Brightness',p.bright||0.0,-0.5,0.5,0.01),
-        renderSlider(id,'hue','Hue Shift °',p.hue||0,0,360,1),
-      ].join('');
+      return {
+        effect: [
+          S('contrast',    'Contrast',    p.contrast    || 1.0, 0,    2.0, 0.01),
+          S('sat',         'Saturation',  p.sat         || 1.0, 0,    2.0, 0.01),
+          S('bright',      'Brightness',  p.bright      || 0.0, -0.5, 0.5, 0.01),
+          S('temperature', 'Temperature', p.temperature || 0,   -1,   1,   0.01),
+          S('tint',        'Tint',        p.tint        || 0,   -1,   1,   0.01),
+        ].join(''),
+        anisotropy: S('hue', 'Hue Shift °', p.hue || 0, 0, 360, 1),
+      };
 
-    case 'posterize':
-      return [
-        renderSlider(id,'bands','Bands',p.bands||5,2,16,1),
-        renderSlider(id,'mix','Mix',p.mix||1.0,0,1.0,0.01),
-        renderColorRow(id,'c1',p.c1||'#82C67C','Dark A'),
-        renderColorRow(id,'c2',p.c2||'#336B51','Dark B'),
-        renderColorRow(id,'c3',p.c3||'#257847','Bright A'),
-        renderColorRow(id,'c4',p.c4||'#0F4140','Bright B'),
-      ].join('');
+    case 'posterize': {
+      const pc = Array.isArray(p.colors) ? p.colors : [];
+      return {
+        appearance: [
+          renderColorsIdxRow(id, 0, pc[0] || '#82C67C', 'Dark A'),
+          renderColorsIdxRow(id, 1, pc[1] || '#336B51', 'Dark B'),
+          renderColorsIdxRow(id, 2, pc[2] || '#257847', 'Bright A'),
+          renderColorsIdxRow(id, 3, pc[3] || '#0F4140', 'Bright B'),
+        ].join(''),
+        effect: [
+          S('bands', 'Bands', p.bands || 5,   2, 16,  1),
+          S('mix',   'Mix',   p.mix   || 1.0, 0, 1.0, 0.01),
+        ].join(''),
+      };
+    }
 
     case 'pixelate':
-      return renderSlider(id,'size','Block Size',p.size||4,1,64,1);
+      return { effect: S('size', 'Block Size', p.size || 4, 1, 64, 1) };
 
     case 'scanlines':
-      return [
-        renderSlider(id,'count','Line Count',p.count||120,20,600,5),
-        renderSlider(id,'dark','Darkness',p.dark||0.4,0,1.0,0.01),
-        renderSlider(id,'soft','Softness',p.soft||0.3,0,1.0,0.01),
-        renderToggle(id,'scroll','Scrolling',p.scroll||0),
-        renderSlider(id,'scrollspd','Scroll Speed',p.scrollspd||0.3,0,2.0,0.05),
-      ].join('');
+      return {
+        effect: [
+          S('count', 'Line Count', p.count || 120, 20, 600, 5),
+          S('dark',  'Darkness',   p.dark  || 0.4, 0,  1.0, 0.01),
+          S('soft',  'Softness',   p.soft  || 0.3, 0,  1.0, 0.01),
+        ].join(''),
+        detail: [
+          renderToggle(id, 'scroll', 'Scrolling', p.scroll || 0),
+          S('scrollspd', 'Scroll Speed', p.scrollspd || 0.3, 0, 2.0, 0.05),
+        ].join(''),
+      };
 
     case 'duotone':
-      return [
-        renderDuotoneStrip(l),
-        renderSlider(id,'blend','Blend',p.blend!=null?p.blend:1.0,0,1.0,0.01),
-      ].join('');
+      return {
+        appearance: renderDuotoneStrip(l),
+        effect: S('blend', 'Blend', p.blend != null ? p.blend : 1.0, 0, 1.0, 0.01),
+      };
 
     case 'bloom':
-      return [
-        renderSlider(id,'threshold','Threshold',p.threshold!=null?p.threshold:0.7,0,1.0,0.01),
-        renderSlider(id,'strength','Strength',p.strength!=null?p.strength:0.5,0,3.0,0.01),
-        renderSlider(id,'radius','Radius',p.radius!=null?p.radius:1.0,0.25,4.0,0.05),
-      ].join('');
+      return {
+        effect: [
+          S('threshold', 'Threshold', p.threshold != null ? p.threshold : 0.7, 0,    1.0, 0.01),
+          S('strength',  'Strength',  p.strength  != null ? p.strength  : 0.5, 0,    3.0, 0.01),
+          S('radius',    'Radius',    p.radius    != null ? p.radius    : 1.0, 0.25, 4.0, 0.05),
+        ].join(''),
+      };
 
     case 'ripple':
-      return [
-        renderSlider(id,'cx','Center X',p.cx!=null?p.cx:0.5,0,1.0,0.01),
-        renderSlider(id,'cy','Center Y',p.cy!=null?p.cy:0.5,0,1.0,0.01),
-        renderSlider(id,'freq','Frequency',p.freq!=null?p.freq:10.0,1.0,40.0,0.5),
-        renderSlider(id,'amp','Amplitude',p.amp!=null?p.amp:0.03,0,0.2,0.001),
-        renderSlider(id,'spd','Speed',p.spd!=null?p.spd:1.0,-4,4,0.05),
-        renderSlider(id,'decay','Decay',p.decay!=null?p.decay:2.0,0,8.0,0.1),
-      ].join('');
+      return {
+        effect: [
+          S('freq',  'Frequency', p.freq  != null ? p.freq  : 10.0, 1.0, 40.0, 0.5),
+          S('amp',   'Amplitude', p.amp   != null ? p.amp   : 0.03, 0,   0.2,  0.001),
+          S('decay', 'Decay',     p.decay != null ? p.decay : 2.0,  0,   8.0,  0.1),
+        ].join(''),
+        detail: [
+          S('cx',  'Center X', p.cx  != null ? p.cx  : 0.5, 0,  1.0, 0.01),
+          S('cy',  'Center Y', p.cy  != null ? p.cy  : 0.5, 0,  1.0, 0.01),
+        ].join(''),
+      };
 
-    default: return `<div style="color:var(--text-secondary);font-size:10px;">No properties</div>`;
+    case 'n-tone': {
+      const ntCols = Array.isArray(p.colors) && p.colors.length >= 2 ? p.colors : ['#0F1226','#3A2C6E','#A87BD9','#FFE7CF'];
+      const ntRows = ntCols.map((c, i) => renderColorsIdxRow(id, i, c, '')).join('');
+      return {
+        appearance: `<div class="ctrl-row" style="font-size:9px;color:var(--text-secondary);letter-spacing:0.06em;">COLORS ${ntCols.length}/8</div>${ntRows}`,
+        effect: [
+          S('bands', 'Bands', p.bands || 4,   1, 8,   1),
+          S('mix',   'Mix',   p.mix   || 1.0, 0, 1.0, 0.01),
+        ].join(''),
+      };
+    }
+
+    case 'glow':
+      return {
+        appearance: renderColorRow(id, 'color', p.color || '#FFD58A', 'Tint'),
+        effect: [
+          S('threshold', 'Threshold', p.threshold != null ? p.threshold : 0.7, 0,    1.0, 0.01),
+          S('strength',  'Strength',  p.strength  != null ? p.strength  : 0.8, 0,    3.0, 0.01),
+          S('radius',    'Falloff',   p.radius    != null ? p.radius    : 0.5, 0.05, 2.0, 0.01),
+        ].join(''),
+      };
+
+    case 'polar-remap':
+      return {
+        effect: [
+          S('twist', 'Twist',  p.twist != null ? p.twist : 0,   -6.28, 6.28, 0.01),
+          S('zoom',  'Zoom',   p.zoom  != null ? p.zoom  : 1.0,  0.1,  4.0,  0.01),
+        ].join(''),
+        detail: [
+          S('cx', 'Center X', p.cx != null ? p.cx : 0.5, 0, 1, 0.01),
+          S('cy', 'Center Y', p.cy != null ? p.cy : 0.5, 0, 1, 0.01),
+        ].join(''),
+      };
+
+    case 'flow-warp':
+      return {
+        effect: S('str', 'Strength', p.str != null ? p.str : 0.3, 0, 2.0, 0.01),
+        detail: [
+          S('scale', 'Scale', p.scale != null ? p.scale : 3.0,  0.3, 8.0, 0.1),
+          S('wspd',  'Speed', p.wspd  != null ? p.wspd  : 0.5,  0,   3.0, 0.01),
+          renderSelect(id, 'noiseType', 'Noise', p.noiseType || 'value', ['value','perlin','worley']),
+        ].join(''),
+        anisotropy: S('angle', 'Direction °', p.angle != null ? p.angle : 0, 0, 360, 1),
+      };
+
+    default: return {};
   }
 }
 
@@ -1342,7 +1716,7 @@ function renderEffectsZone(l) {
   }).join('');
   return `<div class="rp-zone ae-zone">
     <div class="rp-zone-label ae-zone-head">
-      <span>Effects</span>
+      <span>Attached effects</span>
       <button class="btn-add-effect" data-lid="${l.id}" title="Insert effect">+</button>
     </div>
     <div class="ae-list">${rows || '<div class="ae-empty">No effects</div>'}</div>
@@ -1588,8 +1962,11 @@ function renderGradientPalettes(l) {
 
 function renderDuotoneStrip(l) {
   const id = l.id;
-  const shadow = (l.properties.shadow || '#000000').toUpperCase();
-  const light  = (l.properties.light  || '#ffffff').toUpperCase();
+  const cols = Array.isArray(l.properties.colors) && l.properties.colors.length >= 2
+    ? l.properties.colors
+    : ['#000000', '#ffffff'];
+  const shadow = (cols[0] || '#000000').toUpperCase();
+  const light  = (cols[1] || '#ffffff').toUpperCase();
   const bgCss  = `linear-gradient(to right, ${shadow}, ${light})`;
   return `<div class="duotone-block" data-duotone-lid="${id}">
     <div class="duotone-strip" style="background:${bgCss};">
@@ -1597,14 +1974,14 @@ function renderDuotoneStrip(l) {
     </div>
     <div class="duotone-swatches">
       <div class="ctrl-color-row duotone-swatch-row">
-        <div class="swatch" id="cd-${id}-shadow" style="background:${shadow}" onclick="document.getElementById('cp-${id}-shadow').click()"></div>
-        <input type="text" class="swatch-hex swatch-hex-input" id="ch-${id}-shadow" value="${shadow}" spellcheck="false" maxlength="7" data-lid="${id}" data-key="shadow" data-did="cd-${id}-shadow" data-cid="cp-${id}-shadow">
-        <input type="color" class="color-input-hidden" id="cp-${id}-shadow" value="${shadow}" data-lid="${id}" data-key="shadow" data-did="cd-${id}-shadow" data-hid="ch-${id}-shadow">
+        <div class="swatch" id="cd-${id}-0" style="background:${shadow}" onclick="document.getElementById('cp-${id}-0').click()"></div>
+        <input type="text" class="swatch-hex swatch-hex-input layer-colors-hex" id="ch-${id}-0" value="${shadow}" spellcheck="false" maxlength="7" data-lid="${id}" data-colors-idx="0" data-did="cd-${id}-0" data-cid="cp-${id}-0">
+        <input type="color" class="color-input-hidden layer-colors-cp" id="cp-${id}-0" value="${shadow}" data-lid="${id}" data-colors-idx="0" data-did="cd-${id}-0" data-hid="ch-${id}-0">
       </div>
       <div class="ctrl-color-row duotone-swatch-row duotone-swatch-row--right">
-        <input type="text" class="swatch-hex swatch-hex-input" id="ch-${id}-light" value="${light}" spellcheck="false" maxlength="7" data-lid="${id}" data-key="light" data-did="cd-${id}-light" data-cid="cp-${id}-light">
-        <div class="swatch" id="cd-${id}-light" style="background:${light}" onclick="document.getElementById('cp-${id}-light').click()"></div>
-        <input type="color" class="color-input-hidden" id="cp-${id}-light" value="${light}" data-lid="${id}" data-key="light" data-did="cd-${id}-light" data-hid="ch-${id}-light">
+        <input type="text" class="swatch-hex swatch-hex-input layer-colors-hex" id="ch-${id}-1" value="${light}" spellcheck="false" maxlength="7" data-lid="${id}" data-colors-idx="1" data-did="cd-${id}-1" data-cid="cp-${id}-1">
+        <div class="swatch" id="cd-${id}-1" style="background:${light}" onclick="document.getElementById('cp-${id}-1').click()"></div>
+        <input type="color" class="color-input-hidden layer-colors-cp" id="cp-${id}-1" value="${light}" data-lid="${id}" data-colors-idx="1" data-did="cd-${id}-1" data-hid="ch-${id}-1">
       </div>
     </div>
   </div>`;
@@ -1664,6 +2041,18 @@ function renderColorRow(layerId, key, hex, label) {
   </div>`;
 }
 
+function renderColorsIdxRow(layerId, idx, hex, label) {
+  const cid = `cp-${layerId}-${idx}`;
+  const did = `cd-${layerId}-${idx}`;
+  const hid = `ch-${layerId}-${idx}`;
+  const up = (hex || '#ffffff').toUpperCase();
+  return `<div class="ctrl-color-row">
+    <div class="swatch" id="${did}" style="background:${hex}" onclick="document.getElementById('${cid}').click()"></div>
+    <input type="text" class="swatch-hex swatch-hex-input layer-colors-hex" id="${hid}" value="${up}" spellcheck="false" maxlength="7" data-lid="${layerId}" data-colors-idx="${idx}" data-did="${did}" data-cid="${cid}">
+    <input type="color" class="color-input-hidden layer-colors-cp" id="${cid}" value="${hex}" data-lid="${layerId}" data-colors-idx="${idx}" data-did="${did}" data-hid="${hid}">
+  </div>`;
+}
+
 function renderToggle(layerId, key, label, val) {
   const tid = `tg-${layerId}-${key}`;
   return `<div class="ctrl-row">
@@ -1675,8 +2064,17 @@ function renderToggle(layerId, key, label, val) {
   </div>`;
 }
 
+function renderSelect(layerId, key, label, val, options) {
+  const sid = `sel-${layerId}-${key}`;
+  const opts = options.map(o => `<option value="${o}"${val === o ? ' selected' : ''}>${o}</option>`).join('');
+  return `<div class="ctrl-row">
+    <span class="ctrl-label">${label}</span>
+    <select class="blend-select layer-select" id="${sid}" data-lid="${layerId}" data-key="${key}">${opts}</select>
+  </div>`;
+}
+
 function wireStopsStrip(l) {
-  if (l.type !== 'gradient' && l.type !== 'rectangle' && l.type !== 'circle') return;
+  if (l.type !== 'gradient' && l.type !== 'rectangle' && l.type !== 'circle' && l.type !== 'linear-gradient' && l.type !== 'radial-gradient') return;
   const id = l.id;
   const list = document.getElementById(`stops-list-${id}`);
   const addBtn = document.getElementById(`stops-add-${id}`);
@@ -1793,21 +2191,20 @@ function wireDuotoneStrip(l) {
   const block = document.querySelector(`[data-duotone-lid="${id}"]`);
   if (!block) return;
   const strip = block.querySelector('.duotone-strip');
-  const shadowCp = document.getElementById(`cp-${id}-shadow`);
-  const lightCp  = document.getElementById(`cp-${id}-light`);
+  const shadowCp = document.getElementById(`cp-${id}-0`);
+  const lightCp  = document.getElementById(`cp-${id}-1`);
   const syncStrip = () => {
-    const sh = (shadowCp?.value || l.properties.shadow || '#000000').toUpperCase();
-    const lt = (lightCp?.value  || l.properties.light  || '#ffffff').toUpperCase();
+    const cols = Array.isArray(l.properties.colors) ? l.properties.colors : [];
+    const sh = (shadowCp?.value || cols[0] || '#000000').toUpperCase();
+    const lt = (lightCp?.value  || cols[1] || '#ffffff').toUpperCase();
     if (strip) strip.style.background = `linear-gradient(to right, ${sh}, ${lt})`;
   };
-  // Listen to changes on the hidden color inputs + hex inputs that belong to this duotone
-  ['shadow','light'].forEach(k => {
+  ['0','1'].forEach(k => {
     const cp = document.getElementById(`cp-${id}-${k}`);
     const hx = document.getElementById(`ch-${id}-${k}`);
     if (cp) cp.addEventListener('input', syncStrip);
     if (hx) hx.addEventListener('blur',  syncStrip);
   });
-  // Draw luminance histogram (sampled from main canvas)
   drawDuotoneHistogram(id);
 }
 
@@ -1880,6 +2277,8 @@ function normalizeHex(raw) {
     return ('#' + r + r + g + g + b + b).toLowerCase();
   }
   if (/^#[0-9a-fA-F]{6}$/.test(s)) return s.toLowerCase();
+  // 8-char #RRGGBBAA — preserve alpha byte
+  if (/^#[0-9a-fA-F]{8}$/.test(s)) return s.toLowerCase();
   return null;
 }
 
@@ -2013,6 +2412,32 @@ function wirePropertiesZone(l) {
   wireGradientPalettes(l);
   wireDuotoneStrip(l);
 
+  // Wire Animation zone sliders (speed, timeOffset)
+  panel.querySelectorAll('.ctrl-slider.anim-slider[data-lid]').forEach(sl => {
+    const key = sl.dataset.anim;
+    const vid = sl.dataset.vid;
+    sl.addEventListener('input', () => {
+      updateLayerAnim(l.id, key, sl.value);
+      const vEl = document.getElementById(vid);
+      if (vEl) vEl.textContent = fmt(sl.value, sl.step);
+      sl.style.setProperty('--fill', sliderFill(sl.value, sl.min, sl.max));
+    });
+    sl.addEventListener('change', () => snapshot());
+  });
+  // Wire Animation paused toggle
+  panel.querySelectorAll('.anim-paused-toggle[data-lid]').forEach(wrap => {
+    const [offBtn, onBtn] = wrap.querySelectorAll('.toggle-opt');
+    [offBtn, onBtn].forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = parseInt(btn.dataset.pau);
+        updateLayerAnim(l.id, 'paused', val === 1);
+        offBtn.classList.toggle('active', val === 0);
+        onBtn.classList.toggle('active',  val === 1);
+        snapshot();
+      });
+    });
+  });
+
   // Wire opacity slider (transform zone)
   const opSlider = document.getElementById('rp-opacity');
   const opVal    = document.getElementById('rp-opacity-v');
@@ -2071,11 +2496,13 @@ function wirePropertiesZone(l) {
     });
   });
 
-  // Wire color inputs — live update on input, snapshot on close (change)
-  panel.querySelectorAll('input[type=color][data-lid]').forEach(cp => {
+  // Wire color inputs — live update on input, snapshot on close (change).
+  // Skip inputs with data-colors-idx (those write into layer.properties.colors[])
+  panel.querySelectorAll('input[type=color][data-lid]:not([data-colors-idx])').forEach(cp => {
     const key = cp.dataset.key;
     const did = cp.dataset.did;
     const hid = cp.dataset.hid;
+    if (!key) return; // mg-color-cp uses data-idx only — handled elsewhere
     cp.addEventListener('input', () => {
       updateLayerProp(l.id, key, cp.value);
       const sw = document.getElementById(did);
@@ -2089,11 +2516,12 @@ function wirePropertiesZone(l) {
     cp.addEventListener('change', () => snapshot());
   });
 
-  // Wire hex text inputs — commit on blur/Enter
-  panel.querySelectorAll('.swatch-hex-input[data-lid]').forEach(hx => {
+  // Wire hex text inputs — commit on blur/Enter (skip colors[] rows)
+  panel.querySelectorAll('.swatch-hex-input[data-lid]:not([data-colors-idx])').forEach(hx => {
     const key = hx.dataset.key;
     const did = hx.dataset.did;
     const cid = hx.dataset.cid;
+    if (!key) return;
     const commit = () => {
       const norm = normalizeHex(hx.value);
       if (!norm) { hx.value = (l.properties[key] || '#ffffff').toUpperCase(); return; }
@@ -2110,12 +2538,56 @@ function wirePropertiesZone(l) {
       if (e.key === 'Enter') { e.preventDefault(); hx.blur(); }
       if (e.key === 'Escape') { hx.value = (l.properties[key] || '#ffffff').toUpperCase(); hx.blur(); }
     });
-    // Avoid opening picker when clicking into the input
+    hx.addEventListener('click', e => e.stopPropagation());
+  });
+
+  // Wire layer-colors[] color inputs (duotone/posterize/liquid) — writes to
+  // l.properties.colors[idx] instead of a flat key.
+  panel.querySelectorAll('.layer-colors-cp[data-lid]').forEach(cp => {
+    const idx = parseInt(cp.dataset.colorsIdx, 10);
+    const did = cp.dataset.did;
+    const hid = cp.dataset.hid;
+    cp.addEventListener('input', () => {
+      const arr = Array.isArray(l.properties.colors) ? l.properties.colors.slice() : [];
+      arr[idx] = cp.value;
+      l.properties.colors = arr;
+      const sw = document.getElementById(did);
+      if (sw) sw.style.background = cp.value;
+      const hx = hid ? document.getElementById(hid) : null;
+      if (hx && document.activeElement !== hx) hx.value = cp.value.toUpperCase();
+      needsRecompile = true;
+    });
+    cp.addEventListener('change', () => snapshot());
+  });
+  panel.querySelectorAll('.layer-colors-hex[data-lid]').forEach(hx => {
+    const idx = parseInt(hx.dataset.colorsIdx, 10);
+    const did = hx.dataset.did;
+    const cid = hx.dataset.cid;
+    const commit = () => {
+      const norm = normalizeHex(hx.value);
+      const arr = Array.isArray(l.properties.colors) ? l.properties.colors.slice() : [];
+      if (!norm) { hx.value = (arr[idx] || '#ffffff').toUpperCase(); return; }
+      arr[idx] = norm;
+      l.properties.colors = arr;
+      hx.value = norm.toUpperCase();
+      const sw = document.getElementById(did); if (sw) sw.style.background = norm;
+      const cp = document.getElementById(cid); if (cp) cp.value = norm;
+      needsRecompile = true;
+      snapshot();
+    };
+    hx.addEventListener('blur', commit);
+    hx.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); hx.blur(); }
+      if (e.key === 'Escape') {
+        const arr = Array.isArray(l.properties.colors) ? l.properties.colors : [];
+        hx.value = (arr[idx] || '#ffffff').toUpperCase(); hx.blur();
+      }
+    });
     hx.addEventListener('click', e => e.stopPropagation());
   });
 
   // Wire toggles (skip ae-toggles — handled in wireEffectsZone)
-  panel.querySelectorAll('.toggle-wrap[id]:not(.ae-toggle):not(.fill-mode-toggle)').forEach(wrap => {
+  panel.querySelectorAll('.toggle-wrap[id]:not(.ae-toggle):not(.fill-mode-toggle):not(.anim-paused-toggle)').forEach(wrap => {
     const [offBtn, onBtn] = wrap.querySelectorAll('.toggle-opt');
     const key = wrap.id.replace(/^tg-\d+-/, '');
     [offBtn, onBtn].forEach(btn => {
@@ -2126,6 +2598,15 @@ function wirePropertiesZone(l) {
         onBtn.classList.toggle('active',  val === 1);
         snapshot();
       });
+    });
+  });
+
+  // Wire generic layer-property selects (e.g., noiseType)
+  panel.querySelectorAll('select.layer-select[data-lid]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      updateLayerProp(l.id, sel.dataset.key, sel.value);
+      needsRecompile = true;
+      snapshot();
     });
   });
 
@@ -2470,10 +2951,16 @@ function loadPreset(name) {
   selectedLayerId = null;
   frameState.bg = preset.bg;
   preset.layers.forEach(l => {
-    const layer = createLayer(l.type, l.properties || {});
+    const props = l.properties || {};
+    const hadLegacySpeed = (props.speed != null) || (props.spd != null);
+    const layer = createLayer(l.type, props);
     if (l.name) layer.name = l.name;
     if (l.opacity !== undefined) layer.opacity = l.opacity;
     if (l.blendMode) layer.blendMode = l.blendMode;
+    if (typeof l.speed === 'number' && !hadLegacySpeed) layer.speed = l.speed;
+    if (typeof l.timeOffset === 'number') layer.timeOffset = l.timeOffset;
+    if (typeof l.paused === 'boolean') layer.paused = l.paused;
+    ensureV2Fields(layer);
     layers.push(layer);
   });
   if (layers.length) selectedLayerId = layers[0].id;
@@ -3331,13 +3818,15 @@ function closeAllOverlays() {
 
 // ── Command Palette ────────────────────────────────────────────
 const CMD_LAYER_TYPES = [
-  ['solid','Solid'],['gradient','Gradient'],['mesh-gradient','Mesh Gradient'],
+  ['solid','Solid'],['gradient','Gradient'],['linear-gradient','Linear Gradient'],
+  ['radial-gradient','Radial Gradient'],['noise-field','Noise Field'],['mesh-gradient','Mesh Gradient'],
   ['image','Image'],['wave','Wave'],['rectangle','Rectangle'],['circle','Circle']
 ];
 const CMD_EFFECT_TYPES = [
-  ['noise-warp','Noise Warp'],['liquid','Liquid'],['ripple','Ripple'],['grain','Grain'],
+  ['noise-warp','Noise Warp'],['flow-warp','Flow Warp'],['polar-remap','Polar Remap'],
+  ['liquid','Liquid'],['ripple','Ripple'],['grain','Grain'],
   ['chromatic-aberration','Chromatic Aberration'],['vignette','Vignette'],
-  ['color-grade','Color Grade'],['duotone','Duotone'],['bloom','Bloom'],
+  ['color-grade','Color Grade'],['duotone','Duotone'],['n-tone','N-Tone'],['glow','Glow'],['bloom','Bloom'],
   ['posterize','Posterize'],['pixelate','Pixelate'],['scanlines','Scanlines']
 ];
 
@@ -3676,9 +4165,9 @@ function showToast(msg, isError) {
 
 // ── Save / Open .frakt ─────────────────────────────────────────
 const KNOWN_LAYER_TYPES = new Set([
-  'solid','gradient','mesh-gradient','image','rectangle','circle',
-  'noise-warp','wave','liquid','grain','chromatic-aberration',
-  'vignette','color-grade','posterize','pixelate','scanlines'
+  'solid','gradient','linear-gradient','radial-gradient','noise-field','mesh-gradient','image','rectangle','circle',
+  'noise-warp','flow-warp','polar-remap','wave','liquid','grain','chromatic-aberration',
+  'vignette','color-grade','n-tone','glow','duotone','bloom','posterize','pixelate','scanlines'
 ]);
 
 async function saveFraktFile() {
@@ -3693,7 +4182,7 @@ async function saveFraktFile() {
   const lbl = document.getElementById('topbar-file-label');
   if (lbl) lbl.textContent = fileName;
   const data = {
-    version: '1',
+    version: '2',
     name: fileName,
     createdAt: new Date().toISOString(),
     canvas: { width: frameState.w, height: frameState.h, background: frameState.bg },
@@ -3703,6 +4192,9 @@ async function saveFraktFile() {
       visible: !!l.visible,
       opacity: l.opacity,
       blendMode: l.blendMode,
+      speed: l.speed,
+      timeOffset: l.timeOffset,
+      paused: l.paused,
       properties: JSON.parse(JSON.stringify(l.properties || {}))
     }))
   };
@@ -3737,11 +4229,17 @@ function onFraktUpload(input) {
         if (typeof data.canvas.background === 'string') frameState.bg = data.canvas.background;
       }
       incoming.forEach(l => {
-        const layer = createLayer(l.type, l.properties || {});
+        const props = l.properties || {};
+        const hadLegacySpeed = (props.speed != null) || (props.spd != null);
+        const layer = createLayer(l.type, props);
         if (l.name) layer.name = l.name;
         if (typeof l.visible === 'boolean') layer.visible = l.visible;
         if (typeof l.opacity === 'number') layer.opacity = l.opacity;
         if (typeof l.blendMode === 'string') layer.blendMode = l.blendMode;
+        if (typeof l.speed === 'number' && !hadLegacySpeed) layer.speed = l.speed;
+        if (typeof l.timeOffset === 'number') layer.timeOffset = l.timeOffset;
+        if (typeof l.paused === 'boolean') layer.paused = l.paused;
+        ensureV2Fields(layer);
         layers.push(layer);
       });
       if (typeof data.name === 'string' && data.name.trim()) {

@@ -30,21 +30,33 @@ const GLSL_HELPERS = `
 float hash2(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
 float vnoise(vec2 p){vec2 i=floor(p),f=fract(p),u2=f*f*(3.0-2.0*f);return mix(mix(hash2(i),hash2(i+vec2(1,0)),u2.x),mix(hash2(i+vec2(0,1)),hash2(i+vec2(1,1)),u2.x),u2.y);}
 float fbm(vec2 p,float oct){float v=0.0,a=0.5;for(int i=0;i<8;i++){if(float(i)>=oct)break;v+=vnoise(p)*a;p*=2.0;a*=0.5;}return v;}
+vec2 pgrad(vec2 i){float h=hash2(i);float a=h*6.2831853;return vec2(cos(a),sin(a));}
+float pnoise(vec2 p){vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.0-2.0*f);float a=dot(pgrad(i),f);float b=dot(pgrad(i+vec2(1.,0.)),f-vec2(1.,0.));float c=dot(pgrad(i+vec2(0.,1.)),f-vec2(0.,1.));float d=dot(pgrad(i+vec2(1.,1.)),f-vec2(1.,1.));return 0.5+0.5*mix(mix(a,b,u.x),mix(c,d,u.x),u.y);}
+float cnoise(vec2 p){vec2 i=floor(p),f=fract(p);float md=1.0;for(int yi=-1;yi<=1;yi++){for(int xi=-1;xi<=1;xi++){vec2 g=vec2(float(xi),float(yi));vec2 o=g+vec2(hash2(i+g),hash2(i+g+vec2(13.7,7.1)))-f;md=min(md,dot(o,o));}}return sqrt(md);}
+float fbmAt(vec2 p,float oct,int nt){float v=0.0,a=0.5;for(int i=0;i<8;i++){if(float(i)>=oct)break;float n;if(nt==1)n=pnoise(p);else if(nt==2)n=cnoise(p);else n=vnoise(p);v+=n*a;p*=2.0;a*=0.5;}return v;}
 vec2 rot2(vec2 p,float a){float c=cos(a),s2=sin(a);return vec2(p.x*c-p.y*s2,p.x*s2+p.y*c);}
 vec3 bmScreen(vec3 b,vec3 s){return 1.0-(1.0-b)*(1.0-s);}
 vec3 bmOverlay(vec3 b,vec3 s){return mix(2.0*b*s,1.0-2.0*(1.0-b)*(1.0-s),step(vec3(0.5),b));}
+vec3 bmSoftLight(vec3 b,vec3 s){vec3 lo=2.0*b*s+b*b*(1.0-2.0*s);vec3 hi=2.0*b*(1.0-s)+sqrt(b)*(2.0*s-1.0);return mix(lo,hi,step(vec3(0.5),s));}
+vec3 bmColorDodge(vec3 b,vec3 s){return clamp(b/max(1.0-s,1e-4),0.0,1.0);}
+vec3 bmColorBurn(vec3 b,vec3 s){return clamp(1.0-(1.0-b)/max(s,1e-4),0.0,1.0);}
+vec3 bmDifference(vec3 b,vec3 s){return abs(b-s);}
 `;
 
 // ── JS helper: blend-mode GLSL expression ──────────────────────
 function glslBlend(mode, bg, fg) {
   switch (mode) {
-    case 'multiply': return `(${bg}*${fg})`;
-    case 'screen':   return `bmScreen(${bg},${fg})`;
-    case 'overlay':  return `bmOverlay(${bg},${fg})`;
-    case 'add':      return `clamp(${bg}+${fg},0.0,1.0)`;
-    case 'lighten':  return `max(${bg},${fg})`;
-    case 'darken':   return `min(${bg},${fg})`;
-    default:         return fg;
+    case 'multiply':    return `(${bg}*${fg})`;
+    case 'screen':      return `bmScreen(${bg},${fg})`;
+    case 'overlay':     return `bmOverlay(${bg},${fg})`;
+    case 'soft-light':  return `bmSoftLight(${bg},${fg})`;
+    case 'color-dodge': return `bmColorDodge(${bg},${fg})`;
+    case 'color-burn':  return `bmColorBurn(${bg},${fg})`;
+    case 'difference':  return `bmDifference(${bg},${fg})`;
+    case 'add':         return `clamp(${bg}+${fg},0.0,1.0)`;
+    case 'lighten':     return `max(${bg},${fg})`;
+    case 'darken':      return `min(${bg},${fg})`;
+    default:            return fg;
   }
 }
 
@@ -58,9 +70,9 @@ function hexToRgb(h) {
 // ── Layer type classifiers ─────────────────────────────────────
 // Wave, rectangle, circle are content layers but emit their own inline blend
 // (they write directly to `col`) rather than returning a color via contentFn_*.
-const CONTENT_TYPES = new Set(['solid','gradient','mesh-gradient','image','wave','rectangle','circle']);
-const CONTENT_TYPES_WITH_FN = new Set(['solid','gradient','mesh-gradient','image']);
-const UV_PREP_TYPES = new Set(['noise-warp','pixelate','ripple']);
+const CONTENT_TYPES = new Set(['solid','gradient','linear-gradient','radial-gradient','noise-field','mesh-gradient','image','wave','rectangle','circle']);
+const CONTENT_TYPES_WITH_FN = new Set(['solid','gradient','linear-gradient','radial-gradient','noise-field','mesh-gradient','image']);
+const UV_PREP_TYPES = new Set(['noise-warp','pixelate','ripple','polar-remap','flow-warp']);
 
 function isContent(t)       { return CONTENT_TYPES.has(t); }
 function isContentWithFn(t) { return CONTENT_TYPES_WITH_FN.has(t); }
@@ -98,15 +110,15 @@ function glslGrStopsFn(id) {
 // ── GLSL: gradient content function (waveGradient algorithm) ───
 function glslGradientFn(id) {
   const p = k => u('gr',id,k);
-  return glslGrStopsFn(id) + `vec3 contentFn_${id}(vec2 puv){
+  return glslGrStopsFn(id) + `vec3 contentFn_${id}(vec2 puv,float ct){
   float grScl=${p('scl')};
   puv=(puv-0.5)/max(grScl,0.001)+0.5;
-  float wg_seed=${p('seed')};float wg_speed=${p('spd')};
+  float wg_seed=${p('seed')};
   float wg_freqX=${p('fqx')};float wg_freqY=${p('fqy')};
   float wg_angle=${p('ang')};float wg_amplitude=${p('amp')};
   float wg_softness=${p('sft')};float wg_blend=${p('bld')};
   vec3 col=vec3(0.0);
-  float wgt=u_t*wg_speed;
+  float wgt=ct;
   vec2 wg_tuv=puv-0.5;
   vec2 wg_ss=vec2(sin(wg_seed*4.37),cos(wg_seed*5.91))*100.0;
   float wg_deg=vnoise(vec2(wgt*0.1,wg_tuv.x*wg_tuv.y)+wg_ss);
@@ -151,7 +163,7 @@ function glslGradientFn(id) {
 // ── GLSL: liquid computation (shared by mesh-gradient + liquid effect) ──
 function glslLiquidBody(prefix, id) {
   const p = k => u(prefix, id, k);
-  return `  float lq_seed=${p('seed')};float lq_speed=${p('spd')};
+  return `  float lq_seed=${p('seed')};
   float lq_scale=${p('sc')};float lq_turbAmp=${p('ta')};
   float lq_turbFreq=max(${p('tf')},0.01);int lq_turbIter=int(${p('ti')});
   float lq_waveFreq=${p('wf')};float lq_distBias=${p('db')};
@@ -159,7 +171,7 @@ function glslLiquidBody(prefix, id) {
   vec3 lq_stops[5];
   lq_stops[0]=${p('c0')};lq_stops[1]=${p('c1')};lq_stops[2]=${p('c2')};lq_stops[3]=${p('c3')};lq_stops[4]=${p('c4')};
   vec2 lq_r=u_res;vec2 lq_p=(puv*lq_r*2.0-lq_r)/lq_r.y;
-  float lq_t=u_t*0.3*lq_speed;
+  float lq_t=t*0.3;
   float lq_sa=lq_seed*2.3999632;float lq_cs=cos(lq_sa),lq_sn=sin(lq_sa);
   lq_p=mat2(lq_cs,-lq_sn,lq_sn,lq_cs)*lq_p;
   float lq_sO1=fract(sin(lq_seed*127.1)*43758.5);
@@ -212,17 +224,19 @@ function glslMeshGradientBody(id) {
   for (let i = 1; i < 15; i++) {
     pairSelect += `  if(lq_idx==${i}){lq_colA=lq_stops[${i}];lq_colB=lq_stops[${i+1}];}\n`;
   }
-  return `  float lq_seed=${p('seed')};float lq_speed=${p('spd')};
+  return `  float lq_seed=${p('seed')};
   float lq_scale=${p('sc')};float lq_turbAmp=${p('ta')};
   float lq_turbFreq=max(${p('tf')},0.01);int lq_turbIter=int(${p('ti')});
   float lq_waveFreq=${p('wf')};float lq_distBias=${p('db')};
   float lq_exposure=${p('ex')};float lq_contrast=${p('co')};float lq_saturation=${p('sa')};
+  float lq_sx=${p('sx')};float lq_sy=${p('sy')};int lq_nt=${p('nt')};
   int lq_cnt=int(max(2.0,min(16.0,float(${cnt}))));
   vec3 lq_stops[16];
 ${stopsCopy}  vec2 lq_r=u_res;vec2 lq_p=(puv*lq_r*2.0-lq_r)/lq_r.y;
-  float lq_t=u_t*0.3*lq_speed;
+  float lq_t=t*0.3;
   float lq_sa=lq_seed*2.3999632;float lq_cs=cos(lq_sa),lq_sn=sin(lq_sa);
   lq_p=mat2(lq_cs,-lq_sn,lq_sn,lq_cs)*lq_p;
+  lq_p*=vec2(lq_sx,lq_sy);
   float lq_sO1=fract(sin(lq_seed*127.1)*43758.5);
   float lq_sO2=fract(sin(lq_seed*311.7)*43758.5);
   float lq_sO3=fract(sin(lq_seed*269.5)*43758.5);
@@ -237,7 +251,11 @@ ${stopsCopy}  vec2 lq_r=u_res;vec2 lq_p=(puv*lq_r*2.0-lq_r)/lq_r.y;
       lq_la+=cos(lq_fj+lq_ld*1.2+lq_q.x*2.0-lq_t+lq_sO3*lq_fj);
       lq_ld+=sin(lq_fj*lq_q.y+lq_la+lq_sO1+lq_t);
     }
-    float lq_v=0.5+0.5*sin(length(lq_q.yx+vec2(lq_la,lq_ld)*0.2)*lq_waveFreq+li*li+lq_sO1);
+    vec2 lq_qarg=lq_q.yx+vec2(lq_la,lq_ld)*0.2;
+    float lq_v;
+    if(lq_nt==1){ lq_v=pnoise(lq_qarg*lq_waveFreq*0.18+vec2(li*li+lq_sO1)); }
+    else if(lq_nt==2){ lq_v=1.0-cnoise(lq_qarg*lq_waveFreq*0.18+vec2(li*li+lq_sO1)); }
+    else { lq_v=0.5+0.5*sin(length(lq_qarg)*lq_waveFreq+li*li+lq_sO1); }
     float lq_w=smoothstep(0.0,0.5,lq_eph)*smoothstep(1.0,0.5,lq_eph);
     lq_tV+=lq_v*lq_w;lq_tW+=lq_w;
   }
@@ -260,11 +278,86 @@ ${pairSelect}  lq_colA=pow(lq_colA,vec3(2.2));
 }
 
 function glslMeshGradientFn(id) {
-  return `vec3 contentFn_${id}(vec2 puv){\n${glslMeshGradientBody(id)}\n  return lq_result;\n}\n`;
+  return `vec3 contentFn_${id}(vec2 puv,float ct){\n  float t=ct;\n${glslMeshGradientBody(id)}\n  return lq_result;\n}\n`;
 }
 
 function glslSolidFn(id) {
-  return `vec3 contentFn_${id}(vec2 puv){ return ${u('sl',id,'c')}; }\n`;
+  return `vec3 contentFn_${id}(vec2 puv,float ct){ return ${u('sl',id,'c')}; }\n`;
+}
+
+// Sample N evenly-spaced stops in linear color (gamma 2.2). Stops stored as
+// uniform vec3[6]; cnt clamps active count.
+function glslStopsSampler(prefix, id) {
+  const cols = u(prefix, id, 'cols');
+  const cnt  = u(prefix, id, 'cnt');
+  return `vec3 stops_${id}(float t){
+  t=clamp(t,0.0,1.0);
+  int n=${cnt};
+  float segs=float(n-1);
+  float ti=t*segs;
+  int idx=int(floor(ti));
+  float lt=fract(ti);
+  if(idx>=n-1){idx=n-2;lt=1.0;}
+  if(idx<0){idx=0;lt=0.0;}
+  vec3 a=${cols}[0],b=${cols}[1];
+  if(idx==1){a=${cols}[1];b=${cols}[2];}
+  if(idx==2){a=${cols}[2];b=${cols}[3];}
+  if(idx==3){a=${cols}[3];b=${cols}[4];}
+  if(idx==4){a=${cols}[4];b=${cols}[5];}
+  a=pow(a,vec3(2.2));b=pow(b,vec3(2.2));
+  return pow(mix(a,b,lt),vec3(0.4545));
+}\n`;
+}
+
+function glslLinearGradientFn(id) {
+  const ang = u('lg', id, 'ang');
+  const bld = u('lg', id, 'bld');
+  const scl = u('lg', id, 'scl');
+  return glslStopsSampler('lg', id) + `vec3 contentFn_${id}(vec2 puv,float ct){
+  float ar=u_res.x/u_res.y;
+  vec2 p=(puv-0.5)/max(${scl},0.001);
+  p.x*=ar;
+  vec2 d=vec2(cos(${ang}),sin(${ang}));
+  float t=dot(p,d)+0.5;
+  float k=clamp(${bld},0.0,1.0);
+  t=mix(smoothstep(0.0,1.0,t),t,k);
+  return stops_${id}(clamp(t,0.0,1.0));
+}\n`;
+}
+
+function glslRadialGradientFn(id) {
+  const cx  = u('rg', id, 'cx');
+  const cy  = u('rg', id, 'cy');
+  const rad = u('rg', id, 'rad');
+  const bld = u('rg', id, 'bld');
+  const scl = u('rg', id, 'scl');
+  return glslStopsSampler('rg', id) + `vec3 contentFn_${id}(vec2 puv,float ct){
+  float ar=u_res.x/u_res.y;
+  vec2 c=vec2(${cx},${cy});
+  vec2 p=(puv-c)/max(${scl},0.001);
+  p.x*=ar;
+  float t=length(p)/max(${rad},0.001);
+  float k=clamp(${bld},0.0,1.0);
+  t=mix(smoothstep(0.0,1.0,t),t,k);
+  return stops_${id}(clamp(t,0.0,1.0));
+}\n`;
+}
+
+function glslNoiseFieldFn(id) {
+  const seed = u('nf', id, 'sd');
+  const scl  = u('nf', id, 'sc');
+  const con  = u('nf', id, 'co');
+  const oct  = u('nf', id, 'oc');
+  const nt   = u('nf', id, 'nt');
+  return glslStopsSampler('nf', id) + `vec3 contentFn_${id}(vec2 puv,float ct){
+  float ar=u_res.x/u_res.y;
+  vec2 p=(puv-0.5);
+  p.x*=ar;
+  p+=vec2(${seed}*0.137,${seed}*0.241);
+  float v=fbmAt(p*${scl},${oct},${nt});
+  v=clamp((v-0.5)*${con}+0.5,0.0,1.0);
+  return stops_${id}(v);
+}\n`;
 }
 
 function glslImageFn(id) {
@@ -273,11 +366,11 @@ function glslImageFn(id) {
   const wU  = u('im',id,'w');
   const hU  = u('im',id,'h');
   const fmU = u('im',id,'fit');
-  return `vec3 contentFn_${id}(vec2 puv){
+  return `vec3 contentFn_${id}(vec2 puv,float ct){
   if(uHasImage<0.5) return vec3(0.0);
   vec2 cvs=u_res;
   vec2 pix=puv*cvs;
-  vec2 boxC=cvs*0.5+vec2(${xU},-${yU});
+  vec2 boxC=cvs*0.5+vec2(${xU},${yU});
   vec2 boxHS=vec2(max(${wU},1.0),max(${hU},1.0))*0.5;
   vec2 lp=pix-boxC;
   if(abs(lp.x)>boxHS.x||abs(lp.y)>boxHS.y) return vec3(0.0);
@@ -309,34 +402,53 @@ function glslUniformDecls(layers) {
       case 'solid':
         s += `uniform vec3 ${u('sl',id,'c')};\n`; break;
       case 'gradient':
-        s += `uniform float ${u('gr',id,'seed')},${u('gr',id,'spd')},${u('gr',id,'fqx')},${u('gr',id,'fqy')},${u('gr',id,'ang')},${u('gr',id,'amp')},${u('gr',id,'sft')},${u('gr',id,'bld')},${u('gr',id,'scl')};\n`;
+        s += `uniform float ${u('gr',id,'seed')},${u('gr',id,'fqx')},${u('gr',id,'fqy')},${u('gr',id,'ang')},${u('gr',id,'amp')},${u('gr',id,'sft')},${u('gr',id,'bld')},${u('gr',id,'scl')};\n`;
         s += `uniform vec3 ${u('gr',id,'col')}[6];\n`;
         s += `uniform float ${u('gr',id,'pos')}[6];\n`;
         s += `uniform int ${u('gr',id,'cnt')};\n`; break;
       case 'mesh-gradient':
-        s += `uniform float ${u('mg',id,'seed')},${u('mg',id,'spd')},${u('mg',id,'sc')},${u('mg',id,'ta')},${u('mg',id,'tf')},${u('mg',id,'ti')},${u('mg',id,'wf')},${u('mg',id,'db')},${u('mg',id,'ex')},${u('mg',id,'co')},${u('mg',id,'sa')};\n`;
+        s += `uniform float ${u('mg',id,'seed')},${u('mg',id,'sc')},${u('mg',id,'sx')},${u('mg',id,'sy')},${u('mg',id,'ta')},${u('mg',id,'tf')},${u('mg',id,'ti')},${u('mg',id,'wf')},${u('mg',id,'db')},${u('mg',id,'ex')},${u('mg',id,'co')},${u('mg',id,'sa')};\n`;
+        s += `uniform int ${u('mg',id,'nt')};\n`;
         s += `uniform vec3 ${u('mg',id,'cols')}[16];\n`;
         s += `uniform int ${u('mg',id,'cnt')};\n`; break;
+      case 'linear-gradient':
+        s += `uniform float ${u('lg',id,'ang')},${u('lg',id,'bld')},${u('lg',id,'scl')};\n`;
+        s += `uniform vec3 ${u('lg',id,'cols')}[6];\n`;
+        s += `uniform int ${u('lg',id,'cnt')};\n`; break;
+      case 'radial-gradient':
+        s += `uniform float ${u('rg',id,'cx')},${u('rg',id,'cy')},${u('rg',id,'rad')},${u('rg',id,'bld')},${u('rg',id,'scl')};\n`;
+        s += `uniform vec3 ${u('rg',id,'cols')}[6];\n`;
+        s += `uniform int ${u('rg',id,'cnt')};\n`; break;
+      case 'noise-field':
+        s += `uniform float ${u('nf',id,'sd')},${u('nf',id,'sc')},${u('nf',id,'co')},${u('nf',id,'oc')};\n`;
+        s += `uniform int ${u('nf',id,'nt')};\n`;
+        s += `uniform vec3 ${u('nf',id,'cols')}[6];\n`;
+        s += `uniform int ${u('nf',id,'cnt')};\n`; break;
       case 'image':
         s += `uniform float ${u('im',id,'x')},${u('im',id,'y')},${u('im',id,'w')},${u('im',id,'h')},${u('im',id,'fit')};\n`;
         break; // also uses shared uImage, uHasImage, uImgAr
       case 'noise-warp':
-        s += `uniform float ${u('nw',id,'str')},${u('nw',id,'sc')},${u('nw',id,'sp')},${u('nw',id,'oc')},${u('nw',id,'ang')};\n`; break;
+        s += `uniform float ${u('nw',id,'str')},${u('nw',id,'sc')},${u('nw',id,'sx')},${u('nw',id,'sy')},${u('nw',id,'sp')},${u('nw',id,'oc')},${u('nw',id,'it')},${u('nw',id,'ang')};\n`;
+        s += `uniform int ${u('nw',id,'nt')};\n`; break;
       case 'pixelate':
         s += `uniform float ${u('px',id,'s')};\n`; break;
       case 'wave':
-        s += `uniform float ${u('wv',id,'f')},${u('wv',id,'a')},${u('wv',id,'s')},${u('wv',id,'p')},${u('wv',id,'e')},${u('wv',id,'ang')};\n`;
+        s += `uniform float ${u('wv',id,'f')},${u('wv',id,'a')},${u('wv',id,'p')},${u('wv',id,'e')},${u('wv',id,'ang')},${u('wv',id,'bn')},${u('wv',id,'bg')};\n`;
         s += `uniform vec3 ${u('wv',id,'c')};\n`; break;
       case 'rectangle':
         s += `uniform float ${u('rc',id,'x')},${u('rc',id,'y')},${u('rc',id,'w')},${u('rc',id,'h')},${u('rc',id,'r')},${u('rc',id,'fm')},${u('rc',id,'cnt')},${u('rc',id,'bl')},${u('rc',id,'rot')},${u('rc',id,'scl')};\n`;
         s += `uniform vec3 ${u('rc',id,'c')};\n`;
-        s += `uniform vec3 ${u('rc',id,'cols')}[6];\n`; break;
+        s += `uniform vec3 ${u('rc',id,'cols')}[6];\n`;
+        s += `uniform float ${u('rc',id,'sw')},${u('rc',id,'so')},${u('rc',id,'shb')},${u('rc',id,'shx')},${u('rc',id,'shy')},${u('rc',id,'sho')};\n`;
+        s += `uniform vec3 ${u('rc',id,'sc')},${u('rc',id,'shc')};\n`; break;
       case 'circle':
         s += `uniform float ${u('ci',id,'x')},${u('ci',id,'y')},${u('ci',id,'w')},${u('ci',id,'h')},${u('ci',id,'fm')},${u('ci',id,'cnt')},${u('ci',id,'bl')},${u('ci',id,'rot')},${u('ci',id,'scl')};\n`;
         s += `uniform vec3 ${u('ci',id,'c')};\n`;
-        s += `uniform vec3 ${u('ci',id,'cols')}[6];\n`; break;
+        s += `uniform vec3 ${u('ci',id,'cols')}[6];\n`;
+        s += `uniform float ${u('ci',id,'sw')},${u('ci',id,'so')},${u('ci',id,'shb')},${u('ci',id,'shx')},${u('ci',id,'shy')},${u('ci',id,'sho')};\n`;
+        s += `uniform vec3 ${u('ci',id,'sc')},${u('ci',id,'shc')};\n`; break;
       case 'liquid':
-        s += `uniform float ${u('lq',id,'seed')},${u('lq',id,'spd')},${u('lq',id,'sc')},${u('lq',id,'ta')},${u('lq',id,'tf')},${u('lq',id,'ti')},${u('lq',id,'wf')},${u('lq',id,'db')},${u('lq',id,'ex')},${u('lq',id,'co')},${u('lq',id,'sa')};\n`;
+        s += `uniform float ${u('lq',id,'seed')},${u('lq',id,'sc')},${u('lq',id,'ta')},${u('lq',id,'tf')},${u('lq',id,'ti')},${u('lq',id,'wf')},${u('lq',id,'db')},${u('lq',id,'ex')},${u('lq',id,'co')},${u('lq',id,'sa')};\n`;
         s += `uniform vec3 ${u('lq',id,'c0')},${u('lq',id,'c1')},${u('lq',id,'c2')},${u('lq',id,'c3')},${u('lq',id,'c4')};\n`; break;
       case 'grain':
         s += `uniform float ${u('gn',id,'am')},${u('gn',id,'sz')},${u('gn',id,'an')},${u('gn',id,'st')},${u('gn',id,'sa')},${u('gn',id,'sl')};\n`; break;
@@ -345,7 +457,7 @@ function glslUniformDecls(layers) {
       case 'vignette':
         s += `uniform float ${u('vi',id,'s')},${u('vi',id,'f')};\n`; break;
       case 'color-grade':
-        s += `uniform float ${u('cg',id,'c')},${u('cg',id,'s')},${u('cg',id,'b')},${u('cg',id,'h')};\n`; break;
+        s += `uniform float ${u('cg',id,'c')},${u('cg',id,'s')},${u('cg',id,'b')},${u('cg',id,'h')},${u('cg',id,'tm')},${u('cg',id,'tn')};\n`; break;
       case 'posterize':
         s += `uniform float ${u('po',id,'b')},${u('po',id,'m')};\n`;
         s += `uniform vec3 ${u('po',id,'c1')},${u('po',id,'c2')},${u('po',id,'c3')},${u('po',id,'c4')};\n`; break;
@@ -357,9 +469,22 @@ function glslUniformDecls(layers) {
       case 'bloom':
         s += `uniform float ${u('bl',id,'th')},${u('bl',id,'st')},${u('bl',id,'rd')};\n`; break;
       case 'ripple':
-        s += `uniform float ${u('rp',id,'cx')},${u('rp',id,'cy')},${u('rp',id,'fq')},${u('rp',id,'am')},${u('rp',id,'sp')},${u('rp',id,'dc')};\n`; break;
+        s += `uniform float ${u('rp',id,'cx')},${u('rp',id,'cy')},${u('rp',id,'fq')},${u('rp',id,'am')},${u('rp',id,'dc')};\n`; break;
+      case 'n-tone':
+        s += `uniform float ${u('nt',id,'b')},${u('nt',id,'m')};\n`;
+        s += `uniform vec3 ${u('nt',id,'cols')}[8];\n`;
+        s += `uniform int ${u('nt',id,'cnt')};\n`; break;
+      case 'glow':
+        s += `uniform float ${u('gw',id,'th')},${u('gw',id,'st')},${u('gw',id,'rd')};\n`;
+        s += `uniform vec3 ${u('gw',id,'c')};\n`; break;
+      case 'polar-remap':
+        s += `uniform float ${u('pr',id,'cx')},${u('pr',id,'cy')},${u('pr',id,'tw')},${u('pr',id,'zm')};\n`; break;
+      case 'flow-warp':
+        s += `uniform float ${u('fw',id,'str')},${u('fw',id,'sc')},${u('fw',id,'sp')},${u('fw',id,'ang')};\n`;
+        s += `uniform int ${u('fw',id,'nt')};\n`; break;
     }
     if (l.type !== 'frame') s += `uniform float u_op_${id};\n`;
+    if (l.type !== 'frame') s += `uniform float u_lyr_${id}_tmul,u_lyr_${id}_toff;\n`;
   });
   return s;
 }
@@ -402,14 +527,18 @@ function glslShapeFillBody(l) {
   const id = l.id;
   switch (l.type) {
     case 'wave': {
-      const f=u('wv',id,'f'),a=u('wv',id,'a'),sp=u('wv',id,'s'),pos=u('wv',id,'p'),e=u('wv',id,'e'),c=u('wv',id,'c');
-      return `    float wave=sin(ruv.x*${f}*6.2832+u_t*${sp})*${a};
-    float _mask=smoothstep(${e},0.0,abs(ruv.y-(${pos}+wave))-${e}*0.3);
+      const f=u('wv',id,'f'),a=u('wv',id,'a'),pos=u('wv',id,'p'),e=u('wv',id,'e'),c=u('wv',id,'c'),bn=u('wv',id,'bn'),bg=u('wv',id,'bg');
+      return `    float wave=sin(ruv.x*${f}*6.2832+t)*${a};
+    float _mask=0.0;
+    float _nb=max(${bn},1.0);
+    float _gap=${bg};
+    for(int _i=0;_i<8;_i++){ if(float(_i)>=_nb) break; float _off=(float(_i)-(_nb-1.0)*0.5)*_gap; float _m=smoothstep(${e},0.0,abs(ruv.y-(${pos}+_off+wave))-${e}*0.3); _mask=max(_mask,_m); }
     vec3 fillC=${c};
 `;
     }
     case 'rectangle': {
       const rU=u('rc',id,'r'),fmU=u('rc',id,'fm'),blU=u('rc',id,'bl'),cU=u('rc',id,'c'),cntU=u('rc',id,'cnt'),colsU=u('rc',id,'cols');
+      const swU=u('rc',id,'sw'),soU=u('rc',id,'so'),scU=u('rc',id,'sc');
       return `    float r=clamp(${rU},0.0,min(hs.x,hs.y));
     vec2 d=abs(lp)-hs+vec2(r);
     float sdf=length(max(d,0.0))+min(max(d.x,d.y),0.0)-r;
@@ -427,10 +556,17 @@ function glslShapeFillBody(l) {
       for(int k=0;k<6;k++){ float fk=float(k); if(fk==fi0) ca=${colsU}[k]; if(fk==fi1) cb=${colsU}[k]; }
       fillC=mix(ca,cb,mu);
     }
+    if(${swU}>0.001){
+      float sw=${swU}*0.5;
+      float strokeBand=smoothstep(-sw-bl,-sw+bl,sdf)-smoothstep(sw-bl,sw+bl,sdf);
+      fillC=mix(fillC,${scU},clamp(strokeBand,0.0,1.0)*${soU});
+      _mask=max(_mask,1.0-smoothstep(sw-bl,sw+bl,sdf));
+    }
 `;
     }
     case 'circle': {
       const fmU=u('ci',id,'fm'),blU=u('ci',id,'bl'),cU=u('ci',id,'c'),cntU=u('ci',id,'cnt'),colsU=u('ci',id,'cols');
+      const swU=u('ci',id,'sw'),soU=u('ci',id,'so'),scU=u('ci',id,'sc');
       return `    vec2 q=lp/max(hs,vec2(0.5));
     float r=max(min(hs.x,hs.y),0.5);
     float sdf=(length(q)-1.0)*r;
@@ -448,6 +584,12 @@ function glslShapeFillBody(l) {
       for(int k=0;k<6;k++){ float fk=float(k); if(fk==fi0) ca=${colsU}[k]; if(fk==fi1) cb=${colsU}[k]; }
       fillC=mix(ca,cb,mu);
     }
+    if(${swU}>0.001){
+      float sw=${swU}*0.5;
+      float strokeBand=smoothstep(-sw-bl,-sw+bl,sdf)-smoothstep(sw-bl,sw+bl,sdf);
+      fillC=mix(fillC,${scU},clamp(strokeBand,0.0,1.0)*${soU});
+      _mask=max(_mask,1.0-smoothstep(sw-bl,sw+bl,sdf));
+    }
 `;
     }
   }
@@ -459,24 +601,57 @@ function glslShapeFill(l) {
   return glslShapeFillPrep(l) + glslShapeFillBody(l);
 }
 
+// Emits drop-shadow composite. Must run after `lp`/`hs` are in scope (after
+// fill prep + warp). Composites shadow into `col` directly so the fill body
+// renders on top via the standard mask path.
+function glslShapeShadow(l) {
+  const id = l.id;
+  if (l.type === 'rectangle') {
+    const rU=u('rc',id,'r'),shbU=u('rc',id,'shb'),shxU=u('rc',id,'shx'),shyU=u('rc',id,'shy'),shoU=u('rc',id,'sho'),shcU=u('rc',id,'shc');
+    return `    {
+      float shR=clamp(${rU},0.0,min(hs.x,hs.y));
+      vec2 shLp=lp-vec2(${shxU},${shyU});
+      vec2 shD=abs(shLp)-hs+vec2(shR);
+      float shSdf=length(max(shD,0.0))+min(max(shD.x,shD.y),0.0)-shR;
+      float shBlur=max(${shbU},0.5);
+      float shMask=1.0-smoothstep(-shBlur,shBlur,shSdf);
+      col=mix(col,${shcU},shMask*${shoU}*u_op_${id});
+    }
+`;
+  }
+  if (l.type === 'circle') {
+    const shbU=u('ci',id,'shb'),shxU=u('ci',id,'shx'),shyU=u('ci',id,'shy'),shoU=u('ci',id,'sho'),shcU=u('ci',id,'shc');
+    return `    {
+      vec2 shLp=lp-vec2(${shxU},${shyU});
+      vec2 shQ=shLp/max(hs,vec2(0.5));
+      float shSdf=(length(shQ)-1.0)*max(min(hs.x,hs.y),0.5);
+      float shBlur=max(${shbU},0.5);
+      float shMask=1.0-smoothstep(-shBlur,shBlur,shSdf);
+      col=mix(col,${shcU},shMask*${shoU}*u_op_${id});
+    }
+`;
+  }
+  return '';
+}
+
 // ── GLSL: effect inline body ───────────────────────────────────
 function glslEffectInline(l) {
   const id = l.id;
   switch(l.type) {
     case 'liquid': {
-      return `  {\n    vec3 lq_orig=col;\n    vec2 puv=wuv;\n${glslLiquidBody('lq',id)}\n    col=mix(lq_orig,lq_result,u_op_${id});\n  }\n`;
+      return `  {\n    float t=t_${id};\n    vec3 lq_orig=col;\n    vec2 puv=wuv;\n${glslLiquidBody('lq',id)}\n    col=mix(lq_orig,lq_result,u_op_${id});\n  }\n`;
     }
     case 'grain': {
       const am=u('gn',id,'am'),sz=u('gn',id,'sz'),an=u('gn',id,'an'),st=u('gn',id,'st'),sa=u('gn',id,'sa'),sl=u('gn',id,'sl');
-      return `  {\n    vec2 gp=gl_FragCoord.xy/${sz};\n    vec2 go=vec2(0.0);if(${an}>0.5)go+=vec2(floor(u_t*24.0)*7.3,floor(u_t*24.0)*3.7);\n    if(${st}>0.5){vec2 sd=vec2(cos(${sa}*0.01745),sin(${sa}*0.01745));float soff=dot(gp,vec2(-sd.y,sd.x));gp=vec2(dot(gp,sd)+fract(soff)*${sl},soff);}\n    float n=hash2(gp+go);col+=vec3((n-0.5)*${am}*u_op_${id});col=clamp(col,0.0,1.0);\n  }\n`;
+      return `  {\n    vec2 gp=gl_FragCoord.xy/${sz};\n    vec2 go=vec2(0.0);if(${an}>0.5)go+=vec2(floor(t_${id}*24.0)*7.3,floor(t_${id}*24.0)*3.7);\n    if(${st}>0.5){vec2 sd=vec2(cos(${sa}*0.01745),sin(${sa}*0.01745));float soff=dot(gp,vec2(-sd.y,sd.x));gp=vec2(dot(gp,sd)+fract(soff)*${sl},soff);}\n    float n=hash2(gp+go);col+=vec3((n-0.5)*${am}*u_op_${id});col=clamp(col,0.0,1.0);\n  }\n`;
     }
     case 'vignette': {
       const s=u('vi',id,'s'),f=u('vi',id,'f');
       return `  {vec2 vc=rawuv*2.0-1.0;float vigM=smoothstep(1.0-${f},1.0+${f},length(vc)*${s});col=mix(col,col*(1.0-vigM),u_op_${id});}\n`;
     }
     case 'color-grade': {
-      const c=u('cg',id,'c'),s=u('cg',id,'s'),b=u('cg',id,'b'),h=u('cg',id,'h');
-      return `  {\n    vec3 cg_orig=col;\n    col=clamp(col+${b},0.0,1.0);\n    col=(col-0.5)*${c}+0.5;\n    float lum=dot(col,vec3(0.299,0.587,0.114));col=mix(vec3(lum),col,${s});\n    float ha=${h}*0.01745;vec3 k=vec3(0.57735);float c2=cos(ha);col=col*c2+cross(k,col)*sin(ha)+k*dot(k,col)*(1.0-c2);\n    col=clamp(col,0.0,1.0);col=mix(cg_orig,col,u_op_${id});\n  }\n`;
+      const c=u('cg',id,'c'),s=u('cg',id,'s'),b=u('cg',id,'b'),h=u('cg',id,'h'),tm=u('cg',id,'tm'),tn=u('cg',id,'tn');
+      return `  {\n    vec3 cg_orig=col;\n    col=clamp(col+${b},0.0,1.0);\n    col=(col-0.5)*${c}+0.5;\n    float lum=dot(col,vec3(0.299,0.587,0.114));col=mix(vec3(lum),col,${s});\n    float ha=${h}*0.01745;vec3 k=vec3(0.57735);float c2=cos(ha);col=col*c2+cross(k,col)*sin(ha)+k*dot(k,col)*(1.0-c2);\n    col.r+=${tm}*0.15;col.b-=${tm}*0.15;col.g+=${tn}*0.15;\n    col=clamp(col,0.0,1.0);col=mix(cg_orig,col,u_op_${id});\n  }\n`;
     }
     case 'posterize': {
       const b=u('po',id,'b'),m=u('po',id,'m'),c1=u('po',id,'c1'),c2=u('po',id,'c2'),c3=u('po',id,'c3'),c4=u('po',id,'c4');
@@ -484,7 +659,7 @@ function glslEffectInline(l) {
     }
     case 'scanlines': {
       const n=u('sc',id,'n'),d=u('sc',id,'d'),f=u('sc',id,'f'),sc=u('sc',id,'sc'),ss=u('sc',id,'ss');
-      return `  {float slY=rawuv.y;if(${sc}>0.5)slY=fract(rawuv.y+u_t*${ss});float sl=smoothstep(${f},1.0,abs(sin(slY*${n}*3.14159)));col*=1.0-sl*${d}*u_op_${id};}\n`;
+      return `  {float slY=rawuv.y;if(${sc}>0.5)slY=fract(rawuv.y+t_${id}*${ss});float sl=smoothstep(${f},1.0,abs(sin(slY*${n}*3.14159)));col*=1.0-sl*${d}*u_op_${id};}\n`;
     }
     case 'duotone': {
       const sh=u('dt',id,'sh'),li=u('dt',id,'li'),bl=u('dt',id,'bl');
@@ -493,6 +668,14 @@ function glslEffectInline(l) {
     case 'bloom': {
       const th=u('bl',id,'th'),st=u('bl',id,'st'),rd=u('bl',id,'rd');
       return `  {\n    float blLum=dot(col,vec3(0.299,0.587,0.114));\n    float blMask=smoothstep(${th}-0.05*${rd},${th}+0.15*${rd},blLum);\n    vec3 blGlow=col*blMask*${st}*${rd};\n    col=col+blGlow*u_op_${id};\n    col=clamp(col,0.0,1.0);\n  }\n`;
+    }
+    case 'n-tone': {
+      const b=u('nt',id,'b'),m=u('nt',id,'m'),cols=u('nt',id,'cols'),cnt=u('nt',id,'cnt');
+      return `  {\n    float ntLum=dot(col,vec3(0.299,0.587,0.114));\n    float ntBands=max(1.0,${b});\n    float ntBand=floor(clamp(ntLum,0.0,0.9999)*ntBands);\n    float ntT=ntBand/max(1.0,ntBands-1.0);\n    int ntN=${cnt};\n    float ntIdxF=floor(ntT*float(ntN-1)+0.5);\n    int ntIdx=int(clamp(ntIdxF,0.0,float(ntN-1)));\n    vec3 ntCol=${cols}[0];\n    if(ntIdx==1)ntCol=${cols}[1];\n    if(ntIdx==2)ntCol=${cols}[2];\n    if(ntIdx==3)ntCol=${cols}[3];\n    if(ntIdx==4)ntCol=${cols}[4];\n    if(ntIdx==5)ntCol=${cols}[5];\n    if(ntIdx==6)ntCol=${cols}[6];\n    if(ntIdx==7)ntCol=${cols}[7];\n    col=mix(col,ntCol,${m}*u_op_${id});col=clamp(col,0.0,1.0);\n  }\n`;
+    }
+    case 'glow': {
+      const th=u('gw',id,'th'),st=u('gw',id,'st'),rd=u('gw',id,'rd'),c=u('gw',id,'c');
+      return `  {\n    float gwLum=dot(col,vec3(0.299,0.587,0.114));\n    float gwMask=smoothstep(${th}-${rd}*0.5,${th}+${rd}*0.05,gwLum);\n    vec3 gwAdd=${c}*gwMask*${st};\n    col=col+gwAdd*u_op_${id};\n    col=clamp(col,0.0,1.0);\n  }\n`;
     }
     default: return '';
   }
@@ -535,10 +718,13 @@ function buildFragFromLayers(layers, frameState) {
   s += GLSL_HELPERS;
 
   contentLayers.forEach(l => {
-    if      (l.type === 'solid')         s += glslSolidFn(l.id);
-    else if (l.type === 'gradient')      s += glslGradientFn(l.id);
-    else if (l.type === 'mesh-gradient') s += glslMeshGradientFn(l.id);
-    else if (l.type === 'image')         s += glslImageFn(l.id);
+    if      (l.type === 'solid')           s += glslSolidFn(l.id);
+    else if (l.type === 'gradient')        s += glslGradientFn(l.id);
+    else if (l.type === 'linear-gradient') s += glslLinearGradientFn(l.id);
+    else if (l.type === 'radial-gradient') s += glslRadialGradientFn(l.id);
+    else if (l.type === 'noise-field')     s += glslNoiseFieldFn(l.id);
+    else if (l.type === 'mesh-gradient')   s += glslMeshGradientFn(l.id);
+    else if (l.type === 'image')           s += glslImageFn(l.id);
     // 'wave', 'rectangle', 'circle' are handled inline in the walk below.
   });
 
@@ -552,12 +738,18 @@ function buildFragFromLayers(layers, frameState) {
         const sz = u('px', l.id, 's');
         out += `    wuv=floor(wuv*(u_res/${sz}))/(u_res/${sz});\n`;
       } else if (l.type === 'noise-warp') {
-        const id=l.id, str=u('nw',id,'str'), sc=u('nw',id,'sc'), sp=u('nw',id,'sp'), oc=u('nw',id,'oc'), ang=u('nw',id,'ang');
-        out += `    {\n      vec2 nwSrc=wuv;\n      vec2 nwDrift=vec2(cos(${ang}),sin(${ang}))*t*${sp};\n`;
-        out += `      wuv+=${str}*vec2(fbm(nwSrc*${sc}+nwDrift,${oc})-0.5,fbm(nwSrc*${sc}+nwDrift+vec2(5.2,1.3),${oc})-0.5);\n    }\n`;
+        const id=l.id, str=u('nw',id,'str'), sc=u('nw',id,'sc'), sx=u('nw',id,'sx'), sy=u('nw',id,'sy'), sp=u('nw',id,'sp'), oc=u('nw',id,'oc'), it=u('nw',id,'it'), ang=u('nw',id,'ang'), nt=u('nw',id,'nt');
+        out += `    {\n      vec2 nwSrc=wuv;\n      vec2 nwDrift=vec2(cos(${ang}),sin(${ang}))*t_${id}*${sp};\n      vec2 nwScl=vec2(${sc}*${sx},${sc}*${sy});\n`;
+        out += `      for(int _ni=0;_ni<4;_ni++){ if(float(_ni)>=${it}) break; nwSrc+=${str}*vec2(fbmAt(nwSrc*nwScl+nwDrift,${oc},${nt})-0.5,fbmAt(nwSrc*nwScl+nwDrift+vec2(5.2,1.3),${oc},${nt})-0.5); }\n      wuv=nwSrc;\n    }\n`;
       } else if (l.type === 'ripple') {
-        const id=l.id, cx=u('rp',id,'cx'), cy=u('rp',id,'cy'), fq=u('rp',id,'fq'), am=u('rp',id,'am'), sp=u('rp',id,'sp'), dc=u('rp',id,'dc');
-        out += `    {\n      float ar=u_res.x/u_res.y;\n      vec2 rpC=vec2(${cx},${cy});\n      vec2 rpD=(wuv-rpC)*vec2(ar,1.0);\n      float rpLen=length(rpD);\n      float rpPhase=sin(rpLen*${fq} - u_t*${sp})*${am}*exp(-rpLen*${dc});\n      vec2 rpDir=rpLen>0.0001?rpD/rpLen:vec2(0.0);\n      wuv+=rpDir*vec2(1.0/ar,1.0)*rpPhase;\n    }\n`;
+        const id=l.id, cx=u('rp',id,'cx'), cy=u('rp',id,'cy'), fq=u('rp',id,'fq'), am=u('rp',id,'am'), dc=u('rp',id,'dc');
+        out += `    {\n      float ar=u_res.x/u_res.y;\n      vec2 rpC=vec2(${cx},${cy});\n      vec2 rpD=(wuv-rpC)*vec2(ar,1.0);\n      float rpLen=length(rpD);\n      float rpPhase=sin(rpLen*${fq} - t_${id})*${am}*exp(-rpLen*${dc});\n      vec2 rpDir=rpLen>0.0001?rpD/rpLen:vec2(0.0);\n      wuv+=rpDir*vec2(1.0/ar,1.0)*rpPhase;\n    }\n`;
+      } else if (l.type === 'polar-remap') {
+        const id=l.id, cx=u('pr',id,'cx'), cy=u('pr',id,'cy'), tw=u('pr',id,'tw'), zm=u('pr',id,'zm');
+        out += `    {\n      float ar=u_res.x/u_res.y;\n      vec2 prC=vec2(${cx},${cy});\n      vec2 prD=(wuv-prC)*vec2(ar,1.0);\n      float prR=length(prD);\n      float prA=atan(prD.y,prD.x);\n      prA+=${tw}*prR;\n      prR/=max(${zm},0.001);\n      vec2 prP=vec2(cos(prA),sin(prA))*prR;\n      wuv=prC+prP*vec2(1.0/ar,1.0);\n    }\n`;
+      } else if (l.type === 'flow-warp') {
+        const id=l.id, str=u('fw',id,'str'), sc=u('fw',id,'sc'), sp=u('fw',id,'sp'), ang=u('fw',id,'ang'), nt=u('fw',id,'nt');
+        out += `    {\n      vec2 fwDir=vec2(cos(${ang}),sin(${ang}));\n      vec2 fwSrc=wuv*${sc}+fwDir*t_${id}*${sp};\n      vec2 fwDisp=vec2(fbmAt(fwSrc,4.0,${nt})-0.5,fbmAt(fwSrc+vec2(7.3,2.1),4.0,${nt})-0.5);\n      wuv+=fwDisp*${str};\n    }\n`;
       }
     });
     return out;
@@ -565,6 +757,13 @@ function buildFragFromLayers(layers, frameState) {
 
   s += 'void main(){\n';
   s += '  vec2 uv=gl_FragCoord.xy/u_res;\n  float t=u_t;\n  vec2 rawuv=uv;\n';
+
+  // Per-layer time: layer-level speed (tmul) / timeOffset (toff) composition.
+  // `tmul = paused ? 0 : speed`. Each layer / attached effect gets its own
+  // `t_<id>` that shadows any bare `t` in its own emitted block.
+  [...vis, ...attachedEffects].forEach(l => {
+    s += `  float t_${l.id}=u_t*u_lyr_${l.id}_tmul+u_lyr_${l.id}_toff;\n`;
+  });
 
   // Per-CA direction vectors (depend only on CA uniforms; safe at main scope).
   vis.filter(l => l.type === 'chromatic-aberration').forEach(l => {
@@ -575,10 +774,14 @@ function buildFragFromLayers(layers, frameState) {
 
   // Walk bottom→top. UV-prep/CA layers contribute via the "above" lookups only.
   [...vis].reverse().forEach(l => {
-    if (l.type === 'noise-warp' || l.type === 'pixelate' || l.type === 'ripple' || l.type === 'chromatic-aberration') return;
+    if (l.type === 'noise-warp' || l.type === 'pixelate' || l.type === 'ripple' || l.type === 'polar-remap' || l.type === 'flow-warp' || l.type === 'chromatic-aberration') return;
 
     const idx = vis.indexOf(l);
     s += '  {\n';
+    // Shadow outer `t` with this layer's local time so bare `t` references
+    // in inline effect emitters (grain/scanlines/wave) and embedded bodies
+    // (liquid) pick up the layer's speed / time offset / paused state.
+    s += `    float t=t_${l.id};\n`;
     s += emitUvAbove(idx);
 
     const op = `u_op_${l.id}`;
@@ -592,9 +795,9 @@ function buildFragFromLayers(layers, frameState) {
     // content-fn layers and wave (both sample the content in wuv space).
     const emitWuvWarp = () => {
       aesUv.forEach(ae => {
-        const id=ae.id, str=u('nw',id,'str'), sc=u('nw',id,'sc'), sp=u('nw',id,'sp'), oc=u('nw',id,'oc'), ang=u('nw',id,'ang');
-        s += `    {\n      vec2 nwSrc=wuv;\n      vec2 nwDrift=vec2(cos(${ang}),sin(${ang}))*t*${sp};\n`;
-        s += `      wuv+=${str}*vec2(fbm(nwSrc*${sc}+nwDrift,${oc})-0.5,fbm(nwSrc*${sc}+nwDrift+vec2(5.2,1.3),${oc})-0.5);\n    }\n`;
+        const id=ae.id, str=u('nw',id,'str'), sc=u('nw',id,'sc'), sx=u('nw',id,'sx'), sy=u('nw',id,'sy'), sp=u('nw',id,'sp'), oc=u('nw',id,'oc'), it=u('nw',id,'it'), ang=u('nw',id,'ang'), nt=u('nw',id,'nt');
+        s += `    {\n      vec2 nwSrc=wuv;\n      vec2 nwDrift=vec2(cos(${ang}),sin(${ang}))*t_${id}*${sp};\n      vec2 nwScl=vec2(${sc}*${sx},${sc}*${sy});\n`;
+        s += `      for(int _ni=0;_ni<4;_ni++){ if(float(_ni)>=${it}) break; nwSrc+=${str}*vec2(fbmAt(nwSrc*nwScl+nwDrift,${oc},${nt})-0.5,fbmAt(nwSrc*nwScl+nwDrift+vec2(5.2,1.3),${oc},${nt})-0.5); }\n      wuv=nwSrc;\n    }\n`;
       });
     };
     // Emit attached noise-warp in shape-local space: samples noise in
@@ -602,9 +805,9 @@ function buildFragFromLayers(layers, frameState) {
     // shape) and displaces lp in shape-local px. Requires lp + hs in scope.
     const emitLocalWarp = () => {
       aesUv.forEach(ae => {
-        const id=ae.id, str=u('nw',id,'str'), sc=u('nw',id,'sc'), sp=u('nw',id,'sp'), oc=u('nw',id,'oc'), ang=u('nw',id,'ang');
-        s += `    {\n      vec2 nwLocal=lp/max(hs,vec2(1.0));\n      vec2 nwDrift=vec2(cos(${ang}),sin(${ang}))*t*${sp};\n`;
-        s += `      vec2 nwW=${str}*vec2(fbm(nwLocal*${sc}+nwDrift,${oc})-0.5,fbm(nwLocal*${sc}+nwDrift+vec2(5.2,1.3),${oc})-0.5);\n`;
+        const id=ae.id, str=u('nw',id,'str'), sc=u('nw',id,'sc'), sx=u('nw',id,'sx'), sy=u('nw',id,'sy'), sp=u('nw',id,'sp'), oc=u('nw',id,'oc'), it=u('nw',id,'it'), ang=u('nw',id,'ang'), nt=u('nw',id,'nt');
+        s += `    {\n      vec2 nwLocal=lp/max(hs,vec2(1.0));\n      vec2 nwDrift=vec2(cos(${ang}),sin(${ang}))*t_${id}*${sp};\n      vec2 nwScl=vec2(${sc}*${sx},${sc}*${sy});\n`;
+        s += `      vec2 nwW=vec2(0.0);\n      vec2 nwSrc=nwLocal;\n      for(int _ni=0;_ni<4;_ni++){ if(float(_ni)>=${it}) break; vec2 _d=${str}*vec2(fbmAt(nwSrc*nwScl+nwDrift,${oc},${nt})-0.5,fbmAt(nwSrc*nwScl+nwDrift+vec2(5.2,1.3),${oc},${nt})-0.5); nwSrc+=_d; nwW+=_d; }\n`;
         s += `      lp+=nwW*max(hs,vec2(1.0));\n    }\n`;
       });
     };
@@ -624,10 +827,10 @@ function buildFragFromLayers(layers, frameState) {
         const sumX = cas.map(c => `ca_d_${c.id}.x`).join('+');
         const sumY = cas.map(c => `ca_d_${c.id}.y`).join('+');
         s += `    vec2 _cad=vec2(${sumX},${sumY});\n`;
-        s += `    vec3 lR=contentFn_${l.id}(wuv+_cad),lG=contentFn_${l.id}(wuv),lB=contentFn_${l.id}(wuv-_cad);\n`;
+        s += `    vec3 lR=contentFn_${l.id}(wuv+_cad,t_${l.id}),lG=contentFn_${l.id}(wuv,t_${l.id}),lB=contentFn_${l.id}(wuv-_cad,t_${l.id});\n`;
         s += `    vec3 lc=vec3(lR.r,lG.g,lB.b);\n`;
       } else {
-        s += `    vec3 lc=contentFn_${l.id}(wuv);\n`;
+        s += `    vec3 lc=contentFn_${l.id}(wuv,t_${l.id});\n`;
       }
       s += emitAttached('lc');
       s += `    col=mix(col,${glslBlend(mode, 'col', 'lc')},${op});\n`;
@@ -635,6 +838,7 @@ function buildFragFromLayers(layers, frameState) {
       s += '  {\n'; // extra scope so fillC/_mask don't collide across shapes
       s += glslShapeFillPrep(l);
       emitLocalWarp();              // native-to-shape: warps lp in local space
+      s += glslShapeShadow(l);      // drop-shadow composite (uses lp+hs)
       s += glslShapeFillBody(l);
       s += emitAttached('fillC');
       s += `    col=mix(col,${glslBlend(mode, 'col', 'fillC')},_mask*${op});\n`;
@@ -696,6 +900,15 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
     const uop = ul(`u_op_${id}`);
     if (uop) glCtx.uniform1f(uop, op);
 
+    // Layer-level animation: tmul = paused ? 0 : speed, toff = timeOffset.
+    const lSpeed = (typeof l.speed === 'number') ? l.speed : 1.0;
+    const lOff   = (typeof l.timeOffset === 'number') ? l.timeOffset : 0.0;
+    const lPau   = !!l.paused;
+    const utmul = ul(`u_lyr_${id}_tmul`);
+    if (utmul) glCtx.uniform1f(utmul, lPau ? 0.0 : lSpeed);
+    const utoff = ul(`u_lyr_${id}_toff`);
+    if (utoff) glCtx.uniform1f(utoff, lOff);
+
     switch(l.type) {
       case 'solid': {
         const [r,g,b] = hexToRgb(p.color || '#888888');
@@ -715,7 +928,6 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
       }
       case 'gradient': {
         glCtx.uniform1f(ul(u('gr',id,'seed')), p.seed     != null ? p.seed      : 42);
-        glCtx.uniform1f(ul(u('gr',id,'spd')),  p.speed    != null ? p.speed     : 1.0);
         glCtx.uniform1f(ul(u('gr',id,'fqx')),  p.freqX    != null ? p.freqX     : 0.9);
         glCtx.uniform1f(ul(u('gr',id,'fqy')),  p.freqY    != null ? p.freqY     : 6.0);
         glCtx.uniform1f(ul(u('gr',id,'ang')),  p.angle    != null ? p.angle     : 105);
@@ -739,10 +951,66 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         glCtx.uniform1i (ul(u('gr',id,'cnt')), count);
         break;
       }
+      case 'linear-gradient': {
+        glCtx.uniform1f(ul(u('lg',id,'ang')), ((p.angle != null ? p.angle : 90)) * Math.PI / 180);
+        glCtx.uniform1f(ul(u('lg',id,'bld')), p.blend != null ? p.blend : 0.5);
+        glCtx.uniform1f(ul(u('lg',id,'scl')), p.scale != null ? p.scale : 1.0);
+        const stops = (Array.isArray(p.stops) && p.stops.length >= 2) ? p.stops : [{color:'#000'},{color:'#fff'}];
+        const count = Math.min(6, stops.length);
+        const arr = new Float32Array(6*3);
+        for (let i = 0; i < 6; i++) {
+          const src = i < count ? stops[i] : stops[count-1];
+          const [r,g,b] = hexToRgb(src.color || '#000000');
+          arr[i*3]=r; arr[i*3+1]=g; arr[i*3+2]=b;
+        }
+        glCtx.uniform3fv(ul(u('lg',id,'cols')), arr);
+        glCtx.uniform1i(ul(u('lg',id,'cnt')), count);
+        break;
+      }
+      case 'radial-gradient': {
+        glCtx.uniform1f(ul(u('rg',id,'cx')),  p.cx != null ? p.cx : 0.5);
+        glCtx.uniform1f(ul(u('rg',id,'cy')),  p.cy != null ? p.cy : 0.5);
+        glCtx.uniform1f(ul(u('rg',id,'rad')), p.radius != null ? p.radius : 0.5);
+        glCtx.uniform1f(ul(u('rg',id,'bld')), p.blend != null ? p.blend : 0.5);
+        glCtx.uniform1f(ul(u('rg',id,'scl')), p.scale != null ? p.scale : 1.0);
+        const stops = (Array.isArray(p.stops) && p.stops.length >= 2) ? p.stops : [{color:'#fff'},{color:'#000'}];
+        const count = Math.min(6, stops.length);
+        const arr = new Float32Array(6*3);
+        for (let i = 0; i < 6; i++) {
+          const src = i < count ? stops[i] : stops[count-1];
+          const [r,g,b] = hexToRgb(src.color || '#000000');
+          arr[i*3]=r; arr[i*3+1]=g; arr[i*3+2]=b;
+        }
+        glCtx.uniform3fv(ul(u('rg',id,'cols')), arr);
+        glCtx.uniform1i(ul(u('rg',id,'cnt')), count);
+        break;
+      }
+      case 'noise-field': {
+        const ntMap = { value: 0, perlin: 1, worley: 2 };
+        glCtx.uniform1f(ul(u('nf',id,'sd')), p.seed != null ? p.seed : 0);
+        glCtx.uniform1f(ul(u('nf',id,'sc')), p.scale != null ? p.scale : 4.0);
+        glCtx.uniform1f(ul(u('nf',id,'co')), p.contrast != null ? p.contrast : 1.0);
+        glCtx.uniform1f(ul(u('nf',id,'oc')), p.oct || 4);
+        glCtx.uniform1i(ul(u('nf',id,'nt')), ntMap[p.noiseType] != null ? ntMap[p.noiseType] : 0);
+        const cols = (Array.isArray(p.colors) && p.colors.length >= 2) ? p.colors : ['#000','#fff'];
+        const count = Math.min(6, cols.length);
+        const arr = new Float32Array(6*3);
+        for (let i = 0; i < 6; i++) {
+          const src = i < count ? cols[i] : cols[count-1];
+          const [r,g,b] = hexToRgb(src || '#000000');
+          arr[i*3]=r; arr[i*3+1]=g; arr[i*3+2]=b;
+        }
+        glCtx.uniform3fv(ul(u('nf',id,'cols')), arr);
+        glCtx.uniform1i(ul(u('nf',id,'cnt')), count);
+        break;
+      }
       case 'mesh-gradient': {
+        const ntMap = { value: 0, perlin: 1, worley: 2 };
         glCtx.uniform1f(ul(u('mg',id,'seed')),p.seed||12);
-        glCtx.uniform1f(ul(u('mg',id,'spd')), p.speed||0.3);
         glCtx.uniform1f(ul(u('mg',id,'sc')),  p.scale||0.42);
+        glCtx.uniform1f(ul(u('mg',id,'sx')),  p.scaleX != null ? p.scaleX : 1.0);
+        glCtx.uniform1f(ul(u('mg',id,'sy')),  p.scaleY != null ? p.scaleY : 1.0);
+        glCtx.uniform1i(ul(u('mg',id,'nt')),  ntMap[p.noiseType] != null ? ntMap[p.noiseType] : 0);
         glCtx.uniform1f(ul(u('mg',id,'ta')),  p.turbAmp||0.6);
         glCtx.uniform1f(ul(u('mg',id,'tf')),  p.turbFreq||0.1);
         glCtx.uniform1f(ul(u('mg',id,'ti')),  p.turbIter||7);
@@ -766,11 +1034,16 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         break;
       }
       case 'noise-warp': {
+        const ntMap = { value: 0, perlin: 1, worley: 2 };
         glCtx.uniform1f(ul(u('nw',id,'str')), p.str||0.5);
         glCtx.uniform1f(ul(u('nw',id,'sc')),  p.scale||2.0);
+        glCtx.uniform1f(ul(u('nw',id,'sx')),  p.scaleX != null ? p.scaleX : 1.0);
+        glCtx.uniform1f(ul(u('nw',id,'sy')),  p.scaleY != null ? p.scaleY : 1.0);
         glCtx.uniform1f(ul(u('nw',id,'sp')),  p.wspd||0.12);
         glCtx.uniform1f(ul(u('nw',id,'oc')),  p.oct||4);
+        glCtx.uniform1f(ul(u('nw',id,'it')),  Math.max(1, p.iterations||1));
         glCtx.uniform1f(ul(u('nw',id,'ang')), ((p.angle != null ? p.angle : 90)) * Math.PI / 180);
+        glCtx.uniform1i(ul(u('nw',id,'nt')),  ntMap[p.noiseType] != null ? ntMap[p.noiseType] : 0);
         break;
       }
       case 'pixelate': {
@@ -780,11 +1053,12 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         const [r,g,b] = hexToRgb(p.color||'#6B7FE8');
         glCtx.uniform1f(ul(u('wv',id,'f')),   p.freq||4.0);
         glCtx.uniform1f(ul(u('wv',id,'a')),   p.amp||0.15);
-        glCtx.uniform1f(ul(u('wv',id,'s')),   p.spd||0.6);
         glCtx.uniform1f(ul(u('wv',id,'p')),   p.pos||0.5);
         glCtx.uniform1f(ul(u('wv',id,'e')),   p.edge||0.06);
         glCtx.uniform1f(ul(u('wv',id,'ang')), (p.angle||0)*Math.PI/180);
         glCtx.uniform3f(ul(u('wv',id,'c')),   r, g, b);
+        glCtx.uniform1f(ul(u('wv',id,'bn')),  Math.max(1, p.bands||1));
+        glCtx.uniform1f(ul(u('wv',id,'bg')),  p.bandGap != null ? p.bandGap : 0.2);
         break;
       }
       case 'rectangle': {
@@ -809,6 +1083,16 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         }
         glCtx.uniform3fv(ul(u('rc',id,'cols')), colsArr);
         glCtx.uniform1f(ul(u('rc',id,'cnt')), n);
+        const [sr,sg,sb] = hexToRgb(p.strokeColor || '#000000');
+        const [hr,hg,hb] = hexToRgb(p.shadowColor || '#000000');
+        glCtx.uniform1f(ul(u('rc',id,'sw')),  Math.max(0, p.strokeWidth   || 0));
+        glCtx.uniform1f(ul(u('rc',id,'so')),  p.strokeOpacity != null ? p.strokeOpacity : 1.0);
+        glCtx.uniform3f(ul(u('rc',id,'sc')),  sr, sg, sb);
+        glCtx.uniform1f(ul(u('rc',id,'shb')), Math.max(0, p.shadowBlur || 0));
+        glCtx.uniform1f(ul(u('rc',id,'shx')), p.shadowX || 0);
+        glCtx.uniform1f(ul(u('rc',id,'shy')), -(p.shadowY || 0));
+        glCtx.uniform1f(ul(u('rc',id,'sho')), p.shadowOpacity != null ? p.shadowOpacity : 0.5);
+        glCtx.uniform3f(ul(u('rc',id,'shc')), hr, hg, hb);
         break;
       }
       case 'circle': {
@@ -832,11 +1116,20 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         }
         glCtx.uniform3fv(ul(u('ci',id,'cols')), colsArr);
         glCtx.uniform1f(ul(u('ci',id,'cnt')), n);
+        const [sr,sg,sb] = hexToRgb(p.strokeColor || '#000000');
+        const [hr,hg,hb] = hexToRgb(p.shadowColor || '#000000');
+        glCtx.uniform1f(ul(u('ci',id,'sw')),  Math.max(0, p.strokeWidth   || 0));
+        glCtx.uniform1f(ul(u('ci',id,'so')),  p.strokeOpacity != null ? p.strokeOpacity : 1.0);
+        glCtx.uniform3f(ul(u('ci',id,'sc')),  sr, sg, sb);
+        glCtx.uniform1f(ul(u('ci',id,'shb')), Math.max(0, p.shadowBlur || 0));
+        glCtx.uniform1f(ul(u('ci',id,'shx')), p.shadowX || 0);
+        glCtx.uniform1f(ul(u('ci',id,'shy')), -(p.shadowY || 0));
+        glCtx.uniform1f(ul(u('ci',id,'sho')), p.shadowOpacity != null ? p.shadowOpacity : 0.5);
+        glCtx.uniform3f(ul(u('ci',id,'shc')), hr, hg, hb);
         break;
       }
       case 'liquid': {
         glCtx.uniform1f(ul(u('lq',id,'seed')),p.seed||12);
-        glCtx.uniform1f(ul(u('lq',id,'spd')), p.speed||0.3);
         glCtx.uniform1f(ul(u('lq',id,'sc')),  p.scale||0.42);
         glCtx.uniform1f(ul(u('lq',id,'ta')),  p.turbAmp||0.6);
         glCtx.uniform1f(ul(u('lq',id,'tf')),  p.turbFreq||0.1);
@@ -846,7 +1139,8 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         glCtx.uniform1f(ul(u('lq',id,'ex')),  p.exposure||1.1);
         glCtx.uniform1f(ul(u('lq',id,'co')),  p.contrast||1.1);
         glCtx.uniform1f(ul(u('lq',id,'sa')),  p.saturation||1.0);
-        const c0=hexToRgb(p.color0||'#00001A'),c1=hexToRgb(p.color1||'#2962FF'),c2=hexToRgb(p.color2||'#40BCFF'),c3=hexToRgb(p.color3||'#FFB8B5'),c4=hexToRgb(p.color4||'#FFC14F');
+        const lqArr = Array.isArray(p.colors) ? p.colors : [];
+        const c0=hexToRgb(lqArr[0]||p.color0||'#00001A'),c1=hexToRgb(lqArr[1]||p.color1||'#2962FF'),c2=hexToRgb(lqArr[2]||p.color2||'#40BCFF'),c3=hexToRgb(lqArr[3]||p.color3||'#FFB8B5'),c4=hexToRgb(lqArr[4]||p.color4||'#FFC14F');
         glCtx.uniform3f(ul(u('lq',id,'c0')),...c0);glCtx.uniform3f(ul(u('lq',id,'c1')),...c1);
         glCtx.uniform3f(ul(u('lq',id,'c2')),...c2);glCtx.uniform3f(ul(u('lq',id,'c3')),...c3);
         glCtx.uniform3f(ul(u('lq',id,'c4')),...c4);
@@ -878,12 +1172,15 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         glCtx.uniform1f(ul(u('cg',id,'s')), p.sat||1.0);
         glCtx.uniform1f(ul(u('cg',id,'b')), p.bright||0.0);
         glCtx.uniform1f(ul(u('cg',id,'h')), p.hue||0);
+        glCtx.uniform1f(ul(u('cg',id,'tm')), p.temperature||0);
+        glCtx.uniform1f(ul(u('cg',id,'tn')), p.tint||0);
         break;
       }
       case 'posterize': {
         glCtx.uniform1f(ul(u('po',id,'b')), p.bands||5);
         glCtx.uniform1f(ul(u('po',id,'m')), p.mix||1.0);
-        const c1=hexToRgb(p.c1||'#82C67C'),c2=hexToRgb(p.c2||'#336B51'),c3=hexToRgb(p.c3||'#257847'),c4=hexToRgb(p.c4||'#0F4140');
+        const poArr = Array.isArray(p.colors) ? p.colors : [];
+        const c1=hexToRgb(poArr[0]||p.c1||'#82C67C'),c2=hexToRgb(poArr[1]||p.c2||'#336B51'),c3=hexToRgb(poArr[2]||p.c3||'#257847'),c4=hexToRgb(poArr[3]||p.c4||'#0F4140');
         glCtx.uniform3f(ul(u('po',id,'c1')),...c1);glCtx.uniform3f(ul(u('po',id,'c2')),...c2);
         glCtx.uniform3f(ul(u('po',id,'c3')),...c3);glCtx.uniform3f(ul(u('po',id,'c4')),...c4);
         break;
@@ -897,8 +1194,9 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         break;
       }
       case 'duotone': {
-        const sh = hexToRgb(p.shadow || '#000000');
-        const li = hexToRgb(p.light  || '#ffffff');
+        const dtArr = Array.isArray(p.colors) && p.colors.length >= 2 ? p.colors : [p.shadow || '#000000', p.light || '#ffffff'];
+        const sh = hexToRgb(dtArr[0] || '#000000');
+        const li = hexToRgb(dtArr[1] || '#ffffff');
         glCtx.uniform3f(ul(u('dt',id,'sh')), ...sh);
         glCtx.uniform3f(ul(u('dt',id,'li')), ...li);
         glCtx.uniform1f(ul(u('dt',id,'bl')), p.blend != null ? p.blend : 1.0);
@@ -915,8 +1213,46 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         glCtx.uniform1f(ul(u('rp',id,'cy')), p.cy    != null ? p.cy    : 0.5);
         glCtx.uniform1f(ul(u('rp',id,'fq')), p.freq  != null ? p.freq  : 10.0);
         glCtx.uniform1f(ul(u('rp',id,'am')), p.amp   != null ? p.amp   : 0.03);
-        glCtx.uniform1f(ul(u('rp',id,'sp')), p.spd   != null ? p.spd   : 1.0);
         glCtx.uniform1f(ul(u('rp',id,'dc')), p.decay != null ? p.decay : 2.0);
+        break;
+      }
+      case 'n-tone': {
+        glCtx.uniform1f(ul(u('nt',id,'b')), Math.max(1, p.bands || 4));
+        glCtx.uniform1f(ul(u('nt',id,'m')), p.mix != null ? p.mix : 1.0);
+        const cols = (Array.isArray(p.colors) && p.colors.length >= 2) ? p.colors : ['#000','#fff'];
+        const count = Math.min(8, cols.length);
+        const arr = new Float32Array(8*3);
+        for (let i = 0; i < 8; i++) {
+          const src = i < count ? cols[i] : cols[count-1];
+          const [r,g,b] = hexToRgb(src || '#000000');
+          arr[i*3]=r; arr[i*3+1]=g; arr[i*3+2]=b;
+        }
+        glCtx.uniform3fv(ul(u('nt',id,'cols')), arr);
+        glCtx.uniform1i(ul(u('nt',id,'cnt')), count);
+        break;
+      }
+      case 'glow': {
+        const [r,g,b] = hexToRgb(p.color || '#FFD58A');
+        glCtx.uniform1f(ul(u('gw',id,'th')), p.threshold != null ? p.threshold : 0.7);
+        glCtx.uniform1f(ul(u('gw',id,'st')), p.strength  != null ? p.strength  : 0.8);
+        glCtx.uniform1f(ul(u('gw',id,'rd')), p.radius    != null ? p.radius    : 0.5);
+        glCtx.uniform3f(ul(u('gw',id,'c')), r, g, b);
+        break;
+      }
+      case 'polar-remap': {
+        glCtx.uniform1f(ul(u('pr',id,'cx')), p.cx    != null ? p.cx    : 0.5);
+        glCtx.uniform1f(ul(u('pr',id,'cy')), p.cy    != null ? p.cy    : 0.5);
+        glCtx.uniform1f(ul(u('pr',id,'tw')), p.twist != null ? p.twist : 0);
+        glCtx.uniform1f(ul(u('pr',id,'zm')), p.zoom  != null ? p.zoom  : 1.0);
+        break;
+      }
+      case 'flow-warp': {
+        const ntMap = { value: 0, perlin: 1, worley: 2 };
+        glCtx.uniform1f(ul(u('fw',id,'str')), p.str   != null ? p.str   : 0.3);
+        glCtx.uniform1f(ul(u('fw',id,'sc')),  p.scale != null ? p.scale : 3.0);
+        glCtx.uniform1f(ul(u('fw',id,'sp')),  p.wspd  != null ? p.wspd  : 0.5);
+        glCtx.uniform1f(ul(u('fw',id,'ang')), ((p.angle != null ? p.angle : 0)) * Math.PI / 180);
+        glCtx.uniform1i(ul(u('fw',id,'nt')),  ntMap[p.noiseType] != null ? ntMap[p.noiseType] : 0);
         break;
       }
     }

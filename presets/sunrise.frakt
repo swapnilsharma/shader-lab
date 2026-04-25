@@ -1,21 +1,63 @@
 {
-  "version": "1",
+  "version": "2",
   "name": "sunrise",
-  "canvas": { "background": "#FFF2D8" },
+  "canvas": {
+    "background": "#FFF2D8"
+  },
   "layers": [
-    { "type": "color-grade", "name": "Color Grade", "properties": {
-      "contrast": 1.04, "sat": 1.15, "bright": 0.03, "hue": 0
-    }},
-    { "type": "gradient", "name": "Gradient", "properties": {
-      "seed": 55, "speed": 0.06, "freqX": 0.5, "freqY": 2.4,
-      "angle": 8, "scale": 1.0, "amplitude": 1.4, "softness": 1.1, "blend": 0.5,
-      "stops": [
-        { "color": "#FFF5DE" },
-        { "color": "#FFD08A" },
-        { "color": "#FF8A6E" },
-        { "color": "#E24B8C" },
-        { "color": "#6B2A8A" }
-      ]
-    }}
+    {
+      "type": "color-grade",
+      "name": "Color Grade",
+      "properties": {
+        "contrast": 1.04,
+        "sat": 1.15,
+        "bright": 0.03,
+        "hue": 0
+      },
+      "visible": true,
+      "opacity": 1.0,
+      "blendMode": "normal",
+      "speed": 1.0,
+      "timeOffset": 0.0,
+      "paused": false
+    },
+    {
+      "type": "gradient",
+      "name": "Gradient",
+      "properties": {
+        "seed": 55,
+        "speed": 0.06,
+        "freqX": 0.5,
+        "freqY": 2.4,
+        "angle": 8,
+        "scale": 1.0,
+        "amplitude": 1.4,
+        "softness": 1.1,
+        "blend": 0.5,
+        "stops": [
+          {
+            "color": "#FFF5DE"
+          },
+          {
+            "color": "#FFD08A"
+          },
+          {
+            "color": "#FF8A6E"
+          },
+          {
+            "color": "#E24B8C"
+          },
+          {
+            "color": "#6B2A8A"
+          }
+        ]
+      },
+      "visible": true,
+      "opacity": 1.0,
+      "blendMode": "normal",
+      "speed": 1.0,
+      "timeOffset": 0.0,
+      "paused": false
+    }
   ]
 }
