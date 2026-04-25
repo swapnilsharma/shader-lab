@@ -3414,7 +3414,7 @@ function bakeShaderForStandalone(raw, uniforms) {
 //
 // The generated file is heavily commented so anyone who opens it can
 // copy the shader + the 40-line WebGL runtime into their own page.
-function tplVanillaIndexHtml(name, w, h, bakedShader, imageSrc) {
+function tplVanillaIndexHtml(name, w, h, bakedShader, imageSrc, radiusPx) {
   // Image-loading snippet. Only emitted if the scene uses an image
   // layer; keeps the minimal case truly minimal.
   const imgLoad = imageSrc ? `
@@ -3444,88 +3444,90 @@ function tplVanillaIndexHtml(name, w, h, bakedShader, imageSrc) {
   })();
 ` : '';
 
+  const radius = Math.max(0, Math.round(radiusPx || 0));
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>${name} — Frakt shader</title>
-
-<!--
-  ============================================================
-  ${name} — WebGL shader exported from Frakt
-  ============================================================
-
-  Everything this page needs ships in this folder:
-    • HTML + CSS        → layout for the canvas + the caption
-    • Fragment shader   → const FRAG string inside <script>
-    • WebGL runtime     → 40-ish lines inside <script>
-    • Image (if any)    → sibling file (e.g. image.png) loaded by URL
-
-  No build step, no dependencies, no network calls. Open this file
-  via a local web server (e.g. python3 -m http.server) so the browser
-  can fetch the image. To lift the shader into your own page, see
-  the HOW TO EMBED section at the bottom of this file.
--->
-
 <style>
-  /* Dark-themed page chrome. The only styles that actually affect
-     the shader are the ones on .stage and #frakt-canvas — feel free
-     to strip everything else. */
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
-  body { margin: 0; padding: 40px 20px; background: #0d0d0d; color: #d0d0d0;
-         font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
-  main { max-width: 1200px; margin: 0 auto; }
+  body { margin: 0; background: #0d0d0d; color: #888;
+         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+         font-size: 13px; line-height: 1.6; }
 
-  /* The stage wraps the canvas, and centers via inline-block + text-align.
-     overflow-x: auto means the page scrolls horizontally rather than
-     squishing the canvas when the viewport is narrower than ${w}px. */
-  .stage-wrap { overflow-x: auto; text-align: center; }
-  .stage { position: relative; display: inline-block; padding: 24px;
-           background: #111; border: 1px solid #1a1a1a; border-radius: 8px;
-           text-align: left; }
+  /* Canvas: native size when viewport is wide enough; scaled-to-fit when not.
+     The inline width/height set by JS are overridden so CSS can scale it
+     down (height auto + aspect-ratio preserves the shape). */
+  .canvas-wrap { display: flex; justify-content: center; padding: 0; }
+  #frakt-canvas {
+    display: block;
+    width: ${w}px;
+    max-width: 100vw !important;
+    height: auto !important;
+    aspect-ratio: ${w} / ${h};
+    border-radius: ${radius}px;
+    background: #000;
+  }
 
-  /* Canvas is rendered at exactly the size picked in Frakt (${w}×${h} CSS
-     pixels). The internal framebuffer is scaled by devicePixelRatio so
-     the image stays crisp on retina displays. */
-  #frakt-canvas { display: block; width: ${w}px; height: ${h}px;
-                  border-radius: 4px; background: #000; }
+  .frakt-credit {
+    position: fixed; top: 16px; right: 16px; z-index: 100;
+    font-family: monospace; font-size: 11px;
+    color: #aaa; text-decoration: none;
+    background: #1a1a1a; border: 1px solid #2a2a2a;
+    border-radius: 999px;
+    padding: 6px 14px;
+    letter-spacing: 0.04em;
+    transition: color 0.2s, background 0.2s, border-color 0.2s;
+  }
+  .frakt-credit:hover { color: #fff; background: #222; border-color: #444; }
 
-  .credit { position: absolute; right: 36px; bottom: 36px; font-size: 10px;
-            color: #555; letter-spacing: 0.1em; text-transform: uppercase;
-            font-family: ui-monospace, SF Mono, monospace; }
-  h2 { font-size: 11px; color: #888; letter-spacing: 0.14em; text-transform: uppercase;
-       margin: 36px 0 10px; font-weight: 600; }
-  pre { background: #141414; border: 1px solid #1a1a1a; border-radius: 6px;
-        padding: 18px 22px; margin: 0; overflow-x: auto;
-        font-family: ui-monospace, SF Mono, monospace; font-size: 12.5px;
-        line-height: 1.65; color: #c5c5c5; white-space: pre-wrap; }
+  main { max-width: 860px; margin: 48px auto 64px; padding: 0 20px; }
+  .frakt-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 28px; }
+  .frakt-wordmark { font-family: monospace; font-size: 15px; font-weight: bold;
+                    color: #e0e0e0; letter-spacing: 0.02em; }
+  .frakt-tagline  { font-family: monospace; font-size: 11px;
+                    color: #444; letter-spacing: 0.02em; }
+
+  .section-label { font-family: monospace; font-size: 11px;
+                   color: #555; text-transform: uppercase; letter-spacing: 0.08em;
+                   margin: 32px 0 12px; }
+  .doc-text { margin: 0; color: #888; white-space: pre-wrap;
+              font-family: monospace; font-size: 13px; line-height: 1.65; }
+  .doc-text code { color: #aaa; }
+  pre { background: #111; border: 1px solid #1e1e1e; border-radius: 4px;
+        padding: 16px; margin: 0; overflow-x: auto; color: #aaa;
+        font-family: monospace; font-size: 12.5px; line-height: 1.6;
+        white-space: pre-wrap; }
 </style>
 </head>
 <body>
+<a href="https://frakt.app" target="_blank" rel="noopener" class="frakt-credit">Made with Frakt</a>
+
+<div class="canvas-wrap">
+  <canvas id="frakt-canvas" width="${w}" height="${h}"></canvas>
+</div>
+
 <main>
-  <!-- Stage: the only DOM the shader itself cares about is #frakt-canvas. -->
-  <div class="stage-wrap">
-    <div class="stage">
-      <canvas id="frakt-canvas" width="${w}" height="${h}"></canvas>
-      <span class="credit">Designed in Frakt.app</span>
-    </div>
+  <div class="frakt-header">
+    <span class="frakt-wordmark">frakt</span>
+    <span class="frakt-tagline">Shaders for the rest of us</span>
   </div>
 
-  <h2>About this file</h2>
-  <pre>Self-contained WebGL shader exported from Frakt.
-All shader code + uniform values are baked into this single HTML file
-— no build step, no dependencies. Just open it in any modern browser.
+  <div class="section-label">Your Shader</div>
+  <p class="doc-text">Open this file in any browser and it runs.
+No install. No build step. No dependencies.
 
-The canvas renders at ${w}×${h} CSS pixels. Resizing the canvas in
-your own page is as easy as changing the width/height attributes
-below and updating the style width/height to match.</pre>
+The canvas is ${w}×${h}px. To resize, change the width
+and height attributes on the &lt;canvas&gt; element and update the
+CSS to match. The shader is resolution-agnostic.</p>
 
-  <h2>How to embed the shader in your page</h2>
+  <div class="section-label">Embed in your project</div>
   <pre>1. Copy the &lt;canvas id="frakt-canvas" ...&gt; element into your markup.
 2. Copy everything inside the &lt;script&gt; block below into your page.
 3. Adjust width / height in both the canvas attributes and the CSS
-   to whatever size you want. The shader itself is resolution-agnostic.
+   to whatever size you want.
 4. If the shader uses an image, keep the (function loadImg(){...})()
    block and update the img.src path to point to your own file.</pre>
 </main>
@@ -3646,7 +3648,7 @@ ${imgLoad}
 // Single-file index.html. Three.js is imported as an ES module from a
 // CDN — that's an absolute HTTPS URL so it works from file:// (unlike
 // `./shader.js` imports). All logic is inline.
-function tplThreeIndexHtml(name, w, h, bakedShader, imageSrc) {
+function tplThreeIndexHtml(name, w, h, bakedShader, imageSrc, radiusPx) {
   const imgBlock = imageSrc ? `
       const imgLoader = new THREE.TextureLoader();
       imgLoader.load(${JSON.stringify(imageSrc)}, (tex) => {
@@ -3661,6 +3663,7 @@ function tplThreeIndexHtml(name, w, h, bakedShader, imageSrc) {
       });
 ` : '';
 
+  const radius = Math.max(0, Math.round(radiusPx || 0));
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -3669,33 +3672,85 @@ function tplThreeIndexHtml(name, w, h, bakedShader, imageSrc) {
 <style>
   :root { color-scheme: dark; }
   * { box-sizing: border-box; }
-  body { margin: 0; padding: 40px 20px; background: #0d0d0d; color: #d0d0d0;
-         font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
-  main { max-width: 960px; margin: 0 auto; }
-  .stage { position: relative; display: flex; justify-content: center; align-items: center;
-           padding: 24px; background: #111; border: 1px solid #1a1a1a; border-radius: 8px; }
-  .stage canvas { display: block; max-width: 100%; height: auto; border-radius: 4px; background: #000; }
-  .credit { position: absolute; right: 36px; bottom: 36px; font-size: 10px;
-            color: #555; letter-spacing: 0.1em; text-transform: uppercase;
-            font-family: ui-monospace, SF Mono, monospace; }
-  h2 { font-size: 11px; color: #888; letter-spacing: 0.14em; text-transform: uppercase;
-       margin: 36px 0 10px; font-weight: 600; }
-  pre { background: #141414; border: 1px solid #1a1a1a; border-radius: 6px;
-        padding: 18px 22px; margin: 0; overflow-x: auto;
-        font-family: ui-monospace, SF Mono, monospace; font-size: 12.5px;
-        line-height: 1.65; color: #c5c5c5; white-space: pre-wrap; }
+  body { margin: 0; background: #0d0d0d; color: #888;
+         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+         font-size: 13px; line-height: 1.6; }
+
+  /* Canvas: native size when viewport is wide enough, scaled-to-fit otherwise.
+     Three.js renderer.setSize sets the backing buffer; CSS handles the
+     responsive display sizing via aspect-ratio. */
+  .canvas-wrap { display: flex; justify-content: center; padding: 0; }
+  .canvas-wrap canvas {
+    display: block;
+    width: ${w}px;
+    max-width: 100vw !important;
+    height: auto !important;
+    aspect-ratio: ${w} / ${h};
+    border-radius: ${radius}px;
+    background: #000;
+  }
+
+  .frakt-credit {
+    position: fixed; top: 16px; right: 16px; z-index: 100;
+    font-family: monospace; font-size: 11px;
+    color: #aaa; text-decoration: none;
+    background: #1a1a1a; border: 1px solid #2a2a2a;
+    border-radius: 999px;
+    padding: 6px 14px;
+    letter-spacing: 0.04em;
+    transition: color 0.2s, background 0.2s, border-color 0.2s;
+  }
+  .frakt-credit:hover { color: #fff; background: #222; border-color: #444; }
+
+  main { max-width: 860px; margin: 48px auto 64px; padding: 0 20px; }
+  .frakt-header { display: flex; align-items: baseline; gap: 10px; margin-bottom: 28px; }
+  .frakt-wordmark { font-family: monospace; font-size: 15px; font-weight: bold;
+                    color: #e0e0e0; letter-spacing: 0.02em; }
+  .frakt-tagline  { font-family: monospace; font-size: 11px;
+                    color: #444; letter-spacing: 0.02em; }
+
+  .section-label { font-family: monospace; font-size: 11px;
+                   color: #555; text-transform: uppercase; letter-spacing: 0.08em;
+                   margin: 32px 0 12px; }
+  .doc-text { margin: 0; color: #888; white-space: pre-wrap;
+              font-family: monospace; font-size: 13px; line-height: 1.65; }
+  pre { background: #111; border: 1px solid #1e1e1e; border-radius: 4px;
+        padding: 16px; margin: 0; overflow-x: auto; color: #aaa;
+        font-family: monospace; font-size: 12.5px; line-height: 1.6;
+        white-space: pre-wrap; }
 </style>
 </head>
 <body>
+<a href="https://frakt.app" target="_blank" rel="noopener" class="frakt-credit">Made with Frakt</a>
+
+<div class="canvas-wrap" id="stage"></div>
+
 <main>
-  <div class="stage" id="stage">
-    <span class="credit">Designed in Frakt.app</span>
+  <div class="frakt-header">
+    <span class="frakt-wordmark">frakt</span>
+    <span class="frakt-tagline">Shaders for the rest of us</span>
   </div>
 
-  <h2>About this file</h2>
-  <pre>Self-contained Three.js demo exported from Frakt. Three.js is loaded
-from a CDN as an ES module — everything else (shader, uniform values,
-render loop) is inline. Open in any modern browser.</pre>
+  <div class="section-label">Your Shader</div>
+  <p class="doc-text">Open this file in any browser and it runs — Three.js loads
+from CDN, everything else is inline.
+
+To use in your own Three.js project, see the integration
+snippet below.</p>
+
+  <div class="section-label">Embed in your project</div>
+  <pre>import * as THREE from 'three';
+
+const material = new THREE.ShaderMaterial({
+  vertexShader,         // see &lt;script&gt; below
+  fragmentShader,       // see &lt;script&gt; below — your baked shader
+  uniforms: {
+    u_t:   { value: 0 },
+    u_res: { value: new THREE.Vector2(W, H) }
+  }
+});
+
+// Drive u_t from a clock; resize uniforms when the canvas resizes.</pre>
 </main>
 
 <script type="module">
@@ -3723,7 +3778,7 @@ ${imgBlock}
   const dpr = Math.min(window.devicePixelRatio || 1, 2);
   renderer.setPixelRatio(dpr);
   renderer.setSize(W, H, false);
-  document.getElementById('stage').insertBefore(renderer.domElement, document.querySelector('.credit'));
+  document.getElementById('stage').appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
   const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -3799,7 +3854,7 @@ async function exportVanillaHTML() {
     const baked    = bakeShaderForStandalone(shader, uniforms);
     const imgBlob  = await fraktImageBlob();
     const imgSrc   = imgBlob ? 'image.png' : null;
-    const html     = tplVanillaIndexHtml(chosen, frameState.w, frameState.h, baked, imgSrc);
+    const html     = tplVanillaIndexHtml(chosen, frameState.w, frameState.h, baked, imgSrc, frameRadiusPx());
     if (imgBlob) {
       await downloadExportZip(html, imgBlob, `frakt-${slug}-shader.zip`);
       showToast('Vanilla HTML zip downloaded');
@@ -3824,7 +3879,7 @@ async function exportThreeJS() {
     const baked    = bakeShaderForStandalone(shader, uniforms);
     const imgBlob  = await fraktImageBlob();
     const imgSrc   = imgBlob ? 'image.png' : null;
-    const html     = tplThreeIndexHtml(chosen, frameState.w, frameState.h, baked, imgSrc);
+    const html     = tplThreeIndexHtml(chosen, frameState.w, frameState.h, baked, imgSrc, frameRadiusPx());
     if (imgBlob) {
       await downloadExportZip(html, imgBlob, `frakt-${slug}-threejs.zip`);
       showToast('Three.js HTML zip downloaded');
