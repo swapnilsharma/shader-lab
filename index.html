@@ -313,15 +313,15 @@
       <div class="brand-panel">
         <div class="brand-howto" id="brand-howto">
           <div class="brand-howto-label">How it works</div>
-          <div class="brand-howto-tile">
-            <button class="brand-howto-close" id="brand-howto-close" aria-label="Hide">×</button>
-            <button class="brand-howto-play" aria-label="Play video">
-              <svg viewBox="0 0 28 28" width="40" height="40" aria-hidden="true">
-                <circle cx="14" cy="14" r="13" fill="#0d0d0d"/>
+          <button class="brand-howto-thumb" id="brand-howto-thumb" type="button" aria-label="Play video">
+            <img src="assets/video-01-thumbnail.png" alt="">
+            <span class="brand-howto-play-icon" aria-hidden="true">
+              <svg viewBox="0 0 28 28" width="40" height="40">
+                <circle cx="14" cy="14" r="13" fill="rgba(0,0,0,0.7)"/>
                 <polygon points="11,8.5 20,14 11,19.5" fill="#fff"/>
               </svg>
-            </button>
-          </div>
+            </span>
+          </button>
         </div>
         <div class="brand-row">
           <img class="brand-icon" src="assets/frakt-ico-128.png" alt="" width="32" height="32">
@@ -376,6 +376,14 @@
       <span id="status-dims">800 × 600</span>
     </div>
   </footer>
+</div>
+
+<!-- ═══ VIDEO POPUP (PIP) ═══ -->
+<div class="video-popup hidden" id="video-popup" aria-label="Video player">
+  <div class="video-popup-header" id="video-popup-header">
+    <button class="video-popup-close" id="video-popup-close" type="button" aria-label="Close video">×</button>
+  </div>
+  <div class="video-popup-body" id="video-popup-body"></div>
 </div>
 
 <!-- ═══ BRAND PANEL POPUPS ═══ -->
