@@ -22,10 +22,12 @@ Shader Lab gives you a real-time canvas and a stack of composable visual effects
 ```
 git clone https://github.com/your-username/shader-lab.git
 cd shader-lab
-open index.html
+python3 -m http.server 5500
 ```
 
-That's it. No `npm install`, no bundler, no dependencies. Works in any modern browser.
+Then open <http://localhost:5500> in your browser. Any static file server works (`npx serve`, the VS Code Live Server extension, etc). A server is required because the preset gallery loads `.frakt` files via `fetch`, which browsers block on `file://`.
+
+No `npm install`, no bundler, no dependencies.
 
 
 

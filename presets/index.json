@@ -1,0 +1,16 @@
+{
+  "presets": [
+    { "id": "Agate", "file": "Agate.frakt", "name": "Agate" },
+    { "id": "aurora", "file": "aurora.frakt", "name": "aurora" },
+    { "id": "cosmos", "file": "cosmos.frakt", "name": "cosmos" },
+    { "id": "ember", "file": "ember.frakt", "name": "ember" },
+    { "id": "holo", "file": "holo.frakt", "name": "holo" },
+    { "id": "Liquid Prism", "file": "Liquid Prism.frakt", "name": "Liquid Prism" },
+    { "id": "Lux", "file": "Lux.frakt", "name": "Lux" },
+    { "id": "minimal", "file": "minimal.frakt", "name": "minimal" },
+    { "id": "plasma", "file": "plasma.frakt", "name": "plasma" },
+    { "id": "silk", "file": "silk.frakt", "name": "silk" },
+    { "id": "Static", "file": "Static.frakt", "name": "Static" },
+    { "id": "sunrise", "file": "sunrise.frakt", "name": "sunrise" }
+  ]
+}

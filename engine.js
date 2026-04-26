@@ -2926,7 +2926,8 @@ function populateGalleryGrid() {
   const grid = document.getElementById('gallery-grid');
   if (!grid) return;
   grid.innerHTML = '';
-  PRESET_ORDER.forEach(name => {
+  PRESET_ORDER.forEach(id => {
+    const preset = PRESETS[id];
     const card = document.createElement('div');
     card.className = 'preset-card preset-card--gallery';
     // Wrap the canvas so we can absolutely-position the Remix hover
@@ -2945,12 +2946,12 @@ function populateGalleryGrid() {
     thumb.appendChild(remix);
     const label = document.createElement('div');
     label.className = 'preset-card-label';
-    label.textContent = name;
+    label.textContent = (preset && preset.raw && preset.raw.name) || id;
     card.appendChild(thumb);
     card.appendChild(label);
-    card.addEventListener('click', () => { closeGallery(); loadPreset(name); });
+    card.addEventListener('click', () => { closeGallery(); loadPreset(id); });
     grid.appendChild(card);
-    createMiniRenderer(cvs, name);
+    createMiniRenderer(cvs, id);
   });
 }
 
@@ -2959,7 +2960,8 @@ function populateGallery() {
   gallery.innerHTML = '';
 
   // 7 preset cards
-  MODAL_PRESETS.forEach(name => {
+  MODAL_PRESETS.forEach(id => {
+    const preset = PRESETS[id];
     const card = document.createElement('div');
     card.className = 'preset-card';
     const cvs = document.createElement('canvas');
@@ -2969,12 +2971,12 @@ function populateGallery() {
     cvs.style.height = '110px';
     const label = document.createElement('div');
     label.className = 'preset-card-label';
-    label.textContent = name;
+    label.textContent = (preset && preset.raw && preset.raw.name) || id;
     card.appendChild(cvs);
     card.appendChild(label);
-    card.addEventListener('click', () => loadPreset(name));
+    card.addEventListener('click', () => loadPreset(id));
     gallery.appendChild(card);
-    createMiniRenderer(cvs, name);
+    createMiniRenderer(cvs, id);
   });
 
   // Blank card
@@ -2992,30 +2994,58 @@ function populateGallery() {
   gallery.appendChild(blank);
 }
 
-function loadPreset(name) {
-  const preset = PRESETS[name]; if (!preset) return;
-  closeModal();
+// Canonical scene loader. Accepts a raw .frakt JSON object (the same shape
+// produced by saveFraktFile) and replaces the current scene. Used by:
+//   - opening a .frakt file (Scene → Open)
+//   - selecting a preset from the gallery / welcome modal
+//   - loading a shared URL scene (future)
+function loadScene(data) {
+  if (!data || !Array.isArray(data.layers)) return false;
+  const incoming = data.layers.filter(l => l && KNOWN_LAYER_TYPES.has(l.type));
+
   layers = [];
   layerIdCounter = 0;
   selectedLayerId = null;
-  frameState.bg = preset.bg;
-  preset.layers.forEach(l => {
+
+  if (data.canvas && typeof data.canvas === 'object') {
+    if (typeof data.canvas.width  === 'number') frameState.w  = data.canvas.width;
+    if (typeof data.canvas.height === 'number') frameState.h  = data.canvas.height;
+    if (typeof data.canvas.background === 'string') frameState.bg = data.canvas.background;
+  }
+
+  incoming.forEach(l => {
     const props = l.properties || {};
     const hadLegacySpeed = (props.speed != null) || (props.spd != null);
     const layer = createLayer(l.type, props);
     if (l.name) layer.name = l.name;
-    if (l.opacity !== undefined) layer.opacity = l.opacity;
-    if (l.blendMode) layer.blendMode = l.blendMode;
+    if (typeof l.visible === 'boolean') layer.visible = l.visible;
+    if (typeof l.opacity === 'number') layer.opacity = l.opacity;
+    if (typeof l.blendMode === 'string') layer.blendMode = l.blendMode;
     if (typeof l.speed === 'number' && !hadLegacySpeed) layer.speed = l.speed;
     if (typeof l.timeOffset === 'number') layer.timeOffset = l.timeOffset;
     if (typeof l.paused === 'boolean') layer.paused = l.paused;
     ensureV2Fields(layer);
     layers.push(layer);
   });
+
+  if (typeof data.name === 'string' && data.name.trim()) {
+    fileName = data.name.trim();
+    const lbl = document.getElementById('topbar-file-label');
+    if (lbl) lbl.textContent = fileName;
+  }
+
   if (layers.length) selectedLayerId = layers[0].id;
+  applyFrame();
   history = []; historyIdx = -1;
   renderUI(); needsRecompile = true;
   snapshot();
+  return true;
+}
+
+function loadPreset(name) {
+  const preset = PRESETS[name]; if (!preset) return;
+  closeModal();
+  loadScene(preset.raw);
 }
 
 function loadBlank() {
@@ -4555,39 +4585,8 @@ function onFraktUpload(input) {
     try {
       const data = JSON.parse(reader.result);
       if (!data || data.version == null || !Array.isArray(data.layers)) throw new Error('schema');
-      const incoming = data.layers.filter(l => l && KNOWN_LAYER_TYPES.has(l.type));
-
       closeAllOverlays();
-      layers = []; layerIdCounter = 0; selectedLayerId = null;
-      if (data.canvas && typeof data.canvas === 'object') {
-        if (typeof data.canvas.width === 'number')  frameState.w = data.canvas.width;
-        if (typeof data.canvas.height === 'number') frameState.h = data.canvas.height;
-        if (typeof data.canvas.background === 'string') frameState.bg = data.canvas.background;
-      }
-      incoming.forEach(l => {
-        const props = l.properties || {};
-        const hadLegacySpeed = (props.speed != null) || (props.spd != null);
-        const layer = createLayer(l.type, props);
-        if (l.name) layer.name = l.name;
-        if (typeof l.visible === 'boolean') layer.visible = l.visible;
-        if (typeof l.opacity === 'number') layer.opacity = l.opacity;
-        if (typeof l.blendMode === 'string') layer.blendMode = l.blendMode;
-        if (typeof l.speed === 'number' && !hadLegacySpeed) layer.speed = l.speed;
-        if (typeof l.timeOffset === 'number') layer.timeOffset = l.timeOffset;
-        if (typeof l.paused === 'boolean') layer.paused = l.paused;
-        ensureV2Fields(layer);
-        layers.push(layer);
-      });
-      if (typeof data.name === 'string' && data.name.trim()) {
-        fileName = data.name.trim();
-        const lbl = document.getElementById('topbar-file-label');
-        if (lbl) lbl.textContent = fileName;
-      }
-      if (layers.length) selectedLayerId = layers[0].id;
-      applyFrame();
-      history = []; historyIdx = -1;
-      renderUI(); needsRecompile = true;
-      snapshot();
+      if (!loadScene(data)) throw new Error('schema');
       showToast(`Opened ${fileName}.frakt`);
     } catch (err) {
       showToast('Failed to load file. Invalid .frakt format.', true);

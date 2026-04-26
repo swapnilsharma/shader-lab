@@ -1,0 +1,107 @@
+{
+  "version": "2",
+  "name": "Liquid Prism",
+  "createdAt": "2026-04-26T19:27:24.751Z",
+  "canvas": {
+    "width": 800,
+    "height": 600,
+    "background": "#000000"
+  },
+  "layers": [
+    {
+      "type": "color-grade",
+      "name": "Color Grade",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 1,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "contrast": 0.8,
+        "sat": 1,
+        "bright": -0.11,
+        "hue": 340,
+        "temperature": -0.2,
+        "tint": 0
+      }
+    },
+    {
+      "type": "bloom",
+      "name": "Bloom",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 1,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "threshold": 0.33,
+        "strength": 0.29,
+        "radius": 1.9
+      }
+    },
+    {
+      "type": "vignette",
+      "name": "Vignette",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 1,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "str": 1,
+        "soft": 0.38
+      }
+    },
+    {
+      "type": "chromatic-aberration",
+      "name": "Chromatic Aberration",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 1,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "spread": 0.0135,
+        "angle": 0
+      }
+    },
+    {
+      "type": "gradient",
+      "name": "Gradient",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 0.68,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "seed": 0,
+        "freqX": 2.4,
+        "freqY": 7.9,
+        "angle": 219,
+        "amplitude": 3,
+        "softness": 0.73,
+        "blend": 0.73,
+        "scale": 0.96,
+        "stops": [
+          {
+            "color": "#0A0A0A"
+          },
+          {
+            "color": "#3D3D3D"
+          },
+          {
+            "color": "#9A9A9A"
+          },
+          {
+            "color": "#F2F2F2"
+          }
+        ]
+      }
+    }
+  ]
+}
