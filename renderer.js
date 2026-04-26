@@ -160,56 +160,6 @@ function glslGradientFn(id) {
 }\n`;
 }
 
-// ── GLSL: liquid computation (shared by mesh-gradient + liquid effect) ──
-function glslLiquidBody(prefix, id) {
-  const p = k => u(prefix, id, k);
-  return `  float lq_seed=${p('seed')};
-  float lq_scale=${p('sc')};float lq_turbAmp=${p('ta')};
-  float lq_turbFreq=max(${p('tf')},0.01);int lq_turbIter=int(${p('ti')});
-  float lq_waveFreq=${p('wf')};float lq_distBias=${p('db')};
-  float lq_exposure=${p('ex')};float lq_contrast=${p('co')};float lq_saturation=${p('sa')};
-  vec3 lq_stops[5];
-  lq_stops[0]=${p('c0')};lq_stops[1]=${p('c1')};lq_stops[2]=${p('c2')};lq_stops[3]=${p('c3')};lq_stops[4]=${p('c4')};
-  vec2 lq_r=u_res;vec2 lq_p=(puv*lq_r*2.0-lq_r)/lq_r.y;
-  float lq_t=t*0.3;
-  float lq_sa=lq_seed*2.3999632;float lq_cs=cos(lq_sa),lq_sn=sin(lq_sa);
-  lq_p=mat2(lq_cs,-lq_sn,lq_sn,lq_cs)*lq_p;
-  float lq_sO1=fract(sin(lq_seed*127.1)*43758.5);
-  float lq_sO2=fract(sin(lq_seed*311.7)*43758.5);
-  float lq_sO3=fract(sin(lq_seed*269.5)*43758.5);
-  vec2 lq_sP=(vec2(lq_sO1,lq_sO2)-0.5)*6.2832;
-  float lq_tV=0.0,lq_tW=0.0;
-  for(float li=0.0;li<4.0;li++){
-    float lq_eph=li/4.0;
-    vec2 lq_q=lq_p*lq_scale;float lq_la=lq_sP.x,lq_ld=lq_sP.y;
-    for(int lj=2;lj<13;lj++){
-      if(lj>=lq_turbIter)break;float lq_fj=float(lj);
-      lq_q+=lq_turbAmp*sin(lq_q.yx/lq_turbFreq*lq_fj+lq_t+vec2(lq_la,lq_ld))/lq_fj;
-      lq_la+=cos(lq_fj+lq_ld*1.2+lq_q.x*2.0-lq_t+lq_sO3*lq_fj);
-      lq_ld+=sin(lq_fj*lq_q.y+lq_la+lq_sO1+lq_t);
-    }
-    float lq_v=0.5+0.5*sin(length(lq_q.yx+vec2(lq_la,lq_ld)*0.2)*lq_waveFreq+li*li+lq_sO1);
-    float lq_w=smoothstep(0.0,0.5,lq_eph)*smoothstep(1.0,0.5,lq_eph);
-    lq_tV+=lq_v*lq_w;lq_tW+=lq_w;
-  }
-  float lq_val=lq_tV/max(lq_tW,0.001);
-  lq_val=clamp((lq_val-0.3)/0.4,0.0,1.0);
-  lq_val=pow(lq_val,exp(-lq_distBias));
-  for(int si=0;si<5;si++) lq_stops[si]=pow(lq_stops[si],vec3(2.2));
-  float lq_ti=clamp(lq_val,0.0,1.0)*4.0;
-  int lq_idx=int(floor(lq_ti));float lq_lt=fract(lq_ti);
-  vec3 lq_colA=lq_stops[0],lq_colB=lq_stops[1];
-  if(lq_idx==1){lq_colA=lq_stops[1];lq_colB=lq_stops[2];}
-  if(lq_idx==2){lq_colA=lq_stops[2];lq_colB=lq_stops[3];}
-  if(lq_idx>=3){lq_colA=lq_stops[3];lq_colB=lq_stops[4];}
-  vec3 lq_col=mix(lq_colA,lq_colB,lq_lt)*lq_exposure;
-  float lq_lum=dot(lq_col,vec3(0.2126,0.7152,0.0722));
-  lq_col=clamp((lq_col-0.5)*lq_contrast+0.5,0.0,1.0);
-  float lq_lum2=dot(lq_col,vec3(0.2126,0.7152,0.0722));
-  lq_col=mix(vec3(lq_lum2),lq_col,lq_saturation);
-  vec3 lq_result=pow(clamp(lq_col,0.0,1.0),vec3(0.4545));`;
-}
-
 function glslMeshGradientBody(id) {
   const p = k => u('mg', id, k);
   const cols = u('mg', id, 'cols');
@@ -447,9 +397,6 @@ function glslUniformDecls(layers) {
         s += `uniform vec3 ${u('ci',id,'cols')}[6];\n`;
         s += `uniform float ${u('ci',id,'sw')},${u('ci',id,'so')},${u('ci',id,'shb')},${u('ci',id,'shx')},${u('ci',id,'shy')},${u('ci',id,'sho')};\n`;
         s += `uniform vec3 ${u('ci',id,'sc')},${u('ci',id,'shc')};\n`; break;
-      case 'liquid':
-        s += `uniform float ${u('lq',id,'seed')},${u('lq',id,'sc')},${u('lq',id,'ta')},${u('lq',id,'tf')},${u('lq',id,'ti')},${u('lq',id,'wf')},${u('lq',id,'db')},${u('lq',id,'ex')},${u('lq',id,'co')},${u('lq',id,'sa')};\n`;
-        s += `uniform vec3 ${u('lq',id,'c0')},${u('lq',id,'c1')},${u('lq',id,'c2')},${u('lq',id,'c3')},${u('lq',id,'c4')};\n`; break;
       case 'grain':
         s += `uniform float ${u('gn',id,'am')},${u('gn',id,'sz')},${u('gn',id,'an')},${u('gn',id,'st')},${u('gn',id,'sa')},${u('gn',id,'sl')};\n`; break;
       case 'chromatic-aberration':
@@ -638,9 +585,6 @@ function glslShapeShadow(l) {
 function glslEffectInline(l) {
   const id = l.id;
   switch(l.type) {
-    case 'liquid': {
-      return `  {\n    float t=t_${id};\n    vec3 lq_orig=col;\n    vec2 puv=wuv;\n${glslLiquidBody('lq',id)}\n    col=mix(lq_orig,lq_result,u_op_${id});\n  }\n`;
-    }
     case 'grain': {
       const am=u('gn',id,'am'),sz=u('gn',id,'sz'),an=u('gn',id,'an'),st=u('gn',id,'st'),sa=u('gn',id,'sa'),sl=u('gn',id,'sl');
       return `  {\n    vec2 gp=gl_FragCoord.xy/${sz};\n    vec2 go=vec2(0.0);if(${an}>0.5)go+=vec2(floor(t_${id}*24.0)*7.3,floor(t_${id}*24.0)*3.7);\n    if(${st}>0.5){vec2 sd=vec2(cos(${sa}*0.01745),sin(${sa}*0.01745));float soff=dot(gp,vec2(-sd.y,sd.x));gp=vec2(dot(gp,sd)+fract(soff)*${sl},soff);}\n    float n=hash2(gp+go);col+=vec3((n-0.5)*${am}*u_op_${id});col=clamp(col,0.0,1.0);\n  }\n`;
@@ -779,8 +723,8 @@ function buildFragFromLayers(layers, frameState) {
     const idx = vis.indexOf(l);
     s += '  {\n';
     // Shadow outer `t` with this layer's local time so bare `t` references
-    // in inline effect emitters (grain/scanlines/wave) and embedded bodies
-    // (liquid) pick up the layer's speed / time offset / paused state.
+    // in inline effect emitters (grain/scanlines/wave) pick up the layer's
+    // speed / time offset / paused state.
     s += `    float t=t_${l.id};\n`;
     s += emitUvAbove(idx);
 
@@ -1126,24 +1070,6 @@ function setUniformsForLayers(glCtx, glProg, layerArr, frameState, t, nt, baseIm
         glCtx.uniform1f(ul(u('ci',id,'shy')), -(p.shadowY || 0));
         glCtx.uniform1f(ul(u('ci',id,'sho')), p.shadowOpacity != null ? p.shadowOpacity : 0.5);
         glCtx.uniform3f(ul(u('ci',id,'shc')), hr, hg, hb);
-        break;
-      }
-      case 'liquid': {
-        glCtx.uniform1f(ul(u('lq',id,'seed')),p.seed||12);
-        glCtx.uniform1f(ul(u('lq',id,'sc')),  p.scale||0.42);
-        glCtx.uniform1f(ul(u('lq',id,'ta')),  p.turbAmp||0.6);
-        glCtx.uniform1f(ul(u('lq',id,'tf')),  p.turbFreq||0.1);
-        glCtx.uniform1f(ul(u('lq',id,'ti')),  p.turbIter||7);
-        glCtx.uniform1f(ul(u('lq',id,'wf')),  p.waveFreq||3.8);
-        glCtx.uniform1f(ul(u('lq',id,'db')),  p.distBias||0.0);
-        glCtx.uniform1f(ul(u('lq',id,'ex')),  p.exposure||1.1);
-        glCtx.uniform1f(ul(u('lq',id,'co')),  p.contrast||1.1);
-        glCtx.uniform1f(ul(u('lq',id,'sa')),  p.saturation||1.0);
-        const lqArr = Array.isArray(p.colors) ? p.colors : [];
-        const c0=hexToRgb(lqArr[0]||p.color0||'#00001A'),c1=hexToRgb(lqArr[1]||p.color1||'#2962FF'),c2=hexToRgb(lqArr[2]||p.color2||'#40BCFF'),c3=hexToRgb(lqArr[3]||p.color3||'#FFB8B5'),c4=hexToRgb(lqArr[4]||p.color4||'#FFC14F');
-        glCtx.uniform3f(ul(u('lq',id,'c0')),...c0);glCtx.uniform3f(ul(u('lq',id,'c1')),...c1);
-        glCtx.uniform3f(ul(u('lq',id,'c2')),...c2);glCtx.uniform3f(ul(u('lq',id,'c3')),...c3);
-        glCtx.uniform3f(ul(u('lq',id,'c4')),...c4);
         break;
       }
       case 'grain': {
@@ -1524,13 +1450,6 @@ const THUMB_SHADERS = {
   vec2 suv = uv + w*0.25;
   vec3 col = mix(vec3(0.2,0.5,0.8), vec3(0.95,0.6,0.85), suv.x);
   col *= 0.7 + 0.3*sin(suv.y*10.0 + t);
-` + THUMB_TAIL,
-
-  liquid: THUMB_HEAD + `
-  float s = sin(uv.y*10.0 + t*2.0)*0.1;
-  float g = uv.x + s;
-  vec3 col = mix(vec3(0.1,0.2,0.5), vec3(0.8,0.9,1.0), g);
-  col += 0.1*sin(uv.y*20.0 + t*3.0);
 ` + THUMB_TAIL,
 
   ripple: THUMB_HEAD + `

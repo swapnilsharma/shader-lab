@@ -141,7 +141,6 @@ function defaultProperties(type) {
     case 'wave':         return { color: '#6B7FE8', freq: 4.0, amp: 0.15, pos: 0.5, edge: 0.06, angle: 0, bands: 1, bandGap: 0.2 };
     case 'rectangle':    return { x: 0, y: 0, w: 300, h: 200, radius: 0, blur: 0, rotation: 0, scale: 1.0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}], strokeColor: '#000000', strokeWidth: 0, strokeOpacity: 1.0, shadowColor: '#000000', shadowBlur: 0, shadowX: 0, shadowY: 0, shadowOpacity: 0 };
     case 'circle':       return { x: 0, y: 0, w: 240, h: 240, blur: 0, rotation: 0, scale: 1.0, fillMode: 'solid', color: '#E8E8E8', stops: [{color:'#FF0055'},{color:'#0088FF'}], strokeColor: '#000000', strokeWidth: 0, strokeOpacity: 1.0, shadowColor: '#000000', shadowBlur: 0, shadowX: 0, shadowY: 0, shadowOpacity: 0 };
-    case 'liquid':       return { seed: 12, scale: 0.42, turbAmp: 0.6, turbFreq: 0.1, turbIter: 7, waveFreq: 3.8, distBias: 0.0, exposure: 1.1, contrast: 1.1, saturation: 1.0, colors: ['#00001A', '#2962FF', '#40BCFF', '#FFB8B5', '#FFC14F'] };
     case 'grain':        return { amount: 0.08, size: 1.0, animated: 1, streak: 0, sangle: 90, slen: 6 };
     case 'chromatic-aberration': return { spread: 0.006, angle: 0 };
     case 'vignette':     return { str: 0.6, soft: 0.4 };
@@ -166,7 +165,7 @@ function isContentLayer(type) { return CONTENT_TYPES_ENGINE.has(type); }
 // Layer types whose shader actually samples uTime. Only these surface the
 // Animation zone (speed / time offset / paused) in the right panel.
 const LAYER_TYPES_WITH_ANIMATION = new Set([
-  'gradient', 'mesh-gradient', 'wave', 'liquid',
+  'gradient', 'mesh-gradient', 'wave',
   'noise-warp', 'flow-warp', 'ripple',
   'grain', 'scanlines'
 ]);
@@ -177,7 +176,6 @@ function layerSupportsAnimation(type) { return LAYER_TYPES_WITH_ANIMATION.has(ty
 function defaultLayerSpeed(type) {
   switch (type) {
     case 'mesh-gradient': return 0.3;
-    case 'liquid':        return 0.3;
     case 'wave':          return 0.6;
     default:              return 1.0;
   }
@@ -189,7 +187,7 @@ function layerIcon(type) {
 }
 
 function defaultLayerName(type) {
-  const NAMES = { solid:'Solid', gradient:'Gradient', 'linear-gradient':'Linear Gradient', 'radial-gradient':'Radial Gradient', 'noise-field':'Noise Field', 'mesh-gradient':'Mesh Gradient', image:'Image', 'noise-warp':'Noise Warp', wave:'Wave', rectangle:'Rectangle', circle:'Circle', liquid:'Liquid', grain:'Grain', 'chromatic-aberration':'Chromatic Aberration', vignette:'Vignette', 'color-grade':'Color Grade', posterize:'Posterize', pixelate:'Pixelate', scanlines:'Scanlines', duotone:'Duotone', bloom:'Bloom', ripple:'Ripple', 'n-tone':'N-Tone', glow:'Glow', 'polar-remap':'Polar Remap', 'flow-warp':'Flow Warp' };
+  const NAMES = { solid:'Solid', gradient:'Gradient', 'linear-gradient':'Linear Gradient', 'radial-gradient':'Radial Gradient', 'noise-field':'Noise Field', 'mesh-gradient':'Mesh Gradient', image:'Image', 'noise-warp':'Noise Warp', wave:'Wave', rectangle:'Rectangle', circle:'Circle', grain:'Grain', 'chromatic-aberration':'Chromatic Aberration', vignette:'Vignette', 'color-grade':'Color Grade', posterize:'Posterize', pixelate:'Pixelate', scanlines:'Scanlines', duotone:'Duotone', bloom:'Bloom', ripple:'Ripple', 'n-tone':'N-Tone', glow:'Glow', 'polar-remap':'Polar Remap', 'flow-warp':'Flow Warp' };
   return NAMES[type] || type;
 }
 
@@ -242,26 +240,6 @@ function migratePosterizeProps(props, override) {
   props.colors = props.colors.slice(0, 4);
 }
 
-// Legacy liquid {color0..color4} → colors[5]
-function migrateLiquidProps(props, override) {
-  const overrideHasArr = override && Array.isArray(override.colors) && override.colors.length >= 5;
-  const hasLegacy = override && (override.color0 || override.color1 || override.color2 || override.color3 || override.color4);
-  if (!overrideHasArr && hasLegacy) {
-    props.colors = [
-      override.color0 || '#00001A',
-      override.color1 || '#2962FF',
-      override.color2 || '#40BCFF',
-      override.color3 || '#FFB8B5',
-      override.color4 || '#FFC14F',
-    ];
-  }
-  delete props.color0; delete props.color1; delete props.color2; delete props.color3; delete props.color4;
-  if (!Array.isArray(props.colors) || props.colors.length < 5) {
-    props.colors = ['#00001A', '#2962FF', '#40BCFF', '#FFB8B5', '#FFC14F'];
-  }
-  props.colors = props.colors.slice(0, 5);
-}
-
 function migrateStopsProps(props) {
   if (!Array.isArray(props.stops) || props.stops.length < 2) {
     props.stops = [{ color: '#FF0055' }, { color: '#0088FF' }];
@@ -312,13 +290,12 @@ function createLayer(type, propsOverride) {
   if (type === 'duotone') migrateDuotoneProps(props, propsOverride);
   if (type === 'posterize') migratePosterizeProps(props, propsOverride);
   if (type === 'n-tone') migrateNToneProps(props);
-  if (type === 'liquid') migrateLiquidProps(props, propsOverride);
 
   // Speed deduplication migration: legacy `properties.speed` (gradient,
-  // mesh-gradient, liquid) and `properties.spd` (wave, ripple) were the
+  // mesh-gradient) and `properties.spd` (wave, ripple) were the
   // canonical animation rate. Move them onto layer.speed and drop from props.
   let layerSpeed = defaultLayerSpeed(type);
-  if (props.speed != null && (type === 'gradient' || type === 'mesh-gradient' || type === 'liquid')) {
+  if (props.speed != null && (type === 'gradient' || type === 'mesh-gradient')) {
     layerSpeed = props.speed;
     delete props.speed;
   }
@@ -1582,31 +1559,6 @@ function getPropertyZones(l) {
       };
     }
 
-    case 'liquid': {
-      const lc = Array.isArray(p.colors) ? p.colors : [];
-      return {
-        appearance: [
-          renderColorsIdxRow(id, 0, lc[0] || '#00001A', 'Color 1'),
-          renderColorsIdxRow(id, 1, lc[1] || '#2962FF', 'Color 2'),
-          renderColorsIdxRow(id, 2, lc[2] || '#40BCFF', 'Color 3'),
-          renderColorsIdxRow(id, 3, lc[3] || '#FFB8B5', 'Color 4'),
-          renderColorsIdxRow(id, 4, lc[4] || '#FFC14F', 'Color 5'),
-        ].join(''),
-        effect: [
-          S('turbAmp',    'Turbulence', p.turbAmp    || 0.6, 0.1,  2.0,  0.01),
-          S('turbFreq',   'Turb Freq',  p.turbFreq   || 0.1, 0.01, 0.5,  0.005),
-          S('turbIter',   'Turb Iter',  p.turbIter   || 7,   3,    12,   1),
-          S('waveFreq',   'Wave Freq',  p.waveFreq   || 3.8, 1.0,  10.0, 0.1),
-          S('exposure',   'Exposure',   p.exposure   || 1.1, 0.5,  2.0,  0.01),
-          S('saturation', 'Saturation', p.saturation || 1.0, 0.0,  2.0,  0.01),
-        ].join(''),
-        detail: [
-          S('seed',  'Seed',  p.seed  || 12,   0,    999, 1),
-          S('scale', 'Scale', p.scale || 0.42, 0.1,  2.0, 0.01),
-        ].join(''),
-      };
-    }
-
     case 'grain':
       return {
         effect: S('amount', 'Amount', p.amount || 0.08, 0, 0.5, 0.005),
@@ -2638,7 +2590,7 @@ function wirePropertiesZone(l) {
     hx.addEventListener('click', e => e.stopPropagation());
   });
 
-  // Wire layer-colors[] color inputs (duotone/posterize/liquid) — writes to
+  // Wire layer-colors[] color inputs (duotone/posterize) — writes to
   // l.properties.colors[idx] instead of a flat key.
   panel.querySelectorAll('.layer-colors-cp[data-lid]').forEach(cp => {
     const idx = parseInt(cp.dataset.colorsIdx, 10);
@@ -4209,7 +4161,7 @@ const CMD_LAYER_TYPES = [
 ];
 const CMD_EFFECT_TYPES = [
   ['noise-warp','Noise Warp'],['flow-warp','Flow Warp'],['polar-remap','Polar Remap'],
-  ['liquid','Liquid'],['ripple','Ripple'],['grain','Grain'],
+  ['ripple','Ripple'],['grain','Grain'],
   ['chromatic-aberration','Chromatic Aberration'],['vignette','Vignette'],
   ['color-grade','Color Grade'],['duotone','Duotone'],['n-tone','N-Tone'],['glow','Glow'],['bloom','Bloom'],
   ['posterize','Posterize'],['pixelate','Pixelate'],['scanlines','Scanlines']
@@ -4550,7 +4502,7 @@ function showToast(msg, isError) {
 // ── Save / Open .frakt ─────────────────────────────────────────
 const KNOWN_LAYER_TYPES = new Set([
   'solid','gradient','linear-gradient','radial-gradient','noise-field','mesh-gradient','image','rectangle','circle',
-  'noise-warp','flow-warp','polar-remap','ripple','wave','liquid','grain','chromatic-aberration',
+  'noise-warp','flow-warp','polar-remap','ripple','wave','grain','chromatic-aberration',
   'vignette','color-grade','n-tone','glow','duotone','bloom','posterize','pixelate','scanlines'
 ]);
 

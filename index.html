@@ -132,7 +132,6 @@
   <div class="pop-item-grid">
     <div class="pop-item" data-al-type="noise-warp"><canvas class="pop-thumb" data-thumb="noise-warp" width="48" height="36"></canvas><span class="pop-name">Noise Warp</span></div>
     <div class="pop-item" data-al-type="flow-warp"><canvas class="pop-thumb" data-thumb="flow-warp" width="48" height="36"></canvas><span class="pop-name">Flow Warp</span></div>
-    <div class="pop-item" data-al-type="liquid"><canvas class="pop-thumb" data-thumb="liquid" width="48" height="36"></canvas><span class="pop-name">Liquid</span></div>
     <div class="pop-item" data-al-type="ripple"><canvas class="pop-thumb" data-thumb="ripple" width="48" height="36"></canvas><span class="pop-name">Ripple</span></div>
     <div class="pop-item" data-al-type="polar-remap"><canvas class="pop-thumb" data-thumb="polar-remap" width="48" height="36"></canvas><span class="pop-name">Polar Remap</span></div>
     <div class="pop-item" data-al-type="pixelate"><canvas class="pop-thumb" data-thumb="pixelate" width="48" height="36"></canvas><span class="pop-name">Pixelate</span></div>
@@ -159,13 +158,32 @@
 
 <!-- ═══ ADD ATTACHED EFFECT POPOVER (per-layer) ═══ -->
 <div class="layer-popover hidden" id="effect-popover">
-  <div class="pop-label">EFFECTS</div>
-  <div class="pop-item" data-ae-type="noise-warp"><canvas class="pop-thumb" data-thumb="noise-warp" width="48" height="36"></canvas><span class="pop-name">Noise Warp</span></div>
-  <div class="pop-item" data-ae-type="grain"><canvas class="pop-thumb" data-thumb="grain" width="48" height="36"></canvas><span class="pop-name">Grain</span></div>
-  <div class="pop-item" data-ae-type="color-grade"><canvas class="pop-thumb" data-thumb="color-grade" width="48" height="36"></canvas><span class="pop-name">Color Grade</span></div>
-  <div class="pop-item" data-ae-type="vignette"><canvas class="pop-thumb" data-thumb="vignette" width="48" height="36"></canvas><span class="pop-name">Vignette</span></div>
-  <div class="pop-item" data-ae-type="posterize"><canvas class="pop-thumb" data-thumb="posterize" width="48" height="36"></canvas><span class="pop-name">Posterize</span></div>
-  <div class="pop-item" data-ae-type="scanlines"><canvas class="pop-thumb" data-thumb="scanlines" width="48" height="36"></canvas><span class="pop-name">Scanlines</span></div>
+  <div class="pop-label">EFFECTS · DISTORT</div>
+  <div class="pop-item-grid">
+    <div class="pop-item" data-ae-type="noise-warp"><canvas class="pop-thumb" data-thumb="noise-warp" width="48" height="36"></canvas><span class="pop-name">Noise Warp</span></div>
+    <div class="pop-item" data-ae-type="flow-warp"><canvas class="pop-thumb" data-thumb="flow-warp" width="48" height="36"></canvas><span class="pop-name">Flow Warp</span></div>
+    <div class="pop-item" data-ae-type="ripple"><canvas class="pop-thumb" data-thumb="ripple" width="48" height="36"></canvas><span class="pop-name">Ripple</span></div>
+    <div class="pop-item" data-ae-type="polar-remap"><canvas class="pop-thumb" data-thumb="polar-remap" width="48" height="36"></canvas><span class="pop-name">Polar Remap</span></div>
+    <div class="pop-item" data-ae-type="pixelate"><canvas class="pop-thumb" data-thumb="pixelate" width="48" height="36"></canvas><span class="pop-name">Pixelate</span></div>
+  </div>
+  <div class="pop-divider"></div>
+  <div class="pop-label">EFFECTS · STYLIZE</div>
+  <div class="pop-item-grid">
+    <div class="pop-item" data-ae-type="grain"><canvas class="pop-thumb" data-thumb="grain" width="48" height="36"></canvas><span class="pop-name">Grain</span></div>
+    <div class="pop-item" data-ae-type="vignette"><canvas class="pop-thumb" data-thumb="vignette" width="48" height="36"></canvas><span class="pop-name">Vignette</span></div>
+    <div class="pop-item" data-ae-type="bloom"><canvas class="pop-thumb" data-thumb="bloom" width="48" height="36"></canvas><span class="pop-name">Bloom</span></div>
+    <div class="pop-item" data-ae-type="glow"><canvas class="pop-thumb" data-thumb="glow" width="48" height="36"></canvas><span class="pop-name">Glow</span></div>
+    <div class="pop-item" data-ae-type="scanlines"><canvas class="pop-thumb" data-thumb="scanlines" width="48" height="36"></canvas><span class="pop-name">Scanlines</span></div>
+  </div>
+  <div class="pop-divider"></div>
+  <div class="pop-label">EFFECTS · COLOR</div>
+  <div class="pop-item-grid">
+    <div class="pop-item" data-ae-type="color-grade"><canvas class="pop-thumb" data-thumb="color-grade" width="48" height="36"></canvas><span class="pop-name">Color Grade</span></div>
+    <div class="pop-item" data-ae-type="duotone"><canvas class="pop-thumb" data-thumb="duotone" width="48" height="36"></canvas><span class="pop-name">Duotone</span></div>
+    <div class="pop-item" data-ae-type="posterize"><canvas class="pop-thumb" data-thumb="posterize" width="48" height="36"></canvas><span class="pop-name">Posterize</span></div>
+    <div class="pop-item" data-ae-type="n-tone"><canvas class="pop-thumb" data-thumb="n-tone" width="48" height="36"></canvas><span class="pop-name">N-Tone</span></div>
+    <div class="pop-item" data-ae-type="chromatic-aberration"><canvas class="pop-thumb" data-thumb="chromatic-aberration" width="48" height="36"></canvas><span class="pop-name">Chromatic Aberration</span></div>
+  </div>
 </div>
 
 <!-- ═══ FRAME CONTEXT MENU ═══ -->
@@ -243,7 +261,6 @@
             <div class="tb-fx-section-label">DISTORT</div>
             <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="noise-warp"><canvas class="pop-thumb" data-thumb="noise-warp" width="48" height="36"></canvas><span class="tb-menu-label">Noise Warp</span></div>
             <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="flow-warp"><canvas class="pop-thumb" data-thumb="flow-warp" width="48" height="36"></canvas><span class="tb-menu-label">Flow Warp</span></div>
-            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="liquid"><canvas class="pop-thumb" data-thumb="liquid" width="48" height="36"></canvas><span class="tb-menu-label">Liquid</span></div>
             <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="ripple"><canvas class="pop-thumb" data-thumb="ripple" width="48" height="36"></canvas><span class="tb-menu-label">Ripple</span></div>
             <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="polar-remap"><canvas class="pop-thumb" data-thumb="polar-remap" width="48" height="36"></canvas><span class="tb-menu-label">Polar Remap</span></div>
             <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="pixelate"><canvas class="pop-thumb" data-thumb="pixelate" width="48" height="36"></canvas><span class="tb-menu-label">Pixelate</span></div>
