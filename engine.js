@@ -1510,7 +1510,7 @@ function getPropertyZones(l) {
             <span class="ctrl-label">Fit</span>
             <div class="toggle-wrap img-fit-toggle" data-lid="${id}">
               <button class="toggle-opt${fit==='cover'?' active':''}" data-fit="cover">Cover</button>
-              <button class="toggle-opt${fit==='contain'?' active':''}" data-fit="contain">Contain</button>
+              <button class="toggle-opt${fit==='contain'?' active':''}" data-fit="contain">Fit</button>
               <button class="toggle-opt${fit==='stretch'?' active':''}" data-fit="stretch">Stretch</button>
             </div>
           </div>`,

@@ -1,0 +1,152 @@
+{
+  "version": "2",
+  "name": "Lux",
+  "createdAt": "2026-04-26T15:02:37.862Z",
+  "canvas": {
+    "width": 1200,
+    "height": 630,
+    "background": "#000000"
+  },
+  "layers": [
+    {
+      "type": "grain",
+      "name": "Grain",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 1,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "amount": 0.025,
+        "size": 1.5,
+        "animated": 0,
+        "streak": 1,
+        "sangle": 117,
+        "slen": 6
+      }
+    },
+    {
+      "type": "glow",
+      "name": "Glow",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 1,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "threshold": 0.43,
+        "strength": 0.14,
+        "radius": 0.51,
+        "color": "#FFD58A"
+      }
+    },
+    {
+      "type": "bloom",
+      "name": "Bloom",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 1,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "threshold": 0.34,
+        "strength": 1.62,
+        "radius": 3.6
+      }
+    },
+    {
+      "type": "vignette",
+      "name": "Vignette",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 1,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "str": 0.87,
+        "soft": 0.56
+      }
+    },
+    {
+      "type": "gradient",
+      "name": "Gradient",
+      "visible": true,
+      "opacity": 0.11,
+      "blendMode": "overlay",
+      "speed": 0.4,
+      "timeOffset": -6.07,
+      "paused": false,
+      "properties": {
+        "seed": 42,
+        "freqX": 0.1,
+        "freqY": 5.4,
+        "angle": 106,
+        "amplitude": 2.9,
+        "softness": 0.25,
+        "blend": 0.91,
+        "scale": 0.5,
+        "stops": [
+          {
+            "color": "#ffffff"
+          },
+          {
+            "color": "#c7c7c7"
+          },
+          {
+            "color": "#000000"
+          }
+        ]
+      }
+    },
+    {
+      "type": "color-grade",
+      "name": "Color Grade",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 1,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "contrast": 1.19,
+        "sat": 0.89,
+        "bright": 0,
+        "hue": 0,
+        "temperature": 0,
+        "tint": 0
+      }
+    },
+    {
+      "type": "gradient",
+      "name": "Gradient",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 0.35,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "seed": 42,
+        "freqX": 0.9,
+        "freqY": 5.7,
+        "angle": 170,
+        "amplitude": 1.85,
+        "softness": 0.43,
+        "blend": 0.26,
+        "scale": 0.83,
+        "stops": [
+          {
+            "color": "#7c27c2"
+          },
+          {
+            "color": "#011919"
+          }
+        ]
+      }
+    }
+  ]
+}
