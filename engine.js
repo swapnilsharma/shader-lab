@@ -2959,6 +2959,20 @@ function populateGallery() {
   const gallery = document.getElementById('preset-gallery');
   gallery.innerHTML = '';
 
+  // Blank card
+  const blank = document.createElement('div');
+  blank.className = 'preset-card';
+  const blankCvs = document.createElement('div');
+  blankCvs.className = 'blank-card-canvas';
+  blankCvs.innerHTML = `<span class="blank-card-plus">+</span>`;
+  const blankLabel = document.createElement('div');
+  blankLabel.className = 'preset-card-label';
+  blankLabel.textContent = 'New Canvas';
+  blank.appendChild(blankCvs);
+  blank.appendChild(blankLabel);
+  blank.addEventListener('click', loadBlank);
+  gallery.appendChild(blank);
+
   // 7 preset cards
   MODAL_PRESETS.forEach(id => {
     const preset = PRESETS[id];
@@ -2979,19 +2993,7 @@ function populateGallery() {
     createMiniRenderer(cvs, id);
   });
 
-  // Blank card
-  const blank = document.createElement('div');
-  blank.className = 'preset-card';
-  const blankCvs = document.createElement('div');
-  blankCvs.className = 'blank-card-canvas';
-  blankCvs.innerHTML = `<span class="blank-card-plus">+</span>`;
-  const blankLabel = document.createElement('div');
-  blankLabel.className = 'preset-card-label';
-  blankLabel.textContent = 'blank';
-  blank.appendChild(blankCvs);
-  blank.appendChild(blankLabel);
-  blank.addEventListener('click', loadBlank);
-  gallery.appendChild(blank);
+
 }
 
 // Canonical scene loader. Accepts a raw .frakt JSON object (the same shape
