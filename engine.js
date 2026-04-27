@@ -3331,6 +3331,39 @@ function inlineUniformsInShader(raw, uniforms) {
   return { body, arrayInits };
 }
 
+// Replace every `texture2D(<sampler>, <args...>)` call with `<stub>`,
+// honoring balanced parens inside <args>. The cheap regex won't do —
+// e.g. `texture2D(uImage, clamp(uv, vec2(0), vec2(1)))` has nested parens
+// and a `[^)]*` pattern truncates at the first inner `)`.
+function stubTexture2DCalls(src, samplerName, stub) {
+  const needle = 'texture2D';
+  let out = '', i = 0;
+  while (i < src.length) {
+    const idx = src.indexOf(needle, i);
+    if (idx === -1) { out += src.slice(i); break; }
+    out += src.slice(i, idx);
+    let j = idx + needle.length;
+    while (j < src.length && /\s/.test(src[j])) j++;
+    if (src[j] !== '(') { out += src.slice(idx, j); i = j; continue; }
+    let k = j + 1;
+    while (k < src.length && /\s/.test(src[k])) k++;
+    const samStart = k;
+    while (k < src.length && /[A-Za-z0-9_]/.test(src[k])) k++;
+    const sam = src.slice(samStart, k);
+    if (sam !== samplerName) { out += src.slice(idx, k); i = k; continue; }
+    let depth = 1, scan = j + 1;
+    while (scan < src.length && depth > 0) {
+      const c = src[scan++];
+      if (c === '(') depth++;
+      else if (c === ')') depth--;
+    }
+    if (depth !== 0) { out += src.slice(idx); break; }
+    out += stub;
+    i = scan;
+  }
+  return out;
+}
+
 // ── Shadertoy transform ─────────────────────────────────────────
 // Shadertoy supplies iTime / iResolution and expects mainImage(). So:
 //   * strip `precision`, u_res/u_t/image uniforms
@@ -3348,38 +3381,99 @@ function transformShaderForShadertoy(raw, uniforms) {
     .replace(/^\s*uniform\s+sampler2D\s+uImage\s*;\s*$/gm, '')
     .replace(/^\s*uniform\s+float\s+uHasImage\s*;\s*$/gm, '')
     .replace(/^\s*uniform\s+float\s+uImgAr\s*;\s*$/gm, '')
-    .replace(/texture2D\s*\(\s*uImage\s*,[^)]*\)/g, 'vec4(0.2,0.2,0.2,1.0)')
     .replace(/\buHasImage\b/g, '0.0')
     .replace(/\buImgAr\b/g, '1.0');
+  body = stubTexture2DCalls(body, 'uImage', 'vec4(0.2,0.2,0.2,1.0)');
 
   // 2. Inline every remaining uniform with its baked value.
   const { body: inlined, arrayInits } = inlineUniformsInShader(body, uniforms);
   body = inlined;
 
   // 3. Wrap main() into mainImage().
+  // Helpers defined at file scope still reference u_res / u_t, so alias
+  // them to Shadertoy's iResolution / iTime via #define (whole-token
+  // replacement) rather than locals — locals only see inside mainImage.
   const initBlock = arrayInits.length ? arrayInits.join('\n') + '\n' : '';
   body = body.replace(/void\s+main\s*\(\s*\)\s*\{([\s\S]*)\}\s*$/m, (_, inner) => {
     return 'void mainImage( out vec4 fragColor, in vec2 fragCoord ) {\n'
-      + '  vec2 u_res = iResolution.xy;\n'
-      + '  float u_t  = iTime;\n'
-      + '  vec2 gl_FragCoord_ = fragCoord;\n'
+      + '  vec2 fragCoord_st = fragCoord;\n'
       + initBlock
-      + inner.replace(/gl_FragCoord\b/g, 'gl_FragCoord_')
+      + inner.replace(/gl_FragCoord\b/g, 'fragCoord_st')
              .replace(/gl_FragColor\b/g, 'fragColor')
       + '}';
   });
-  return body;
+  const preamble = '#define u_res (iResolution.xy)\n#define u_t iTime\n';
+  return preamble + body;
+}
+
+function buildFraktSaveData(name) {
+  return {
+    version: '2',
+    name,
+    createdAt: new Date().toISOString(),
+    canvas: { width: frameState.w, height: frameState.h, background: frameState.bg },
+    layers: layers.map(l => ({
+      type: l.type,
+      name: l.name,
+      visible: !!l.visible,
+      opacity: l.opacity,
+      blendMode: l.blendMode,
+      speed: l.speed,
+      timeOffset: l.timeOffset,
+      paused: l.paused,
+      properties: JSON.parse(JSON.stringify(l.properties || {}))
+    }))
+  };
+}
+
+function shadertoyBundleReadme(name, slug, hasImage) {
+  return `# ${name} — Frakt → Shadertoy bundle
+
+This zip contains everything you need to run, edit, or share this shader.
+
+## Files
+
+- **${slug}_copy-paste-to-shadertoy.txt** — paste into a new shader at https://www.shadertoy.com/new (select-all, paste, Compile).
+- **index.html** — fully self-contained Vanilla HTML page. Open it directly in a browser to see the shader running. No build step.
+- **${slug}.frakt** — the editable Frakt scene. Drag-and-drop into https://frakt.app to keep tweaking.${hasImage ? `\n- **image.png** — image layer used by the scene. Required by index.html.` : ''}
+- **README.md** — this file.
+
+## Notes on Shadertoy
+
+The .txt file is a complete \`mainImage\` shader. Shadertoy supplies \`iTime\` and \`iResolution\` automatically.
+
+Image layers are stubbed out as flat grey when pasted into Shadertoy (Shadertoy uses its own iChannel inputs). To preserve the image, use index.html instead.
+
+Made with Frakt.
+`;
 }
 
 async function exportShadertoy() {
   closeMenus(null);
   try {
-    const raw = buildFragFromLayers(layers, frameState);
-    const uniforms = extractFraktUniforms(layers, frameState, imageAspectRatio);
-    const out = transformShaderForShadertoy(raw, uniforms);
-    const ok = await fraktCopyToClipboard(out);
-    if (ok) showToast('Copied to clipboard — paste into Shadertoy');
-    else    showToast('Copy failed — check clipboard permissions', true);
+    const chosen = await promptSceneNameIfUntitled();
+    if (!chosen) return;
+    const slug      = fraktExportFileName();
+    const shader    = buildFragFromLayers(layers, frameState);
+    const uniforms  = extractFraktUniforms(layers, frameState, imageAspectRatio);
+    const stShader  = transformShaderForShadertoy(shader, uniforms);
+    const bakedHTML = bakeShaderForStandalone(shader, uniforms);
+    const imgBlob   = await fraktImageBlob();
+    const imgSrc    = imgBlob ? 'image.png' : null;
+    const html      = tplVanillaIndexHtml(chosen, frameState.w, frameState.h, bakedHTML, imgSrc, frameRadiusPx());
+    const fraktJSON = JSON.stringify(buildFraktSaveData(chosen), null, 2);
+    const readme    = shadertoyBundleReadme(chosen, slug, !!imgBlob);
+
+    if (typeof JSZip === 'undefined') throw new Error('JSZip not available');
+    const zip = new JSZip();
+    zip.file(`${slug}_copy-paste-to-shadertoy.txt`, stShader);
+    zip.file('index.html', html);
+    zip.file(`${slug}.frakt`, fraktJSON);
+    zip.file('README.md', readme);
+    if (imgBlob) zip.file('image.png', imgBlob);
+    const blob = await zip.generateAsync({ type: 'blob' });
+    downloadBlob(blob, `frakt-${slug}-shadertoy.zip`);
+    showToast('Shadertoy bundle downloaded');
   } catch (e) {
     console.error('Shadertoy export failed:', e);
     showToast('Export failed — see console', true);
@@ -4221,6 +4315,7 @@ function buildCommands() {
   // Export
   cmds.push({ group: 'Export', label: 'Download vanilla HTML',                             keywords: 'export html vanilla webgl',         run: exportVanillaHTML });
   cmds.push({ group: 'Export', label: 'Download Three.js HTML',                            keywords: 'export three html threejs',         run: exportThreeJS });
+  cmds.push({ group: 'Export', label: 'Download Shadertoy bundle',                         keywords: 'export shadertoy glsl shader',      run: exportShadertoy });
   // Insert Layer
   CMD_LAYER_TYPES.forEach(([t, n]) => cmds.push({ group: 'Insert Layer', label: n, keywords: 'add ' + t, run: () => addLayer(t) }));
   // Insert Effect
