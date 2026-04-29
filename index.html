@@ -309,9 +309,13 @@
         <div class="tb-menu-wrap" data-menu="export">
           <button class="tb-export-btn" id="btn-export" onclick="toggleMenu(event,'export')">Export <span class="tb-caret tb-caret--dark">▾</span></button>
           <div class="tb-menu tb-menu--right hidden" id="menu-export">
+            <div class="tb-fx-section-label">Web bundle</div>
             <div class="tb-menu-item" data-act="export-vanilla"><span class="tb-menu-label">Vanilla HTML</span></div>
             <div class="tb-menu-item" data-act="export-three"><span class="tb-menu-label">Three.js</span></div>
-            <div class="tb-menu-item" data-act="export-shadertoy"><span class="tb-menu-label">Shadertoy</span></div>
+            <div class="tb-menu-divider"></div>
+            <div class="tb-fx-section-label">Shadertoy</div>
+            <div class="tb-menu-item" data-act="export-shadertoy"><span class="tb-menu-label">Bundle (.zip)</span></div>
+            <div class="tb-menu-item" data-act="export-shadertoy-copy"><span class="tb-menu-label">Copy code to clipboard</span></div>
             <div class="tb-menu-divider"></div>
             <div class="tb-fx-section-label">Coming soon</div>
             <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Metal Shaders (iOS)</span></div>

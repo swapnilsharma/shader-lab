@@ -3448,6 +3448,21 @@ Made with Frakt.
 `;
 }
 
+async function exportShadertoyClipboard() {
+  closeMenus(null);
+  try {
+    const raw = buildFragFromLayers(layers, frameState);
+    const uniforms = extractFraktUniforms(layers, frameState, imageAspectRatio);
+    const out = transformShaderForShadertoy(raw, uniforms);
+    const ok = await fraktCopyToClipboard(out);
+    if (ok) showToast('Shadertoy code copied — paste into shadertoy.com/new');
+    else    showToast('Copy failed — check clipboard permissions', true);
+  } catch (e) {
+    console.error('Shadertoy copy failed:', e);
+    showToast('Copy failed — see console', true);
+  }
+}
+
 async function exportShadertoy() {
   closeMenus(null);
   try {
@@ -4200,9 +4215,10 @@ async function exportThreeJS() {
       e.stopPropagation();
       const a = it.dataset.act;
       closeMenus(null);
-      if (a === 'export-vanilla')   exportVanillaHTML();
-      if (a === 'export-three')     exportThreeJS();
-      if (a === 'export-shadertoy') exportShadertoy();
+      if (a === 'export-vanilla')      exportVanillaHTML();
+      if (a === 'export-three')        exportThreeJS();
+      if (a === 'export-shadertoy')    exportShadertoy();
+      if (a === 'export-shadertoy-copy') exportShadertoyClipboard();
     });
   });
   const med = document.getElementById('menu-edit');
@@ -4315,7 +4331,8 @@ function buildCommands() {
   // Export
   cmds.push({ group: 'Export', label: 'Download vanilla HTML',                             keywords: 'export html vanilla webgl',         run: exportVanillaHTML });
   cmds.push({ group: 'Export', label: 'Download Three.js HTML',                            keywords: 'export three html threejs',         run: exportThreeJS });
-  cmds.push({ group: 'Export', label: 'Download Shadertoy bundle',                         keywords: 'export shadertoy glsl shader',      run: exportShadertoy });
+  cmds.push({ group: 'Export', label: 'Download Shadertoy bundle',                         keywords: 'export shadertoy glsl shader bundle zip', run: exportShadertoy });
+  cmds.push({ group: 'Export', label: 'Copy Shadertoy code to clipboard',                  keywords: 'export shadertoy glsl shader copy clipboard paste', run: exportShadertoyClipboard });
   // Insert Layer
   CMD_LAYER_TYPES.forEach(([t, n]) => cmds.push({ group: 'Insert Layer', label: n, keywords: 'add ' + t, run: () => addLayer(t) }));
   // Insert Effect
