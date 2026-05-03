@@ -1,0 +1,159 @@
+{
+  "version": "2",
+  "name": "Turquoise Flow",
+  "createdAt": "2026-05-03T04:44:27.454Z",
+  "canvas": {
+    "width": 1920,
+    "height": 1080,
+    "background": "#000000"
+  },
+  "layers": [
+    {
+      "type": "polar-remap",
+      "name": "Polar Remap",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 1,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "cx": 0,
+        "cy": 0.55,
+        "twist": 0.75,
+        "zoom": 1.56
+      }
+    },
+    {
+      "type": "chromatic-aberration",
+      "name": "Chromatic Aberration",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 1,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "spread": 0.0205,
+        "angle": 0
+      }
+    },
+    {
+      "type": "vignette",
+      "name": "Vignette",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 1,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "str": 0.74,
+        "soft": 0.54
+      }
+    },
+    {
+      "type": "noise-warp",
+      "name": "Noise Warp",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 2,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "str": 0.22,
+        "scale": 0.6,
+        "scaleX": 0.22,
+        "scaleY": 2.83,
+        "wspd": 0.03,
+        "oct": 1,
+        "iterations": 1,
+        "angle": 170,
+        "noiseType": "value"
+      }
+    },
+    {
+      "type": "bloom",
+      "name": "Bloom",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 1,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "threshold": 0.91,
+        "strength": 0.76,
+        "radius": 2.65
+      }
+    },
+    {
+      "type": "color-grade",
+      "name": "Color Grade",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 1,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "contrast": 1.92,
+        "sat": 0.36,
+        "bright": -0.15,
+        "hue": 0,
+        "temperature": 0,
+        "tint": 0.19
+      }
+    },
+    {
+      "type": "flow-warp",
+      "name": "Flow Warp",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 0.37,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "str": 0.12,
+        "scale": 0.4,
+        "wspd": 0.52,
+        "angle": 146,
+        "noiseType": "worley"
+      }
+    },
+    {
+      "type": "mesh-gradient",
+      "name": "Mesh Gradient",
+      "visible": true,
+      "opacity": 1,
+      "blendMode": "normal",
+      "speed": 3.9,
+      "timeOffset": 0,
+      "paused": false,
+      "properties": {
+        "seed": 197,
+        "scale": 0.8,
+        "scaleX": 0.7,
+        "scaleY": 4,
+        "noiseType": "worley",
+        "turbAmp": 0.1,
+        "turbFreq": 0.325,
+        "turbIter": 6,
+        "waveFreq": 1,
+        "distBias": 0,
+        "exposure": 1.61,
+        "contrast": 1.1,
+        "saturation": 1,
+        "colors": [
+          "#1f6928",
+          "#76b6c4",
+          "#7fcdff",
+          "#1c9dd1",
+          "#76b6c4"
+        ]
+      }
+    }
+  ]
+}

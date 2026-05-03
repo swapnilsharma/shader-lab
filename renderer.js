@@ -316,31 +316,49 @@ function glslImageFn(id) {
   const wU  = u('im',id,'w');
   const hU  = u('im',id,'h');
   const fmU = u('im',id,'fit');
-  return `vec3 contentFn_${id}(vec2 puv,float ct){
-  if(uHasImage<0.5) return vec3(0.0);
+  // Shared UV resolver — runs box clip + fit math, returns vec4(iuv, inside, contain-clip).
+  // .x/.y = clamped UV, .z = 0/1 inside box, .w = 0/1 inside contain frame
+  const resolverFn = `vec4 imageUV_${id}(vec2 puv){
   vec2 cvs=u_res;
   vec2 pix=puv*cvs;
   vec2 boxC=cvs*0.5+vec2(${xU},${yU});
   vec2 boxHS=vec2(max(${wU},1.0),max(${hU},1.0))*0.5;
   vec2 lp=pix-boxC;
-  if(abs(lp.x)>boxHS.x||abs(lp.y)>boxHS.y) return vec3(0.0);
+  if(abs(lp.x)>boxHS.x||abs(lp.y)>boxHS.y) return vec4(0.0,0.0,0.0,0.0);
   vec2 boxUv=lp/boxHS*0.5+0.5;
   float boxAR=max(${wU},1.0)/max(${hU},1.0);
   float iAR=max(uImgAr,0.0001);
   vec2 iuv;
+  float containInside=1.0;
   if(${fmU}<0.5){
     if(boxAR>iAR){ iuv.x=boxUv.x; iuv.y=(boxUv.y-0.5)*(iAR/boxAR)+0.5; }
     else         { iuv.y=boxUv.y; iuv.x=(boxUv.x-0.5)*(boxAR/iAR)+0.5; }
   } else if(${fmU}<1.5){
     if(boxAR>iAR){ iuv.y=boxUv.y; iuv.x=(boxUv.x-0.5)*(boxAR/iAR)+0.5; }
     else         { iuv.x=boxUv.x; iuv.y=(boxUv.y-0.5)*(iAR/boxAR)+0.5; }
-    if(iuv.x<0.0||iuv.x>1.0||iuv.y<0.0||iuv.y>1.0) return vec3(0.0);
+    if(iuv.x<0.0||iuv.x>1.0||iuv.y<0.0||iuv.y>1.0) containInside=0.0;
   } else {
     iuv=boxUv;
   }
   iuv.y=1.0-iuv.y;
-  return texture2D(uImage,clamp(iuv,vec2(0.0),vec2(1.0))).rgb;
+  return vec4(clamp(iuv,vec2(0.0),vec2(1.0)),1.0,containInside);
 }\n`;
+  // Color sampler — RGB only; transparent / out-of-box returns black (alpha
+  // is what the compositor multiplies into the blend factor).
+  const contentFn = `vec3 contentFn_${id}(vec2 puv,float ct){
+  if(uHasImage<0.5) return vec3(0.0);
+  vec4 r=imageUV_${id}(puv);
+  if(r.z<0.5||r.w<0.5) return vec3(0.0);
+  return texture2D(uImage,r.xy).rgb;
+}\n`;
+  // Alpha mask — texture alpha clipped by box and contain-rect.
+  const maskFn = `float imageMask_${id}(vec2 puv){
+  if(uHasImage<0.5) return 0.0;
+  vec4 r=imageUV_${id}(puv);
+  if(r.z<0.5||r.w<0.5) return 0.0;
+  return texture2D(uImage,r.xy).a;
+}\n`;
+  return resolverFn + contentFn + maskFn;
 }
 
 // ── GLSL: uniform declarations per layer ───────────────────────
@@ -777,7 +795,12 @@ function buildFragFromLayers(layers, frameState) {
         s += `    vec3 lc=contentFn_${l.id}(wuv,t_${l.id});\n`;
       }
       s += emitAttached('lc');
-      s += `    col=mix(col,${glslBlend(mode, 'col', 'lc')},${op});\n`;
+      // Image layers carry an alpha mask (PNG transparency + box/contain clip).
+      // Other content layers are opaque, so the mask defaults to 1.
+      const blendOp = (l.type === 'image')
+        ? `(imageMask_${l.id}(wuv)*${op})`
+        : op;
+      s += `    col=mix(col,${glslBlend(mode, 'col', 'lc')},${blendOp});\n`;
     } else if (l.type === 'rectangle' || l.type === 'circle') {
       s += '  {\n'; // extra scope so fillC/_mask don't collide across shapes
       s += glslShapeFillPrep(l);

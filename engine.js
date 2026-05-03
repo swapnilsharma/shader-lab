@@ -1029,6 +1029,34 @@ function renderLeftPanel() {
 }
 
 // ── Right Panel ────────────────────────────────────────────────
+// Right-panel tab state. Reset to 'properties' whenever the user
+// selects a different layer — keeps surprises low when navigating.
+let rightPanelTab = 'properties';
+let rightPanelTabLayerId = null;
+
+function setRightPanelTab(tab) {
+  if (tab !== 'properties' && tab !== 'effects') return;
+  if (rightPanelTab === tab) return;
+  rightPanelTab = tab;
+  renderRightPanel();
+}
+
+function renderRightPanelTabs(effectsCount) {
+  const propActive = rightPanelTab === 'properties' ? ' rp-tab--active' : '';
+  const fxActive   = rightPanelTab === 'effects'    ? ' rp-tab--active' : '';
+  const badge = effectsCount > 0 ? `<span class="rp-tab-badge">${effectsCount}</span>` : '';
+  return `<div class="rp-tabs">
+    <button class="rp-tab${propActive}" data-rp-tab="properties">Properties</button>
+    <button class="rp-tab${fxActive}" data-rp-tab="effects">Effects${badge}</button>
+  </div>`;
+}
+
+function wireRightPanelTabs(panel) {
+  panel.querySelectorAll('.rp-tab[data-rp-tab]').forEach(btn => {
+    btn.addEventListener('click', () => setRightPanelTab(btn.dataset.rpTab));
+  });
+}
+
 function renderRightPanel() {
   // Any open iro popover belongs to the previous render — drop it.
   closeIroPopover();
@@ -1042,6 +1070,12 @@ function renderRightPanel() {
   const l = layers.find(l => l.id === selectedLayerId);
   if (!l) { panel.innerHTML = `<div style="padding:20px 12px;color:var(--text-secondary);font-size:10px;">Select a layer to edit</div>`; return; }
 
+  // Reset tab when the selection changes layer.
+  if (rightPanelTabLayerId !== l.id) {
+    rightPanelTabLayerId = l.id;
+    rightPanelTab = 'properties';
+  }
+
   const icon = isContentLayer(l.type) ? '◼' : '◈';
   const typeName = l.type.replace(/-/g, ' ');
   let html = `<div class="rp-header">
@@ -1051,14 +1085,24 @@ function renderRightPanel() {
       <span class="rp-header-type">${typeName}</span>
     </div>
   </div>`;
-  if (isContentLayer(l.type)) html += renderTransformZone(l);
-  html += renderPropertyZones(l);
-  if (layerSupportsAnimation(l.type)) html += renderAnimationZone(l);
-  if (isContentLayer(l.type)) html += renderEffectsZone(l);
+
+  const showTabs = isContentLayer(l.type);
+  if (showTabs) {
+    html += renderRightPanelTabs((l.effects || []).length);
+  }
+  if (!showTabs || rightPanelTab === 'properties') {
+    if (isContentLayer(l.type)) html += renderTransformZone(l);
+    html += renderPropertyZones(l);
+    if (layerSupportsAnimation(l.type)) html += renderAnimationZone(l);
+  }
+  if (showTabs && rightPanelTab === 'effects') {
+    html += renderEffectsZone(l);
+  }
   panel.innerHTML = html;
-  wirePropertiesZone(l);
+  if (!showTabs || rightPanelTab === 'properties') wirePropertiesZone(l);
   wireRpHeaderName(l);
-  if (isContentLayer(l.type)) wireEffectsZone(l);
+  if (showTabs) wireRightPanelTabs(panel);
+  if (showTabs && rightPanelTab === 'effects') wireEffectsZone(l);
   attachIroPopovers(panel);
 }
 
@@ -1477,12 +1521,22 @@ function getPropertyZones(l) {
 
     case 'image': {
       const fit = p.fit || 'cover';
+      const thumbSrc = hasBaseImage && baseImageElement ? baseImageElement.src : '';
+      const dropZone = hasBaseImage
+        ? `<div class="img-drop-zone img-drop-zone--thumb has-image" onclick="document.getElementById('img-input').click()">
+             <div class="img-thumb"><img src="${thumbSrc}" alt=""></div>
+             <div class="img-thumb-meta">
+               <div class="img-thumb-name" title="${baseImageName}">${baseImageName}</div>
+               <div class="img-thumb-action">Click to replace</div>
+             </div>
+           </div>`
+        : `<div class="img-drop-zone" onclick="document.getElementById('img-input').click()">
+             <div class="img-drop-icon">↑</div>
+             <div class="img-drop-text">click to upload image</div>
+           </div>`;
       return {
         appearance: [
-          `<div class="img-drop-zone" onclick="document.getElementById('img-input').click()">
-            <div class="img-drop-icon">↑</div>
-            <div class="img-drop-text">${hasBaseImage ? baseImageName : 'click or drop image'}</div>
-          </div>`,
+          dropZone,
           `<div class="ctrl-row fill-mode-row">
             <span class="ctrl-label">Fit</span>
             <div class="toggle-wrap img-fit-toggle" data-lid="${id}">
