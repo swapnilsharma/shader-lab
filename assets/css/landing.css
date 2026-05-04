@@ -357,10 +357,10 @@ img { display: block; max-width: 100%; }
   font-weight: 400;
   line-height: 1;
   color: #000;
-  letter-spacing: -1.52px;
+  /* letter-spacing: -1.52px; */
   white-space: nowrap;
   pointer-events: none;
-  transform: rotate(-3deg);
+  /* transform: rotate(-3deg); */
   transform-origin: 100% 100%;
 }
 
