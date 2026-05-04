@@ -4,8 +4,8 @@
     {
       "name": "shader-lab",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["serve", "-l", "5500", "."],
-      "port": 5500
+      "runtimeArgs": ["serve", "."],
+      "autoPort": true
     }
   ]
 }

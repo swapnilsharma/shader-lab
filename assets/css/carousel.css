@@ -1,0 +1,887 @@
+/* =============================================================
+   Frakt landing — Carousel section
+   Eight cards on a continuously scrolling rail, each card hosts a
+   live shader inside an HTML/CSS mockup of a real-world surface.
+   ============================================================= */
+
+:root {
+  --cs-card-bg: #fafafa;
+  --cs-card-border: rgba(0, 0, 0, 0.04);
+  --cs-card-border-hover: rgba(0, 0, 0, 0.08);
+  --cs-card-radius: 32px;
+  --cs-card-gap: 24px;
+  --cs-card-height: 480px;
+  --cs-card-pad: 32px;
+  --cs-fg: #1a1a1a;
+  --cs-fg-muted: #666;
+  --cs-fg-faint: #888;
+}
+
+/* =============================================================
+   Section frame
+   ============================================================= */
+
+.cs {
+  /* Hero section has 80px bottom padding; add 16px top here = 96px gap */
+  padding: 16px 0 96px;
+  width: 100%;
+  position: relative;
+  overflow: hidden; /* Rail can extend; section clips to viewport */
+}
+
+/* Heading + subhead now live in the .sec-heading-col (see columns.css);
+   the prior .cs-header centering wrapper is no longer in the markup. */
+
+/* =============================================================
+   Rail + track
+   ============================================================= */
+
+.cs-rail {
+  margin-top: 0; /* heading sits in its own column now, not above the rail */
+  width: 100%;
+  position: relative;
+  overflow: hidden;
+  /* Rail height = card height; on mobile it's auto */
+  height: var(--cs-card-height);
+}
+
+.cs-track {
+  display: flex;
+  align-items: stretch;
+  gap: var(--cs-card-gap);
+  /* Translation is set by JS via transform: translateX(...) */
+  will-change: transform;
+  padding-left: 0;
+  height: 100%;
+}
+
+/* =============================================================
+   Carousel card (cc)
+   ============================================================= */
+
+.cc {
+  position: relative;
+  flex: 0 0 auto;
+  height: 100%;
+  background: var(--cs-card-bg);
+  border: 1px solid var(--cs-card-border);
+  border-radius: var(--cs-card-radius);
+  padding: var(--cs-card-pad);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  isolation: isolate;
+  transition:
+    transform var(--duration-medium, 240ms) var(--ease, cubic-bezier(0.2, 0, 0, 1)),
+    border-color var(--duration-medium, 240ms) var(--ease, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.cc:hover {
+  transform: translateY(-4px);
+  border-color: var(--cs-card-border-hover);
+}
+
+.cc--wide   { width: 720px; }
+.cc--medium { width: 480px; }
+.cc--tall   { width: 360px; }
+
+.cc-label {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cs-fg-muted);
+  text-align: center;
+  margin-bottom: 24px;
+  flex-shrink: 0;
+}
+
+.cc-mockup {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  min-height: 0;
+}
+
+.cc-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Pro lock badge (card 8) */
+.cc-pro-badge {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.7);
+  color: #ffffff;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* =============================================================
+   Card 1 — Browser window
+   ============================================================= */
+
+.cc-mockup--browser {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: stretch;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e5e5e5;
+  background: #fff;
+}
+
+.browser-chrome {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  background: #e5e5e5;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.browser-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.browser-url {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  background: #fafafa;
+  color: #333;
+  font-size: 11px;
+  padding: 3px 12px;
+  border-radius: 999px;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.browser-viewport {
+  position: relative;
+  flex: 1 1 auto;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+
+.browser-overlay {
+  position: absolute;
+  top: 32px;
+  left: 32px;
+  right: 32px;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.browser-headline {
+  font-size: 24px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.browser-sub {
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.3;
+}
+
+/* =============================================================
+   Card 2 — Chat / AI agent
+   ============================================================= */
+
+.cc-mockup--chat {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: stretch;
+  gap: 16px;
+  background: #ffffff;
+  border-radius: 16px;
+  padding: 24px;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.chat-bubble {
+  max-width: 82%;
+  padding: 12px 16px;
+  border-radius: 18px;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.35;
+  font-family: var(--font-sans);
+}
+
+.chat-bubble--user {
+  align-self: flex-end;
+  background: #0066ff;
+  color: #ffffff;
+  border-bottom-right-radius: 6px;
+}
+
+.chat-bubble--ai {
+  background: #f0f0f0;
+  color: #1a1a1a;
+  border-bottom-left-radius: 6px;
+}
+
+.chat-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.chat-orb {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+  box-shadow: 0 0 24px rgba(255, 100, 80, 0.4);
+  background: #1a1a1a;
+}
+
+.chat-orb canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* =============================================================
+   Cards 3 & 5 — Phone mockup (App splash + Wallpaper)
+   ============================================================= */
+
+.cc-mockup--phone {
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+}
+
+.phone-frame {
+  /* Phone aspect ratio ~9:19.5; constrain by height */
+  height: 100%;
+  aspect-ratio: 9 / 19.5;
+  border: 3px solid #333;
+  border-radius: 36px;
+  overflow: hidden;
+  background: #000;
+  position: relative;
+}
+
+.phone-screen {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+
+.phone-screen .cc-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+}
+
+.phone-status {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  padding: 4px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  z-index: 2;
+}
+
+.phone-status-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #ffffff;
+}
+
+/* Card 3 splash */
+.phone-splash-logo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  background: #ffffff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.phone-splash-logo span {
+  font-family: var(--font-sans);
+  font-size: 28px;
+  font-weight: 700;
+  color: #1a1a1a;
+  line-height: 1;
+}
+
+/* Card 5 lock screen */
+.phone-lock-icon {
+  position: absolute;
+  left: 50%;
+  top: 32px;
+  transform: translateX(-50%);
+  color: rgba(255, 255, 255, 0.85);
+  z-index: 2;
+}
+
+.phone-lock-time {
+  position: absolute;
+  left: 50%;
+  top: 30%;
+  transform: translateX(-50%);
+  font-family: var(--font-sans);
+  font-weight: 300;
+  font-size: 64px;
+  color: #ffffff;
+  z-index: 2;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.phone-lock-date {
+  position: absolute;
+  left: 50%;
+  top: calc(30% + 72px);
+  transform: translateX(-50%);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: 16px;
+  color: #ffffff;
+  z-index: 2;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* =============================================================
+   Card 4 — Hover state button
+   ============================================================= */
+
+.cc-mockup--hover {
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.hover-hint {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--cs-fg-faint);
+  font-weight: 400;
+}
+
+.hover-btn {
+  position: relative;
+  width: 280px;
+  height: 56px;
+  border-radius: 999px;
+  background: #1a1a1a;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  overflow: hidden;
+  isolation: isolate;
+  transition: background 400ms var(--ease, cubic-bezier(0.2, 0, 0, 1));
+  border: none;
+}
+
+.hover-btn-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  /* Reveal animation: clip-path opens left → right on card hover */
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 600ms var(--ease, cubic-bezier(0.2, 0, 0, 1));
+  pointer-events: none;
+}
+
+.hover-btn-label {
+  position: relative;
+  z-index: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.cc--hover-fill:hover .hover-btn-canvas {
+  clip-path: inset(0 0 0 0);
+}
+
+.cc--hover-fill:hover .hover-btn {
+  background: transparent;
+}
+
+/* =============================================================
+   Card 6 — Onboarding
+   ============================================================= */
+
+.cc-mockup--onboarding {
+  width: 100%;
+  height: 100%;
+}
+
+.onb-card {
+  width: 80%;
+  height: 90%;
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  text-align: center;
+  gap: 12px;
+}
+
+.onb-shape {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #1a1a1a;
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+
+.onb-shape canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.onb-headline {
+  font-family: var(--font-sans);
+  font-size: 22px;
+  font-weight: 600;
+  color: #1a1a1a;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.onb-body {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  color: #666;
+  line-height: 1.4;
+  margin-top: -4px;
+}
+
+.onb-btn {
+  background: #1a1a1a;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 22px;
+  border-radius: 999px;
+  cursor: pointer;
+  border: none;
+  margin-top: auto;
+}
+
+.onb-btn:hover { background: #2a2a2a; }
+
+/* =============================================================
+   Card 7 — Music visualizer
+   ============================================================= */
+
+.cc-mockup--music {
+  width: 100%;
+  height: 100%;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 32px;
+}
+
+.music-art {
+  width: 280px;
+  height: 280px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #1a1a1a;
+  flex-shrink: 0;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+.music-art canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.music-meta {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--font-sans);
+  min-width: 0;
+}
+
+.music-title {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1a1a1a;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.music-artist {
+  font-size: 16px;
+  font-weight: 400;
+  color: #666;
+  line-height: 1.2;
+}
+
+.music-progress {
+  margin-top: 18px;
+}
+
+.music-progress-track {
+  position: relative;
+  width: 200px;
+  height: 4px;
+  background: #e5e5e5;
+  border-radius: 999px;
+}
+
+.music-progress-fill {
+  width: 30%;
+  height: 100%;
+  background: #1a1a1a;
+  border-radius: 999px;
+}
+
+.music-progress-thumb {
+  position: absolute;
+  left: 30%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 10px;
+  height: 10px;
+  background: #1a1a1a;
+  border-radius: 50%;
+}
+
+.music-times {
+  display: flex;
+  width: 200px;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
+}
+
+.music-controls {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: #1a1a1a;
+}
+
+.music-ctrl {
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.music-ctrl--primary {
+  background: #1a1a1a;
+  color: #ffffff;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+/* =============================================================
+   Card 8 — Shockwave
+   ============================================================= */
+
+.cc-mockup--shockwave {
+  width: 100%;
+  height: 100%;
+}
+
+.shock-stage {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shock-stage .cc-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  transition: transform 200ms var(--ease, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.shock-stage.is-pulsing .cc-canvas {
+  transform: scale(1.04);
+}
+
+.shock-btn {
+  position: relative;
+  z-index: 2;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: #ffffff;
+  color: #1a1a1a;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  transition: transform 120ms var(--ease, cubic-bezier(0.2, 0, 0, 1));
+  border: none;
+}
+
+.shock-btn:hover { transform: scale(1.04); }
+.shock-btn:active { transform: scale(0.96); }
+
+.shock-microcopy {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  color: #ffffff;
+  opacity: 0.9;
+  background: rgba(0, 0, 0, 0.4);
+  padding: 6px 14px;
+  border-radius: 999px;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  white-space: nowrap;
+}
+
+/* =============================================================
+   Pagination — Apple-style pill
+   ============================================================= */
+
+.cs-pagination {
+  margin-top: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.cs-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 999px;
+  padding: 8px 16px;
+}
+
+.cs-arrow {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: rgba(0, 0, 0, 0.7);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast, 120ms) var(--ease, cubic-bezier(0.2, 0, 0, 1)),
+    color var(--duration-fast, 120ms) var(--ease, cubic-bezier(0.2, 0, 0, 1)),
+    transform var(--duration-fast, 120ms) var(--ease, cubic-bezier(0.2, 0, 0, 1));
+  flex-shrink: 0;
+  border: none;
+  padding: 0;
+}
+
+.cs-arrow:hover {
+  background: rgba(0, 0, 0, 0.12);
+  color: rgba(0, 0, 0, 0.9);
+}
+
+.cs-arrow:active { transform: scale(0.92); }
+
+.cs-arrow:focus-visible {
+  outline: 2px solid rgba(0, 0, 0, 0.2);
+  outline-offset: 2px;
+}
+
+.cs-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.3);
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  transition:
+    width 240ms var(--ease, cubic-bezier(0.2, 0, 0, 1)),
+    background-color 240ms var(--ease, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.cs-dot.is-active {
+  width: 16px;
+  background: rgba(0, 0, 0, 0.7);
+}
+
+/* Play/pause control was removed — just dots now. */
+
+/* =============================================================
+   Reduced motion — disable card lift animation, leave shaders to JS
+   ============================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .cc { transition: none; }
+  .cc:hover { transform: none; }
+  .hover-btn-canvas { transition: none; }
+  .cs-dot { transition: none; }
+}
+
+/* =============================================================
+   Tablet
+   ============================================================= */
+
+@media (max-width: 1024px) and (min-width: 769px) {
+  :root {
+    --cs-card-height: 420px;
+    --cs-card-pad: 24px;
+  }
+  .cs-rail { margin-top: 0; }
+  .cc--wide   { width: 600px; }
+  .cc--medium { width: 400px; }
+  .cc--tall   { width: 300px; }
+  .music-art { width: 220px; height: 220px; }
+}
+
+/* =============================================================
+   Mobile — touch-swipe carousel, no auto-scroll
+   ============================================================= */
+
+@media (max-width: 768px) {
+  :root {
+    --cs-card-height: 360px;
+    --cs-card-pad: 24px;
+    --cs-card-gap: 16px;
+    --cs-card-radius: 24px;
+  }
+
+  .cs { padding: 8px 0 64px; }
+  .cs-rail { margin-top: 0; }
+
+  /* On mobile the rail uses native scroll-snap, not transform-translate */
+  .cs-rail {
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .cs-rail::-webkit-scrollbar { display: none; }
+
+  .cs-track {
+    /* Track is no longer transformed — it's scrolled */
+    transform: none !important;
+    will-change: auto;
+    padding: 0 max(24px, calc(50vw - var(--mobile-card-half, 50%)));
+  }
+
+  .cc {
+    scroll-snap-align: center;
+    height: var(--cs-card-height);
+  }
+
+  /* Card width tiers as % of viewport */
+  .cc--wide   { width: 90vw; max-width: 540px; }
+  .cc--medium { width: 80vw; max-width: 420px; }
+  .cc--tall   { width: 70vw; max-width: 320px; }
+
+  /* Hide arrows on mobile — touch-swipe handles navigation */
+  .cs-arrow { display: none; }
+
+  /* Music card stacks vertically on mobile */
+  .cc-mockup--music {
+    flex-direction: column;
+    gap: 16px;
+    align-items: center;
+  }
+  .music-art { width: 160px; height: 160px; }
+  .music-meta { align-items: center; text-align: center; }
+
+  /* Hover card: switch to tap-to-fill */
+  .cc--hover-fill .hover-hint::before { content: ''; }
+  /* Tap state — JS adds .is-active for tap reveal */
+  .cc--hover-fill.is-active .hover-btn-canvas { clip-path: inset(0 0 0 0); }
+  .cc--hover-fill.is-active .hover-btn { background: transparent; }
+}

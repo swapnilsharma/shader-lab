@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Frakt — Shaders for the rest of us</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="../assets/frakt-ico-128.png">
+  <link rel="apple-touch-icon" href="../assets/frakt-ico-128.png">
+
+  <!-- SEO / general -->
+  <meta name="description" content="Frakt — Shaders for the rest of us. A layer-based shader editor that exports real, runnable code.">
+  <meta name="author" content="Swapnil Sharma">
+
+  <!-- Open Graph -->
+  <meta property="og:site_name" content="Frakt">
+  <meta property="og:title" content="Frakt — Shaders for the rest of us">
+  <meta property="og:description" content="A layer-based shader editor for designers and builders. Create beautiful shaders and export them as code to web, android or iOS.">
+  <meta property="og:image" content="https://frakt.app/og-image.png">
+  <meta property="og:url" content="https://frakt.app">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:logo" content="https://frakt.app/assets/frakt-ico-128.png">
+
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Frakt — Shaders for the rest of us">
+  <meta name="twitter:description" content="A layer-based shader editor for designers and builders. Create beautiful shaders and export them as code to web, android or iOS.">
+  <meta name="twitter:image" content="https://frakt.app/og-image.png">
+  <meta name="twitter:site" content="@swaaaapnilaaa">
+  <meta name="twitter:creator" content="@swaaaapnilaaa">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+  
+  <!-- JSZip (client-side zip bundling for Export) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+  <!-- iro.js (colour picker popover) -->
+  <script src="https://cdn.jsdelivr.net/npm/@jaames/iro@5/dist/iro.min.js"></script>
+
+  <!-- Sentry (error tracking) -->
+  <script src="https://js.sentry-cdn.com/da959cc59806a411b766faea97de98b1.min.js" crossorigin="anonymous"></script>
+
+  <!-- ANALYTICS MS CLARITY  -->
+  <script type="text/javascript">
+    (function(c,l,a,r,i,t,y){
+        c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+        t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+        y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+    })(window, document, "clarity", "script", "wesefi2fmq");
+</script>
+
+<!-- ANALYTICS POSTHOG -->
+<script>
+    !function(t,e){var o,n,p,r;e.__SV||(window.posthog && window.posthog.__loaded)||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.crossOrigin="anonymous",p.async=!0,p.src=s.api_host.replace(".i.posthog.com","-assets.i.posthog.com")+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+".people (stub)"},o="Ir init Br Zr Ci jr $r Lr capture calculateEventProperties Yr register register_once register_for_session unregister unregister_for_session Jr getFeatureFlag getFeatureFlagPayload getFeatureFlagResult isFeatureEnabled reloadFeatureFlags updateFlags updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures on onFeatureFlags onSurveysLoaded onSessionId getSurveys getActiveMatchingSurveys renderSurvey displaySurvey cancelPendingSurvey canRenderSurvey canRenderSurveyAsync Kr identify setPersonProperties group resetGroups setPersonPropertiesForFlags resetPersonPropertiesForFlags setGroupPropertiesForFlags resetGroupPropertiesForFlags reset setIdentity clearIdentity get_distinct_id getGroups get_session_id get_session_replay_url alias set_config startSessionRecording stopSessionRecording sessionRecordingStarted captureException captureLog startExceptionAutocapture stopExceptionAutocapture loadToolbar get_property getSessionProperty Wr zr createPersonProfile setInternalOrTestUser Xr Or en opt_in_capturing opt_out_capturing has_opted_in_capturing has_opted_out_capturing get_explicit_consent_status is_capturing clear_opt_in_out_capturing Vr debug ki Gr getPageViewId captureTraceFeedback captureTraceMetric Nr".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);
+    posthog.init('phc_q2hLjnvi8eWgPBgxJgjzJwT3ENWgtvknSb2MMajZ9ohy', {
+        api_host: 'https://us.i.posthog.com',
+        defaults: '2026-01-30',
+        person_profiles: 'identified_only', // or 'always' to create profiles for anonymous users as well
+    })
+</script>
+
+
+</head>
+<body>
+
+<!-- ═══ WELCOME MODAL ═══ -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <div class="welcome-header">
+      <img class="welcome-logo" src="../assets/frakt-ico-128.svg" alt="frakt" width="64" height="64">
+      <div class="greeting" id="welcome-greeting">Shaders for the rest of us.</div>
+      <div class="welcome-section-row">
+        <span class="welcome-section-label">choose a starting point</span>
+        <button class="welcome-view-all" type="button" id="welcome-view-all">see all presets →</button>
+      </div>
+    </div>
+    <div class="preset-gallery" id="preset-gallery">
+      <!-- Generated by engine.js — 7 random presets + Blank -->
+    </div>
+  </div>
+</div>
+
+<!-- ═══ PRESET GALLERY MODAL (all 12) ═══ -->
+<div class="modal-overlay hidden" id="gallery-overlay">
+  <div class="modal modal--gallery">
+    <div class="gallery-header">
+      <div class="gallery-title">Presets</div>
+      <button class="gallery-close" id="gallery-close" title="Close">×</button>
+    </div>
+    <div class="preset-gallery" id="gallery-grid">
+      <!-- Generated by engine.js — all 12 presets -->
+    </div>
+  </div>
+</div>
+
+<!-- ═══ LAYER CONTEXT MENU ═══ -->
+<div class="ctx-menu hidden" id="ctx-menu">
+  <div class="ctx-item" data-action="rename"><span class="ctx-label">Rename</span><span class="ctx-shortcut">↵</span></div>
+  <div class="ctx-item" data-action="duplicate"><span class="ctx-label">Duplicate</span><span class="ctx-shortcut" data-shortcut="dup"></span></div>
+  <div class="ctx-divider"></div>
+  <div class="ctx-item" data-action="copy-effects"><span class="ctx-label">Copy Effects</span></div>
+  <div class="ctx-item" data-action="paste-effects"><span class="ctx-label">Paste Effects</span></div>
+  <div class="ctx-divider"></div>
+  <div class="ctx-item ctx-item--danger" data-action="delete"><span class="ctx-label">Delete</span><span class="ctx-shortcut">⌫</span></div>
+  <div class="ctx-divider"></div>
+  <div class="ctx-item" data-action="move-top"><span class="ctx-label">Move to Top</span></div>
+  <div class="ctx-item" data-action="move-bottom"><span class="ctx-label">Move to Bottom</span></div>
+</div>
+
+<!-- ═══ ADD-LAYER POPOVER (next to LAYERS title) ═══ -->
+<div class="layer-popover hidden" id="add-layer-popover">
+  <div class="pop-label">LAYERS</div>
+  <div class="pop-item pop-item--text" data-al-type="solid"><span class="pop-name">Solid</span></div>
+  <div class="pop-item pop-item--text" data-al-type="gradient"><span class="pop-name">Gradient</span></div>
+  <div class="pop-item pop-item--text" data-al-type="linear-gradient"><span class="pop-name">Linear Gradient</span></div>
+  <div class="pop-item pop-item--text" data-al-type="radial-gradient"><span class="pop-name">Radial Gradient</span></div>
+  <div class="pop-item pop-item--text" data-al-type="mesh-gradient"><span class="pop-name">Mesh Gradient</span></div>
+  <div class="pop-item pop-item--text" data-al-type="noise-field"><span class="pop-name">Noise Field</span></div>
+  <div class="pop-item pop-item--text" data-al-type="image"><span class="pop-name">Image</span></div>
+  <div class="pop-item pop-item--text" data-al-type="wave"><span class="pop-name">Wave</span></div>
+  <!-- <div class="pop-divider"></div> -->
+  <div class="pop-item pop-item--text" data-al-type="rectangle"><span class="pop-name">Rectangle</span></div>
+  <div class="pop-item pop-item--text" data-al-type="circle"><span class="pop-name">Circle</span></div>
+  <div class="pop-divider"></div>
+  <div class="pop-label">EFFECTS · DISTORT</div>
+  <div class="pop-item-grid">
+    <div class="pop-item" data-al-type="noise-warp"><canvas class="pop-thumb" data-thumb="noise-warp" width="48" height="36"></canvas><span class="pop-name">Noise Warp</span></div>
+    <div class="pop-item" data-al-type="flow-warp"><canvas class="pop-thumb" data-thumb="flow-warp" width="48" height="36"></canvas><span class="pop-name">Flow Warp</span></div>
+    <div class="pop-item" data-al-type="ripple"><canvas class="pop-thumb" data-thumb="ripple" width="48" height="36"></canvas><span class="pop-name">Ripple</span></div>
+    <div class="pop-item" data-al-type="polar-remap"><canvas class="pop-thumb" data-thumb="polar-remap" width="48" height="36"></canvas><span class="pop-name">Polar Remap</span></div>
+    <div class="pop-item" data-al-type="pixelate"><canvas class="pop-thumb" data-thumb="pixelate" width="48" height="36"></canvas><span class="pop-name">Pixelate</span></div>
+  </div>
+  <div class="pop-divider"></div>
+  <div class="pop-label">EFFECTS · STYLIZE</div>
+  <div class="pop-item-grid">
+    <div class="pop-item" data-al-type="grain"><canvas class="pop-thumb" data-thumb="grain" width="48" height="36"></canvas><span class="pop-name">Grain</span></div>
+    <div class="pop-item" data-al-type="vignette"><canvas class="pop-thumb" data-thumb="vignette" width="48" height="36"></canvas><span class="pop-name">Vignette</span></div>
+    <div class="pop-item" data-al-type="bloom"><canvas class="pop-thumb" data-thumb="bloom" width="48" height="36"></canvas><span class="pop-name">Bloom</span></div>
+    <div class="pop-item" data-al-type="glow"><canvas class="pop-thumb" data-thumb="glow" width="48" height="36"></canvas><span class="pop-name">Glow</span></div>
+    <div class="pop-item" data-al-type="scanlines"><canvas class="pop-thumb" data-thumb="scanlines" width="48" height="36"></canvas><span class="pop-name">Scanlines</span></div>
+  </div>
+  <div class="pop-divider"></div>
+  <div class="pop-label">EFFECTS · COLOR</div>
+  <div class="pop-item-grid">
+    <div class="pop-item" data-al-type="color-grade"><canvas class="pop-thumb" data-thumb="color-grade" width="48" height="36"></canvas><span class="pop-name">Color Grade</span></div>
+    <div class="pop-item" data-al-type="duotone"><canvas class="pop-thumb" data-thumb="duotone" width="48" height="36"></canvas><span class="pop-name">Duotone</span></div>
+    <div class="pop-item" data-al-type="posterize"><canvas class="pop-thumb" data-thumb="posterize" width="48" height="36"></canvas><span class="pop-name">Posterize</span></div>
+    <div class="pop-item" data-al-type="n-tone"><canvas class="pop-thumb" data-thumb="n-tone" width="48" height="36"></canvas><span class="pop-name">N-Tone</span></div>
+    <div class="pop-item" data-al-type="chromatic-aberration"><canvas class="pop-thumb" data-thumb="chromatic-aberration" width="48" height="36"></canvas><span class="pop-name">Chromatic Aberration</span></div>
+  </div>
+</div>
+
+<!-- ═══ ADD ATTACHED EFFECT POPOVER (per-layer) ═══ -->
+<div class="layer-popover hidden" id="effect-popover">
+  <div class="pop-label">EFFECTS · DISTORT</div>
+  <div class="pop-item-grid">
+    <div class="pop-item" data-ae-type="noise-warp"><canvas class="pop-thumb" data-thumb="noise-warp" width="48" height="36"></canvas><span class="pop-name">Noise Warp</span></div>
+    <div class="pop-item" data-ae-type="flow-warp"><canvas class="pop-thumb" data-thumb="flow-warp" width="48" height="36"></canvas><span class="pop-name">Flow Warp</span></div>
+    <div class="pop-item" data-ae-type="ripple"><canvas class="pop-thumb" data-thumb="ripple" width="48" height="36"></canvas><span class="pop-name">Ripple</span></div>
+    <div class="pop-item" data-ae-type="polar-remap"><canvas class="pop-thumb" data-thumb="polar-remap" width="48" height="36"></canvas><span class="pop-name">Polar Remap</span></div>
+    <div class="pop-item" data-ae-type="pixelate"><canvas class="pop-thumb" data-thumb="pixelate" width="48" height="36"></canvas><span class="pop-name">Pixelate</span></div>
+  </div>
+  <div class="pop-divider"></div>
+  <div class="pop-label">EFFECTS · STYLIZE</div>
+  <div class="pop-item-grid">
+    <div class="pop-item" data-ae-type="grain"><canvas class="pop-thumb" data-thumb="grain" width="48" height="36"></canvas><span class="pop-name">Grain</span></div>
+    <div class="pop-item" data-ae-type="vignette"><canvas class="pop-thumb" data-thumb="vignette" width="48" height="36"></canvas><span class="pop-name">Vignette</span></div>
+    <div class="pop-item" data-ae-type="bloom"><canvas class="pop-thumb" data-thumb="bloom" width="48" height="36"></canvas><span class="pop-name">Bloom</span></div>
+    <div class="pop-item" data-ae-type="glow"><canvas class="pop-thumb" data-thumb="glow" width="48" height="36"></canvas><span class="pop-name">Glow</span></div>
+    <div class="pop-item" data-ae-type="scanlines"><canvas class="pop-thumb" data-thumb="scanlines" width="48" height="36"></canvas><span class="pop-name">Scanlines</span></div>
+  </div>
+  <div class="pop-divider"></div>
+  <div class="pop-label">EFFECTS · COLOR</div>
+  <div class="pop-item-grid">
+    <div class="pop-item" data-ae-type="color-grade"><canvas class="pop-thumb" data-thumb="color-grade" width="48" height="36"></canvas><span class="pop-name">Color Grade</span></div>
+    <div class="pop-item" data-ae-type="duotone"><canvas class="pop-thumb" data-thumb="duotone" width="48" height="36"></canvas><span class="pop-name">Duotone</span></div>
+    <div class="pop-item" data-ae-type="posterize"><canvas class="pop-thumb" data-thumb="posterize" width="48" height="36"></canvas><span class="pop-name">Posterize</span></div>
+    <div class="pop-item" data-ae-type="n-tone"><canvas class="pop-thumb" data-thumb="n-tone" width="48" height="36"></canvas><span class="pop-name">N-Tone</span></div>
+    <div class="pop-item" data-ae-type="chromatic-aberration"><canvas class="pop-thumb" data-thumb="chromatic-aberration" width="48" height="36"></canvas><span class="pop-name">Chromatic Aberration</span></div>
+  </div>
+</div>
+
+<!-- ═══ FRAME CONTEXT MENU ═══ -->
+<div class="ctx-menu hidden" id="frame-ctx-menu">
+  <div class="ctx-item" data-action="frame-settings"><span class="ctx-label">Canvas Settings</span></div>
+</div>
+
+<!-- ═══ MAIN APP ═══ -->
+<div id="app">
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <!-- Line 2 — Tools + File name + Actions -->
+    <div class="topbar-line topbar-line--2">
+      <div class="topbar-l2-left">
+        <div class="tb-menu-wrap" data-menu="file">
+          <button class="tb-menu-btn" id="btn-file-menu" onclick="toggleMenu(event,'file')">Scene</span></button>
+          <div class="tb-menu hidden" id="menu-file">
+            <div class="tb-menu-item" data-act="new"><span class="tb-menu-label">New</span><span class="tb-menu-sc" data-shortcut="new"></span></div>
+            <div class="tb-menu-item" data-act="open"><span class="tb-menu-label">Open</span><span class="tb-menu-sc" data-shortcut="open"></span></div>
+            <div class="tb-menu-item" data-act="save"><span class="tb-menu-label">Save</span><span class="tb-menu-sc" data-shortcut="save"></span></div>
+            <div class="tb-menu-divider"></div>
+            <div class="tb-menu-item tb-menu-item--submenu" data-submenu="presets">
+              <span class="tb-menu-label">Presets</span>
+              <span class="tb-menu-sc">▸</span>
+              <div class="tb-submenu hidden" id="submenu-presets">
+                <div class="tb-menu-item" data-act="load-preset" data-preset="aurora"><span class="tb-menu-label">Aurora</span></div>
+                <div class="tb-menu-item" data-act="load-preset" data-preset="silk"><span class="tb-menu-label">Silk</span></div>
+                <div class="tb-menu-item" data-act="load-preset" data-preset="plasma"><span class="tb-menu-label">Plasma</span></div>
+                <div class="tb-menu-item" data-act="load-preset" data-preset="ember"><span class="tb-menu-label">Ember</span></div>
+                <div class="tb-menu-item" data-act="load-preset" data-preset="holo"><span class="tb-menu-label">Holo</span></div>
+                <div class="tb-menu-item" data-act="load-preset" data-preset="cosmos"><span class="tb-menu-label">Cosmos</span></div>
+                <div class="tb-menu-item" data-act="load-preset" data-preset="glitch"><span class="tb-menu-label">Glitch</span></div>
+                <div class="tb-menu-item" data-act="load-preset" data-preset="sunrise"><span class="tb-menu-label">Sunrise</span></div>
+                <div class="tb-menu-item" data-act="load-preset" data-preset="minimal"><span class="tb-menu-label">Minimal</span></div>
+                <div class="tb-menu-item" data-act="load-preset" data-preset="watercolour"><span class="tb-menu-label">Watercolour</span></div>
+                <div class="tb-menu-item" data-act="load-preset" data-preset="vhs"><span class="tb-menu-label">VHS</span></div>
+                <div class="tb-menu-item" data-act="load-preset" data-preset="crt"><span class="tb-menu-label">CRT</span></div>
+              </div>
+            </div>
+            <div class="tb-menu-item" data-act="presets-gallery"><span class="tb-menu-label">Preset gallery…</span></div>
+          </div>
+        </div>
+        <div class="tb-menu-wrap" data-menu="edit">
+          <button class="tb-menu-btn" id="btn-edit-menu" onclick="toggleMenu(event,'edit')">Edit</span></button>
+          <div class="tb-menu hidden" id="menu-edit">
+            <div class="tb-menu-item" id="menu-edit-undo" data-act="undo"><span class="tb-menu-label">Undo</span><span class="tb-menu-sc" data-shortcut="undo"></span></div>
+            <div class="tb-menu-item" id="menu-edit-redo" data-act="redo"><span class="tb-menu-label">Redo</span><span class="tb-menu-sc" data-shortcut="redo"></span></div>
+            <div class="tb-menu-divider"></div>
+            <div class="tb-menu-item" data-act="rename"><span class="tb-menu-label">Rename file</span></div>
+            <div class="tb-menu-item" data-act="duplicate"><span class="tb-menu-label">Duplicate layer</span><span class="tb-menu-sc" data-shortcut="dup"></span></div>
+            <div class="tb-menu-item" data-act="delete"><span class="tb-menu-label">Delete layer</span><span class="tb-menu-sc">⌫</span></div>
+            <div class="tb-menu-divider"></div>
+            <div class="tb-menu-item" data-act="palette"><span class="tb-menu-label">Command palette…</span><span class="tb-menu-sc" data-shortcut="palette"></span></div>
+          </div>
+        </div>
+        <div class="tb-menu-wrap" data-menu="layers">
+          <button class="tb-menu-btn" id="btn-layers-menu" onclick="toggleMenu(event,'layers')">Layers <span class="tb-menu-sc tb-btn-sc" data-shortcut="layers-menu"></span></button>
+          <div class="tb-menu hidden" id="menu-layers">
+            <div class="tb-menu-item" data-act="add-layer" data-type="solid"><span class="tb-menu-label">Solid</span></div>
+            <div class="tb-menu-item" data-act="add-layer" data-type="gradient"><span class="tb-menu-label">Gradient</span></div>
+            <div class="tb-menu-item" data-act="add-layer" data-type="linear-gradient"><span class="tb-menu-label">Linear Gradient</span></div>
+            <div class="tb-menu-item" data-act="add-layer" data-type="radial-gradient"><span class="tb-menu-label">Radial Gradient</span></div>
+            <div class="tb-menu-item" data-act="add-layer" data-type="mesh-gradient"><span class="tb-menu-label">Mesh Gradient</span></div>
+            <div class="tb-menu-item" data-act="add-layer" data-type="noise-field"><span class="tb-menu-label">Noise Field</span></div>
+            <div class="tb-menu-item" data-act="add-layer" data-type="image"><span class="tb-menu-label">Image</span></div>
+            <div class="tb-menu-item" data-act="add-layer" data-type="wave"><span class="tb-menu-label">Wave</span></div>
+            <div class="tb-menu-divider"></div>
+            <div class="tb-menu-item" data-act="add-layer" data-type="rectangle"><span class="tb-menu-label">Rectangle</span></div>
+            <div class="tb-menu-item" data-act="add-layer" data-type="circle"><span class="tb-menu-label">Circle</span></div>
+          </div>
+        </div>
+        <div class="tb-menu-wrap" data-menu="effects">
+          <button class="tb-menu-btn" id="btn-effects-menu" onclick="toggleMenu(event,'effects')">Effects <span class="tb-menu-sc tb-btn-sc" data-shortcut="effects-menu"></span></button>
+          <div class="tb-menu tb-menu--effects hidden" id="menu-effects">
+            <div class="tb-fx-section-label">DISTORT</div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="noise-warp"><canvas class="pop-thumb" data-thumb="noise-warp" width="48" height="36"></canvas><span class="tb-menu-label">Noise Warp</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="flow-warp"><canvas class="pop-thumb" data-thumb="flow-warp" width="48" height="36"></canvas><span class="tb-menu-label">Flow Warp</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="ripple"><canvas class="pop-thumb" data-thumb="ripple" width="48" height="36"></canvas><span class="tb-menu-label">Ripple</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="polar-remap"><canvas class="pop-thumb" data-thumb="polar-remap" width="48" height="36"></canvas><span class="tb-menu-label">Polar Remap</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="pixelate"><canvas class="pop-thumb" data-thumb="pixelate" width="48" height="36"></canvas><span class="tb-menu-label">Pixelate</span></div>
+            <div class="tb-menu-divider"></div>
+            <div class="tb-fx-section-label">STYLIZE</div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="grain"><canvas class="pop-thumb" data-thumb="grain" width="48" height="36"></canvas><span class="tb-menu-label">Grain</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="vignette"><canvas class="pop-thumb" data-thumb="vignette" width="48" height="36"></canvas><span class="tb-menu-label">Vignette</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="bloom"><canvas class="pop-thumb" data-thumb="bloom" width="48" height="36"></canvas><span class="tb-menu-label">Bloom</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="glow"><canvas class="pop-thumb" data-thumb="glow" width="48" height="36"></canvas><span class="tb-menu-label">Glow</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="scanlines"><canvas class="pop-thumb" data-thumb="scanlines" width="48" height="36"></canvas><span class="tb-menu-label">Scanlines</span></div>
+            <div class="tb-menu-divider"></div>
+            <div class="tb-fx-section-label">COLOR</div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="color-grade"><canvas class="pop-thumb" data-thumb="color-grade" width="48" height="36"></canvas><span class="tb-menu-label">Color Grade</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="duotone"><canvas class="pop-thumb" data-thumb="duotone" width="48" height="36"></canvas><span class="tb-menu-label">Duotone</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="posterize"><canvas class="pop-thumb" data-thumb="posterize" width="48" height="36"></canvas><span class="tb-menu-label">Posterize</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="n-tone"><canvas class="pop-thumb" data-thumb="n-tone" width="48" height="36"></canvas><span class="tb-menu-label">N-Tone</span></div>
+            <div class="tb-menu-item tb-fx-item" data-act="add-effect" data-type="chromatic-aberration"><canvas class="pop-thumb" data-thumb="chromatic-aberration" width="48" height="36"></canvas><span class="tb-menu-label">Chromatic Aberration</span></div>
+          </div>
+        </div>
+        <div class="tb-menu-wrap" data-menu="help">
+          <button class="tb-menu-btn" id="btn-help" onclick="toggleMenu(event,'help')">Help</button>
+          <div class="tb-menu hidden" id="menu-help">
+            <div class="tb-menu-item" data-act="help-shortcuts"><span class="tb-menu-label">Keyboard Shortcuts</span></div>
+            <div class="tb-menu-item" data-act="help-whatsnew"><span class="tb-menu-label">What's New</span></div>
+            <div class="tb-menu-item" data-act="help-bug"><span class="tb-menu-label">Report a Bug</span></div>
+            <div class="tb-menu-divider"></div>
+            <div class="tb-menu-item" data-act="help-about"><span class="tb-menu-label">About Frakt</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="topbar-l2-center">
+        <span class="topbar-file-wrap">
+          <span class="topbar-file" id="topbar-file-label" title="Click to rename">untitled</span><span class="topbar-file-ext">.frakt</span>
+        </span>
+        <button class="tb2-btn tb2-btn--icon topbar-file-save" id="btn-save-file" onclick="saveFraktFile()" title="Save" aria-label="Save">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 2.5h7.5L13 5v8.5a.5.5 0 0 1-.5.5h-9a.5.5 0 0 1-.5-.5v-11a.5.5 0 0 1 .5-.5z"/>
+            <path d="M5 2.5v3h5v-3"/>
+            <path d="M5 9.5h6v4h-6z"/>
+          </svg>
+          <span class="tb2-sc" data-shortcut="save"></span>
+        </button>
+      </div>
+      <div class="topbar-l2-right">
+        <button class="tb2-btn" id="btn-capture" onclick="captureCanvasPNG()" title="Take snapshot"><span>Take snapshot</span><span class="tb2-sc" data-shortcut="capture"></span></button>
+        <div class="tb-menu-wrap" data-menu="export">
+          <button class="tb-export-btn" id="btn-export" onclick="toggleMenu(event,'export')">Export <span class="tb-caret tb-caret--dark">▾</span></button>
+          <div class="tb-menu tb-menu--right hidden" id="menu-export">
+            <div class="tb-fx-section-label">Web bundle</div>
+            <div class="tb-menu-item" data-act="export-vanilla"><span class="tb-menu-label">Vanilla HTML</span></div>
+            <div class="tb-menu-item" data-act="export-three"><span class="tb-menu-label">Three.js</span></div>
+            <div class="tb-menu-divider"></div>
+            <div class="tb-fx-section-label">Shadertoy</div>
+            <div class="tb-menu-item" data-act="export-shadertoy"><span class="tb-menu-label">Bundle (.zip)</span></div>
+            <div class="tb-menu-item" data-act="export-shadertoy-copy"><span class="tb-menu-label">Copy code to clipboard</span></div>
+            <div class="tb-menu-divider"></div>
+            <div class="tb-fx-section-label">Coming soon</div>
+            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Metal Shaders (iOS)</span></div>
+            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Framer</span></div>
+            <div class="tb-menu-item tb-menu-item--disabled"><span class="tb-menu-label">Android</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- BODY: LEFT + CANVAS + RIGHT -->
+  <div class="app-body">
+
+    <!-- LEFT PANEL -->
+    <aside class="panel-left">
+      <div class="panel-header">
+        <span class="panel-label">LAYERS</span>
+        <button class="btn-add-layer" id="btn-add-layer" title="Add layer or effect"><span class="btn-add-layer-plus">+</span><span class="btn-add-layer-label">ADD</span></button>
+      </div>
+      <div class="layer-stack" id="layer-stack"></div>
+      <div class="frame-layer-area">
+        <div class="layer-row layer-row--bg" id="frame-row" onclick="selectLayer('frame')">
+          <span class="drag-handle" aria-hidden="true"></span>
+          <span class="layer-icon">◼</span>
+          <span class="layer-name-text">Background</span>
+          <button class="layer-ctx-btn" id="frame-ctx-btn" title="Frame options" onclick="event.stopPropagation(); openFrameCtxMenu(event)"><svg viewBox="0 0 14 14" width="12" height="12" fill="currentColor"><circle cx="7" cy="2.5" r="1.2"/><circle cx="7" cy="7" r="1.2"/><circle cx="7" cy="11.5" r="1.2"/></svg></button>
+        </div>
+      </div>
+      <div class="brand-panel">
+        <div class="brand-howto" id="brand-howto">
+          <div class="brand-howto-label">How it works</div>
+          <button class="brand-howto-thumb" id="brand-howto-thumb" type="button" aria-label="Play video">
+            <img src="../assets/video-01-thumbnail.png" alt="">
+            <span class="brand-howto-play-icon" aria-hidden="true">
+              <svg viewBox="0 0 28 28" width="40" height="40">
+                <circle cx="14" cy="14" r="13" fill="rgba(0,0,0,0.7)"/>
+                <polygon points="11,8.5 20,14 11,19.5" fill="#fff"/>
+              </svg>
+            </span>
+          </button>
+        </div>
+        <div class="brand-row">
+          <img class="brand-icon" src="../assets/frakt-ico-128.png" alt="" width="32" height="32">
+          <div class="brand-text">
+            <div class="brand-name-row">
+              <span class="brand-name">frakt</span>
+              <span class="brand-beta">BETA</span>
+            </div>
+            <span class="brand-tag">Shaders for the rest of us</span>
+          </div>
+        </div>
+        <div class="brand-links">
+          <button class="brand-link" type="button" data-popup="share">Share Frakt with friends</button>
+          <button class="brand-link" type="button" data-popup="feature">Request a feature</button>
+          <button class="brand-link" type="button" data-popup="bug">Report a bug</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CANVAS -->
+    <main class="canvas-area" id="canvas-area">
+      <canvas id="glcanvas"></canvas>
+      <div class="shape-outline hidden" id="shape-outline">
+        <div class="sh-rot-stem"></div>
+        <div class="sh-handle--rot" data-h="rot"></div>
+        <div class="sh-handle" data-h="tl"></div>
+        <div class="sh-handle" data-h="tm"></div>
+        <div class="sh-handle" data-h="tr"></div>
+        <div class="sh-handle" data-h="lm"></div>
+        <div class="sh-handle" data-h="rm"></div>
+        <div class="sh-handle" data-h="bl"></div>
+        <div class="sh-handle" data-h="bm"></div>
+        <div class="sh-handle" data-h="br"></div>
+      </div>
+    </main>
+
+    <!-- RIGHT PANEL -->
+    <aside class="panel-right" id="panel-right">
+      <!-- Populated by engine.js -->
+    </aside>
+
+  </div>
+
+  <!-- STATUSBAR -->
+  <footer class="statusbar">
+    <div class="statusbar-left"></div>
+    <div class="statusbar-center">
+      Built by <a class="statusbar-link" href="https://x.com/swaaaapnilaaa" target="_blank" rel="noopener">Swapnil</a>
+    </div>
+    <div class="statusbar-right">
+      <span id="status-fps">60 fps</span>
+      <span id="status-dims">800 × 600</span>
+    </div>
+  </footer>
+</div>
+
+<!-- ═══ VIDEO POPUP (PIP) ═══ -->
+<div class="video-popup hidden" id="video-popup" aria-label="Video player">
+  <div class="video-popup-header" id="video-popup-header">
+    <button class="video-popup-close" id="video-popup-close" type="button" aria-label="Close video">×</button>
+  </div>
+  <div class="video-popup-body" id="video-popup-body"></div>
+</div>
+
+<!-- ═══ BRAND PANEL POPUPS ═══ -->
+<div class="frakt-popup hidden" id="popup-share">
+  <p class="popup-heading">Spread the word ✦</p>
+  <p class="popup-body">Frakt is a free shader editor for designers and builders. If you're enjoying it, share it with someone who makes things.</p>
+  <div class="popup-share-block">
+    <p class="popup-share-msg" id="popup-share-msg">Check out Frakt — shaders for the rest of us ✦
+A free shader editor that exports real code.
+https://frakt.app</p>
+    <button class="popup-copy" type="button" data-copy-target="popup-share-msg">Copy message</button>
+  </div>
+</div>
+<div class="frakt-popup hidden" id="popup-feature">
+  <p class="popup-heading">Make Frakt better 💡</p>
+  <p class="popup-body">Thanks for thinking about this. I'd love to hear what you'd wish Frakt could do — every good idea starts here.</p>
+  <div class="popup-actions">
+    <div class="popup-contact-row">
+      <span class="popup-contact-label">Email</span>
+      <span class="popup-contact-value">hello@frakt.app</span>
+      <button class="popup-copy" type="button" data-copy="hello@frakt.app">Copy</button>
+    </div>
+    <div class="popup-contact-row">
+      <span class="popup-contact-label">X / Twitter</span>
+      <a class="popup-contact-link" href="https://x.com/swaaaapnilaaa" target="_blank" rel="noopener">@swaaaapnilaaa ↗</a>
+    </div>
+  </div>
+</div>
+<div class="frakt-popup hidden" id="popup-bug">
+  <p class="popup-heading">Thanks for looking out 🔍</p>
+  <p class="popup-body">Bugs happen. Your report helps make Frakt more solid for everyone. Tell me what broke and I'll get on it.</p>
+  <div class="popup-actions">
+    <div class="popup-contact-row">
+      <span class="popup-contact-label">Email</span>
+      <span class="popup-contact-value">hello@frakt.app</span>
+      <button class="popup-copy" type="button" data-copy="hello@frakt.app">Copy</button>
+    </div>
+    <div class="popup-contact-row">
+      <span class="popup-contact-label">X / Twitter</span>
+      <a class="popup-contact-link" href="https://x.com/swaaaapnilaaa" target="_blank" rel="noopener">@swaaaapnilaaa ↗</a>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONFIRM DIALOG ═══ -->
+<div class="confirm-overlay hidden" id="confirm-overlay">
+  <div class="confirm-dialog">
+    <div class="confirm-title" id="confirm-title">Confirm</div>
+    <div class="confirm-subtitle" id="confirm-subtitle"></div>
+    <div class="confirm-actions">
+      <button class="confirm-btn confirm-btn--cancel" id="confirm-cancel">Cancel</button>
+      <button class="confirm-btn confirm-btn--ok" id="confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ FILENAME DIALOG ═══ -->
+<div class="name-overlay hidden" id="name-overlay">
+  <div class="name-dialog">
+    <div class="name-title" id="name-title">Save as</div>
+    <div class="name-input-row">
+      <input type="text" class="name-input" id="name-input" spellcheck="false" autocomplete="off">
+      <span class="name-ext" id="name-ext">.frakt</span>
+    </div>
+    <div class="name-actions">
+      <button class="name-btn name-btn--cancel" id="name-cancel">Cancel</button>
+      <button class="name-btn name-btn--ok" id="name-ok">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Hidden image input -->
+<input type="file" id="img-input" accept="image/png,image/jpeg,image/webp" style="display:none" onchange="onImageUpload(this)">
+
+<!-- Hidden frakt file input -->
+<input type="file" id="frakt-input" accept=".frakt,application/json" style="display:none" onchange="onFraktUpload(this)">
+
+<!-- ═══ COMMAND PALETTE ═══ -->
+<div class="cmd-overlay hidden" id="cmd-overlay">
+  <div class="cmd-dialog">
+    <div class="cmd-search-row">
+      <svg class="cmd-search-icon" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="11" y1="11" x2="14" y2="14" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      <input type="text" class="cmd-search-input" id="cmd-search" placeholder="Search actions, layers, effects…" spellcheck="false" autocomplete="off">
+    </div>
+    <div class="cmd-list" id="cmd-list"></div>
+    <div class="cmd-footer">
+      <span class="cmd-hint"><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+      <span class="cmd-hint"><kbd>↵</kbd> run</span>
+      <span class="cmd-hint"><kbd>esc</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ KEYBOARD SHORTCUTS MODAL ═══ -->
+<div class="help-overlay hidden" id="help-shortcuts-overlay">
+  <div class="help-dialog">
+    <div class="help-header">
+      <span class="help-title">Keyboard Shortcuts</span>
+      <button class="help-close" data-close="help-shortcuts-overlay">×</button>
+    </div>
+    <div class="help-body">
+      <div class="help-cols">
+        <div class="help-col">
+          <div class="help-group">
+            <div class="help-group-label">GENERAL</div>
+            <div class="help-row"><span class="help-row-label">Command Palette</span><span class="help-row-sc" data-shortcut="palette"></span></div>
+            <div class="help-row"><span class="help-row-label">Layers menu</span><span class="help-row-sc" data-shortcut="layers-menu"></span></div>
+            <div class="help-row"><span class="help-row-label">Effects menu</span><span class="help-row-sc" data-shortcut="effects-menu"></span></div>
+            <div class="help-row"><span class="help-row-label">Show Shortcuts</span><span class="help-row-sc" data-shortcut="shortcuts"></span></div>
+            <div class="help-row"><span class="help-row-label">Play / Pause</span><span class="help-row-sc">Space</span></div>
+            <div class="help-row"><span class="help-row-label">Take Snapshot</span><span class="help-row-sc" data-shortcut="capture"></span></div>
+          </div>
+          <div class="help-group">
+            <div class="help-group-label">EDIT</div>
+            <div class="help-row"><span class="help-row-label">Undo</span><span class="help-row-sc" data-shortcut="undo"></span></div>
+            <div class="help-row"><span class="help-row-label">Redo</span><span class="help-row-sc" data-shortcut="redo"></span></div>
+            <div class="help-row"><span class="help-row-label">Duplicate Layer</span><span class="help-row-sc" data-shortcut="dup"></span></div>
+            <div class="help-row"><span class="help-row-label">Delete Layer</span><span class="help-row-sc">⌫</span></div>
+          </div>
+        </div>
+        <div class="help-col">
+          <div class="help-group">
+            <div class="help-group-label">LAYERS</div>
+            <div class="help-row"><span class="help-row-label">New File</span><span class="help-row-sc" data-shortcut="new"></span></div>
+            <div class="help-row"><span class="help-row-label">Open File</span><span class="help-row-sc" data-shortcut="open"></span></div>
+            <div class="help-row"><span class="help-row-label">Save</span><span class="help-row-sc" data-shortcut="save"></span></div>
+            <div class="help-row"><span class="help-row-label">Rename Layer</span><span class="help-row-sc">↵</span></div>
+            <div class="help-row"><span class="help-row-label">Select Next/Prev</span><span class="help-row-sc">↑ ↓</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ WHAT'S NEW MODAL ═══ -->
+<div class="help-overlay hidden" id="help-whatsnew-overlay">
+  <div class="help-dialog help-dialog--narrow">
+    <div class="help-header">
+      <span class="help-title">What's New</span>
+      <button class="help-close" data-close="help-whatsnew-overlay">×</button>
+    </div>
+    <div class="help-body">
+      <div class="changelog-entry">
+        <div class="changelog-version">v0.6 <span class="changelog-date">· April 2026</span></div>
+        <ul class="changelog-list">
+          <li>Image layer now supports position, size, and fit modes (Cover, Contain, Stretch)</li>
+          <li>Mesh gradients now take 4–16 colour points with a live preview</li>
+          <li>Split Insert menu into dedicated Layers and Effects dropdowns</li>
+          <li>Redesigned Frame block, cleaner status bar, Help menu, BETA tag</li>
+          <li>Image rendering no longer flips upside-down</li>
+        </ul>
+      </div>
+      <div class="changelog-entry">
+        <div class="changelog-version">v0.5</div>
+        <ul class="changelog-list">
+          <li>Per-layer attached effects</li>
+          <li>Command palette (⌘K)</li>
+          <li>Snapshot export, GLSL export, Shadertoy export</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ REPORT A BUG MODAL ═══ -->
+<div class="help-overlay hidden" id="help-bug-overlay">
+  <div class="help-dialog help-dialog--narrow">
+    <div class="help-header">
+      <span class="help-title">Report a bug</span>
+      <button class="help-close" data-close="help-bug-overlay">×</button>
+    </div>
+    <div class="help-body help-contact-body">
+      <p class="help-lede">Report a bug, or just get in touch. I read every message.</p>
+      <div class="contact-row">
+        <span class="contact-email">hello@frakt.app</span>
+        <button class="contact-copy-btn" data-copy-email="hello@frakt.app">Copy</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ ABOUT MODAL ═══ -->
+<div class="help-overlay hidden" id="help-about-overlay">
+  <div class="help-dialog help-dialog--narrow">
+    <div class="help-header">
+      <span class="help-title">About Frakt</span>
+      <button class="help-close" data-close="help-about-overlay">×</button>
+    </div>
+    <div class="help-body help-about-body">
+      <div class="about-hero">
+        <img class="about-icon-big" src="../assets/frakt-ico-128.svg" alt="frakt" width="96" height="96">
+        <div class="about-hero-meta">
+          <span class="app-beta">BETA</span>
+          <span class="about-version">v0.6</span>
+        </div>
+      </div>
+
+      <div class="about-divider"></div>
+
+      <div class="about-story">
+        <p>Frakt started as a selfish project. I wanted beautiful shader backgrounds for my own work but every path to getting them required either writing GLSL from scratch or paying for tools that locked the output behind their ecosystem.</p>
+        <p>So I built Frakt — a layer-based shader creator that exports real, runnable code. The name is a compression of "fragment" and "fractal".</p>
+      </div>
+
+      <div class="about-divider"></div>
+
+      <div class="about-contact">
+        <div class="about-section-label">GET IN TOUCH</div>
+        <div class="contact-row">
+          <span class="contact-email">hello@frakt.app</span>
+          <button class="contact-copy-btn" data-copy-email="hello@frakt.app">Copy</button>
+        </div>
+      </div>
+
+      <div class="about-divider"></div>
+
+      <div class="about-footer">
+        <span class="about-byline-text">Built by Swapnil</span>
+        <a class="about-x-link" href="https://x.com/swaaaapnilaaa" target="_blank" rel="noopener">
+          <span class="about-x-glyph">&#120143;</span>
+          <span class="about-x-handle">@swaaaapnilaaa</span>
+          <span class="about-x-arrow">&#8599;</span>
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast" class="toast hidden"></div>
+
+<script src="../lib/presets.js"></script>
+<script src="../lib/renderer.js"></script>
+<script src="../lib/engine.js"></script>
+</body>
+</html>

@@ -1,0 +1,676 @@
+/* =============================================================
+   Frakt landing — hero (Session 1, Figma-aligned)
+
+   Source of truth: Figma node 105:5 in the "Shader Lab" file.
+   Card 1300×920 centered on a 1920×1080 artboard, panel pokes out
+   198px past the card's right edge on wide viewports.
+   ============================================================= */
+
+:root {
+  --bg-page: #fafafa;
+  --fg-on-shader: #ffffff;
+  --fg-on-light: #1a1a1a;
+  --chip-bg: #ffffff;
+  --chip-fg: #ff8599;            /* SVG default fill — coral wordmark */
+  --secondary-bg: rgba(255, 255, 255, 0.3);
+  --secondary-bg-hover: rgba(255, 255, 255, 0.45);
+
+  /* Panel — dark glass, per Figma */
+  --panel-bg: rgba(22, 22, 22, 0.83);
+  --panel-border: #2a2a2a;
+  --panel-label: #888888;
+  --panel-value: #e0e0e0;
+  --slider-track: rgba(255, 255, 255, 0.1);
+  --slider-fill: rgba(255, 255, 255, 0.4);
+  --slider-thumb: #ffffff;
+
+  --duration-fast: 120ms;
+  --duration-medium: 240ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-handwritten: 'Delicious Handrawn', 'Caveat', cursive;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-page);
+  color: var(--fg-on-light);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+button {
+  font-family: inherit;
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  color: inherit;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* Hidden canvas — renderer.js requires #glcanvas at top level */
+#glcanvas {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+  left: -10000px;
+  top: -10000px;
+}
+
+img { display: block; max-width: 100%; }
+
+/* =============================================================
+   Page + hero card
+   Figma: card 1300×920, top: 80px, border-radius 40px
+   ============================================================= */
+
+.page {
+  width: 100%;
+  min-height: 100vh;
+}
+
+.hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 80px 24px;
+}
+
+.hero-card {
+  position: relative;
+  width: 100%;
+  max-width: 1300px;
+  /* Figma 1300/920 ≈ 1.413:1 */
+  aspect-ratio: 1300 / 920;
+  border-radius: 40px;
+  overflow: visible; /* Allow panel + handwritten label to poke out */
+  isolation: isolate;
+}
+
+.hero-card-clip {
+  /* Inner clip wrapper — the shader and content are clipped to the rounded
+     card; the controls panel + handwritten label live in .hero-card and can
+     extend past this clip. */
+  position: absolute;
+  inset: 0;
+  border-radius: 40px;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+
+.hero-shader {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 0;
+}
+
+/* Content stack — Figma: 1080px wide, top 159px from card top, gap 72px */
+.hero-content {
+  position: absolute;
+  top: 159px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(1080px, 100% - 96px);
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 72px;
+}
+
+/* =============================================================
+   Headline / body / handoff — Figma exact
+   ============================================================= */
+
+.hero-text {
+  display: flex;
+  flex-direction: column;
+  gap: 72px;
+  width: 100%;
+}
+
+.hero-text-block {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  width: 100%;
+}
+
+.hero-headline {
+  margin: 0;
+  font-size: 80px;
+  font-weight: 800;
+  line-height: 1.0;
+  letter-spacing: -1.6px;
+  color: var(--fg-on-shader);
+  width: 100%;
+}
+
+.hero-body {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 500;
+  line-height: 1.0;
+  letter-spacing: -0.32px;
+  color: var(--fg-on-shader);
+  width: 100%;
+}
+
+.hero-handoff {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 400;
+  line-height: 1.0;
+  letter-spacing: -0.32px;
+  color: var(--fg-on-shader);
+  max-width: 762px;
+}
+
+.hero-handoff .frakt-chip {
+  /* Figma: 8px vertical, 12px horizontal padding, 8px radius, white bg */
+  display: inline-flex;
+  align-items: center;
+  background: var(--chip-bg);
+  padding: 8px 12px;
+  border-radius: 8px;
+  vertical-align: -8px; /* Lift to baseline-align with surrounding 32px text */
+  margin-right: 6px;
+}
+
+.hero-handoff .frakt-chip img {
+  /* Figma asset is 77.834×29.96; the SVG ships with width:100% baked in, so
+     constrain both axes explicitly to the Figma dimensions. */
+  width: 78px;
+  height: 30px;
+  display: block;
+}
+
+.hero-underline {
+  text-decoration: underline;
+  text-decoration-color: rgba(255, 255, 255, 0.95);
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 6px;
+}
+
+/* =============================================================
+   CTAs — Figma exact: height 72, padding 16/32, radius 72, Inter SemiBold 24
+   ============================================================= */
+
+.hero-ctas {
+  display: flex;
+  flex-direction: row;
+  gap: 24px;
+  align-items: center;
+}
+
+.cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 72px;
+  padding: 0 32px;
+  border-radius: 72px;
+  font-size: 24px;
+  font-weight: 600;
+  font-family: inherit;
+  line-height: 24px;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease),
+              transform var(--duration-fast) var(--ease);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.cta--primary {
+  background: #000000;
+  color: #ffffff;
+}
+.cta--primary:hover { background: #1a1a1a; }
+.cta--primary:active { transform: scale(0.98); }
+
+.cta--secondary {
+  background: var(--secondary-bg);
+  color: var(--fg-on-light);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+}
+.cta--secondary:hover { background: var(--secondary-bg-hover); }
+.cta--secondary:active { transform: scale(0.98); }
+
+.cta--secondary .cta-play {
+  width: 16px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.cta--secondary .cta-play img {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.cta[hidden] { display: none; }
+
+/* Mobile-only primary CTA (email-me-a-link) — hidden by default */
+.cta-mobile-primary { display: none; }
+.cta-email-form { display: none; align-items: center; gap: 8px; }
+.cta-email-form.is-open { display: flex; }
+
+.cta-email-input {
+  flex: 1;
+  background: rgba(0, 0, 0, 0.85);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  padding: 14px 20px;
+  font-size: 16px;
+  font-family: inherit;
+  outline: none;
+  min-width: 0;
+}
+.cta-email-input::placeholder { color: rgba(255, 255, 255, 0.5); }
+.cta-email-input:focus { border-color: rgba(255, 255, 255, 0.5); }
+
+.cta-email-submit {
+  background: #000;
+  color: #fff;
+  padding: 14px 22px;
+  border-radius: 999px;
+  font-size: 16px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.cta-email-submit:hover { background: #1a1a1a; }
+
+.cta-email-confirm {
+  margin: 0;
+  color: var(--fg-on-shader);
+  font-size: 15px;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 14px 18px;
+  border-radius: 12px;
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+
+/* =============================================================
+   Controls panel — Figma: 371.5×196.75, dark glass, pokes 198.5px out
+   ============================================================= */
+
+.controls {
+  position: absolute;
+  /* Anchor to card right; offset by panel-poke amount when there's room */
+  right: var(--panel-right, 24px);
+  bottom: var(--panel-bottom, 65px);
+  z-index: 3;
+  width: 371.5px;
+  padding: 24px 24.25px;
+  display: flex;
+  flex-direction: column;
+  gap: 24.25px;
+  background: var(--panel-bg);
+  border: 1.516px solid var(--panel-border);
+  border-radius: 12.125px;
+  -webkit-backdrop-filter: blur(15.156px);
+  backdrop-filter: blur(15.156px);
+  color: var(--panel-value);
+}
+
+/* Wide viewports (≥ 1700px): panel can poke 198.5px past card right edge */
+@media (min-width: 1700px) {
+  .controls {
+    --panel-right: -198.5px;
+    --panel-bottom: 65.25px;
+  }
+}
+
+.controls-handwritten {
+  /* Figma: position 1623,673 in viewport. Card centers at 960. So in card
+     coordinates: handwritten left = 1623-310 = 1313, top = 673-80 = 593.
+     With card width 1300: handwritten center is at 1313+ (text width)/2.
+     Anchor to top-right of the card so it sits to the upper-right of the panel. */
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 4px;
+  font-family: var(--font-handwritten);
+  font-size: 38px;
+  font-weight: 400;
+  line-height: 1;
+  color: #000;
+  letter-spacing: -1.52px;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: rotate(-3deg);
+  transform-origin: 100% 100%;
+}
+
+.controls-label {
+  font-size: 15.156px;
+  font-weight: 500;
+  line-height: 18.188px;
+  color: var(--panel-label);
+  letter-spacing: 0;
+  margin: 0;
+}
+
+.controls-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 24.25px;
+}
+
+.controls-row {
+  display: grid;
+  grid-template-columns: 100px 1fr 40px;
+  align-items: center;
+  gap: 32px;
+}
+
+.controls-row-label {
+  font-size: 16.672px;
+  font-weight: 400;
+  line-height: 18.188px;
+  color: var(--panel-label);
+  white-space: nowrap;
+}
+
+.controls-value {
+  font-size: 16.672px;
+  font-weight: 400;
+  line-height: 18.188px;
+  color: var(--panel-value);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Slider — Figma: track 6.063px tall, full radius, thumb 18.188px white */
+.controls-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 18.188px;
+  background: transparent;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  outline: none;
+  --fill: 0;
+}
+
+.controls-slider::-webkit-slider-runnable-track {
+  height: 6.063px;
+  border-radius: 12.125px;
+  background: linear-gradient(
+    to right,
+    var(--slider-fill) 0%,
+    var(--slider-fill) calc(var(--fill) * 100%),
+    var(--slider-track) calc(var(--fill) * 100%),
+    var(--slider-track) 100%
+  );
+}
+.controls-slider::-moz-range-track {
+  height: 6.063px;
+  border-radius: 12.125px;
+  background: var(--slider-track);
+}
+.controls-slider::-moz-range-progress {
+  height: 6.063px;
+  border-radius: 12.125px;
+  background: var(--slider-fill);
+}
+.controls-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18.188px;
+  height: 18.188px;
+  border-radius: 50%;
+  background: var(--slider-thumb);
+  border: none;
+  margin-top: -6.0625px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+.controls-slider::-moz-range-thumb {
+  width: 18.188px;
+  height: 18.188px;
+  border-radius: 50%;
+  background: var(--slider-thumb);
+  border: none;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+
+/* =============================================================
+   Modal — See how it works
+   ============================================================= */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal[hidden] { display: none; }
+
+.modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.modal-card {
+  position: relative;
+  background: #1a1a1a;
+  color: #fff;
+  border-radius: 24px;
+  padding: 56px 48px;
+  width: min(90vw, 540px);
+  text-align: center;
+}
+
+.modal-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 22px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background var(--duration-fast) var(--ease);
+}
+.modal-close:hover { background: rgba(255, 255, 255, 0.18); }
+
+.modal-play {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--chip-fg);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 24px;
+}
+
+.modal-title {
+  font-size: 24px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.modal-sub {
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* =============================================================
+   Tablet (769–1280)
+   ============================================================= */
+
+@media (max-width: 1280px) and (min-width: 769px) {
+  .hero-content {
+    top: 88px;
+    width: calc(100% - 96px);
+    gap: 56px;
+  }
+  .hero-text { gap: 56px; }
+  .hero-text-block { gap: 20px; }
+  .hero-headline { font-size: 64px; letter-spacing: -1.28px; }
+  .hero-body { font-size: 24px; letter-spacing: -0.24px; }
+  .hero-handoff { font-size: 24px; letter-spacing: -0.24px; }
+  .hero-handoff .frakt-chip { padding: 6px 10px; vertical-align: -6px; }
+  .hero-handoff .frakt-chip img { width: 58px; height: 22px; }
+  .cta { height: 60px; font-size: 20px; padding: 0 26px; }
+  .controls-handwritten { font-size: 32px; letter-spacing: -1.28px; }
+}
+
+/* =============================================================
+   Mobile
+   ============================================================= */
+
+@media (max-width: 768px) {
+  .hero { padding: 24px; min-height: auto; }
+
+  .hero-card {
+    aspect-ratio: auto;
+    max-width: 100%;
+    border-radius: 28px;
+    overflow: visible;
+  }
+
+  /* On mobile, the clip wrapper becomes a flow container so the content
+     determines the card's height. The shader becomes an absolutely-positioned
+     background behind the content. */
+  .hero-card-clip {
+    position: relative;
+    inset: auto;
+    border-radius: 28px;
+    min-height: 100%;
+  }
+
+  .hero-shader {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .hero-content {
+    position: relative;
+    inset: auto;
+    top: auto;
+    left: auto;
+    transform: none;
+    width: 100%;
+    padding: 32px 24px;
+    gap: 32px;
+  }
+
+  .hero-text { gap: 32px; }
+  .hero-text-block { gap: 16px; }
+
+  .hero-headline {
+    font-size: clamp(40px, 12vw, 56px);
+    letter-spacing: -1px;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    max-width: 100%;
+  }
+  .hero-body {
+    font-size: 18px;
+    letter-spacing: -0.18px;
+    line-height: 1.4;
+  }
+  .hero-handoff {
+    font-size: 18px;
+    letter-spacing: -0.18px;
+    line-height: 1.4;
+    max-width: 100%;
+  }
+  .hero-handoff .frakt-chip {
+    padding: 4px 8px;
+    vertical-align: -4px;
+  }
+  .hero-handoff .frakt-chip img { width: 47px; height: 18px; }
+
+  .cta { height: 56px; font-size: 17px; padding: 0 24px; }
+
+  .cta--desktop { display: none; }
+  .cta-mobile-primary { display: block; width: 100%; }
+  .cta-mobile-primary .cta { width: 100%; justify-content: center; }
+
+  .hero-ctas {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+  }
+  .hero-ctas .cta { width: 100%; justify-content: center; }
+
+  /* Controls panel goes inline on mobile (relocated by JS) */
+  .controls-mobile-slot {
+    width: 100%;
+    position: relative;
+  }
+  .controls-mobile-slot .controls {
+    position: relative;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    --panel-right: 0;
+    --panel-bottom: 0;
+  }
+
+  .controls-handwritten {
+    font-size: 28px;
+    letter-spacing: -1.12px;
+    bottom: calc(100% + 4px);
+    right: 8px;
+  }
+
+  /* Beefier slider thumb + bigger touch target on mobile */
+  .controls-row { grid-template-columns: 80px 1fr 56px; gap: 16px; }
+  .controls-slider {
+    height: 44px;
+  }
+  .controls-slider::-webkit-slider-thumb {
+    width: 24px;
+    height: 24px;
+    margin-top: -9px;
+  }
+  .controls-slider::-moz-range-thumb {
+    width: 24px;
+    height: 24px;
+  }
+}

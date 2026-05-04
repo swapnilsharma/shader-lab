@@ -1,0 +1,100 @@
+/* =============================================================
+   Frakt landing — Two-column section layout
+
+   Wraps Carousel, How it works, and Export sections into a
+   30L:70R grid. Smaller column hosts a heading + subhead,
+   top-left aligned. Larger column holds the existing content
+   (carousel rail, video, code+logos) unchanged.
+   ============================================================= */
+
+.sec--two-col {
+  padding-left: 48px;
+  padding-right: 48px;
+  /* Section's own vertical padding (96px bottom etc) is preserved
+     by the section-specific stylesheet. */
+}
+
+.sec-grid {
+  display: grid;
+  gap: 48px;
+  max-width: 1280px;
+  margin: 0 auto;
+  align-items: stretch;
+  width: 100%;
+}
+
+.sec-grid--30l { grid-template-columns: minmax(320px, 30fr) 70fr; }
+
+.sec-content-col {
+  min-width: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* =============================================================
+   Heading column — top-left aligned, no shader background
+   ============================================================= */
+
+.sec-heading-col {
+  position: relative;
+  min-width: 320px;
+}
+
+.sec-heading-content {
+  position: relative;
+  padding: 0 24px;
+  /* Top-aligned. Some breathing room from the column top so the heading
+     sits in the upper area of the column without hugging the edge. */
+  padding-top: 8px;
+}
+
+.sec-heading-col .sec-h {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 48px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: #1a1a1a;
+  text-align: left;
+  max-width: 100%;
+}
+
+.sec-heading-col .sec-sub {
+  margin: 12px 0 0;
+  font-family: var(--font-sans);
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: #666;
+  text-align: left;
+  max-width: 100%;
+}
+
+/* =============================================================
+   Mobile (< 1100px) — stack to single column
+   ============================================================= */
+
+@media (max-width: 1100px) {
+  .sec--two-col { padding-left: 24px; padding-right: 24px; }
+
+  .sec-grid--30l {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .sec-heading-col {
+    min-width: 0;
+    width: 100%;
+    height: auto;
+  }
+
+  .sec-heading-content {
+    padding: 0;
+  }
+
+  .sec-heading-col .sec-h { font-size: 32px; }
+  .sec-heading-col .sec-sub { font-size: 16px; }
+}

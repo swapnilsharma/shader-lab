@@ -1,0 +1,316 @@
+/* =============================================================
+   Frakt landing — How it works + Export sections (Session 3)
+   ============================================================= */
+
+:root {
+  /* Inherit --font-sans, --font-mono, --bg-page, etc. from landing.css */
+  --sec-fg: #1a1a1a;
+  --sec-fg-muted: #666;
+  --sec-pad-y-desktop: 96px;
+  --sec-pad-y-mobile: 64px;
+}
+
+/* Heading + subhead typography for hiw/ex now lives in columns.css
+   (.sec-h / .sec-sub). The old .hiw-header / .ex-header centering wrappers
+   no longer exist in the markup. */
+
+/* =============================================================
+   How it works — Vimeo embed
+   ============================================================= */
+
+.hiw {
+  /* Carousel section ends with its own 96px bottom padding; this section
+     adds 0 top so the gap stays at 96px. */
+  padding: 0 0 96px;
+  width: 100%;
+}
+
+.hiw-video-card {
+  position: relative;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  aspect-ratio: 16 / 9;
+  border-radius: 32px;
+  overflow: hidden;
+  background: #1a1a1a;
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.08);
+}
+
+.hiw-video-card iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+/* =============================================================
+   Export — code block + scattered logos
+   ============================================================= */
+
+.ex {
+  padding: 0 0 96px;
+  width: 100%;
+}
+
+.ex-stage {
+  position: relative;
+  width: 100%;
+  max-width: 960px;
+  margin: 0 auto;
+  /* Tall enough to hold the 400px code block + breathing room for scattered
+     logos top/bottom. Logos are absolutely positioned within. */
+  height: 600px;
+}
+
+/* ── Code block ─────────────────────────────────────────────── */
+
+.ex-code {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  /* Lowered (logos sit at z-index 1 — they now overlap the code block on top) */
+  z-index: 0;
+  width: 720px;
+  max-width: 100%;
+  height: 400px;
+  background: #0d1117;
+  border-radius: 16px;
+  padding: 24px 32px;
+  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ex-code::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 40%;
+  background: linear-gradient(to bottom, rgba(13, 17, 23, 0) 0%, #0d1117 75%);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.ex-code pre {
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  color: #f8f8f2;
+  white-space: pre;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.ex-code code {
+  font-family: inherit;
+  display: block;
+}
+
+/* Dracula-inspired token colors */
+.ex-code .tk-kw  { color: #ff79c6; }
+.ex-code .tk-str { color: #f1fa8c; }
+.ex-code .tk-cm  { color: #6272a4; font-style: italic; }
+.ex-code .tk-fn  { color: #50fa7b; }
+.ex-code .tk-num { color: #bd93f9; }
+.ex-code .tk-pn  { color: #ff79c6; }     /* punctuation accent for backticks */
+
+/* ── Scattered logos ────────────────────────────────────────── */
+
+.ex-logo {
+  position: absolute;
+  z-index: 1;
+  /* Defaults if a logo doesn't set them; per-logo overrides via inline --vars */
+  top:    var(--top,    auto);
+  left:   var(--left,   auto);
+  right:  var(--right,  auto);
+  bottom: var(--bottom, auto);
+  /* Compose: base position + hover lift via translate3d, plus rotate/scale */
+  transform: rotate(var(--rot, 0deg)) scale(var(--scl, 1));
+  /* Entry transition target (set when .is-entered is added) */
+  opacity: 0;
+  transition:
+    opacity 400ms cubic-bezier(0.2, 0, 0, 1),
+    transform 400ms cubic-bezier(0.2, 0, 0, 1);
+  pointer-events: none;
+}
+
+/* Pre-entry "fly-in" offset — even-indexed logos slide from above-left,
+   odd-indexed logos slide from above-right. Combined with the base rotate/scale. */
+.ex-logo:not(.is-entered) {
+  transform: rotate(var(--rot, 0deg)) scale(var(--scl, 1)) translate(var(--enter-tx, 16px), 16px);
+}
+.ex-logo[data-logo="threejs"]    { --enter-tx: -16px; }
+.ex-logo[data-logo="shadertoy"]  { --enter-tx:  16px; }
+.ex-logo[data-logo="framer"]     { --enter-tx: -16px; }
+.ex-logo[data-logo="flutter"]    { --enter-tx: -20px; }
+.ex-logo[data-logo="glsl"]       { --enter-tx:  16px; }
+.ex-logo[data-logo="swiftui"]    { --enter-tx:  20px; }
+.ex-logo[data-logo="unity"]      { --enter-tx:  16px; }
+.ex-logo[data-logo="skia"]       { --enter-tx: -16px; }
+
+.ex-logo.is-entered {
+  opacity: 1;
+  /* Settled position — rotate + scale, no translate offset */
+  transform: rotate(var(--rot, 0deg)) scale(var(--scl, 1));
+}
+
+/* Perpetual gentle float — kicks in via JS adding .is-floating */
+.ex-logo.is-floating[style*="--float: vert"] {
+  animation: ex-float-vert var(--dur, 5s) ease-in-out var(--del, 0s) infinite alternate;
+}
+.ex-logo.is-floating[style*="--float: horiz"] {
+  animation: ex-float-horiz var(--dur, 5s) ease-in-out var(--del, 0s) infinite alternate;
+}
+
+/* Float keyframes preserve each logo's rotate + scale */
+@keyframes ex-float-vert {
+  from { transform: rotate(var(--rot, 0deg)) scale(var(--scl, 1)) translateY(-4px); }
+  to   { transform: rotate(var(--rot, 0deg)) scale(var(--scl, 1)) translateY( 4px); }
+}
+@keyframes ex-float-horiz {
+  from { transform: rotate(var(--rot, 0deg)) scale(var(--scl, 1)) translateX(-3px); }
+  to   { transform: rotate(var(--rot, 0deg)) scale(var(--scl, 1)) translateX( 3px); }
+}
+
+/* The visible pill */
+.ex-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+  padding: 8px 16px 8px 8px;
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.1);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a1a1a;
+  white-space: nowrap;
+}
+
+.ex-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.ex-name { line-height: 1; }
+
+.ex-soon {
+  display: inline-block;
+  margin-left: 4px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  color: #888;
+  text-transform: lowercase;
+  letter-spacing: 0.04em;
+}
+.ex-soon::before { content: '· '; opacity: 0.6; }
+
+/* Hide mobile-only strip on desktop */
+.ex-logo-strip { display: none; }
+
+/* =============================================================
+   Reduced motion — disable float, keep entry visibility
+   ============================================================= */
+
+@media (prefers-reduced-motion: reduce) {
+  .ex-logo,
+  .ex-logo.is-floating[style*="--float: vert"],
+  .ex-logo.is-floating[style*="--float: horiz"] {
+    animation: none;
+    transition: opacity 200ms;
+  }
+  .ex-logo.is-entered {
+    transform: rotate(var(--rot, 0deg)) scale(var(--scl, 1));
+  }
+}
+
+/* =============================================================
+   Tablet
+   ============================================================= */
+
+@media (max-width: 1024px) and (min-width: 769px) {
+  .ex-stage { height: 540px; }
+  .ex-code { width: 90%; height: 360px; padding: 20px 24px; }
+}
+
+/* =============================================================
+   Mobile
+   ============================================================= */
+
+@media (max-width: 768px) {
+  .hiw { padding: 0 0 64px; }
+  .hiw-video-card { border-radius: 20px; }
+
+  .ex { padding: 0 0 64px; }
+
+  /* Hide the scattered-logo composition; show the horizontal strip instead. */
+  .ex-stage {
+    height: auto;
+    width: 100%;
+    max-width: 100%;
+    padding: 0 24px;
+    box-sizing: border-box;
+  }
+  .ex-stage .ex-logo { display: none; }
+
+  .ex-code {
+    position: relative;
+    left: auto;
+    top: auto;
+    transform: none !important;
+    width: 100%;
+    max-width: 100%;
+    height: 320px;
+    padding: 20px 20px;
+  }
+  .ex-code pre { font-size: 12px; }
+
+  /* Mobile horizontal logo strip — populated by JS from desktop logos */
+  .ex-logo-strip {
+    display: flex;
+    gap: 12px;
+    padding: 32px 24px 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .ex-logo-strip::-webkit-scrollbar { display: none; }
+
+  .ex-logo-strip .ex-pill {
+    scroll-snap-align: start;
+    flex-shrink: 0;
+    /* Stagger fade-in entry on mobile too */
+    opacity: 0;
+    transform: translateY(8px);
+    transition: opacity 400ms cubic-bezier(0.2, 0, 0, 1),
+                transform 400ms cubic-bezier(0.2, 0, 0, 1);
+  }
+  .ex-logo-strip .ex-pill.is-entered {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
