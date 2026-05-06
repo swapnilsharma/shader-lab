@@ -18,10 +18,10 @@
   /* Panel — dark glass, per Figma */
   --panel-bg: rgba(22, 22, 22, 0.83);
   --panel-border: #2a2a2a;
-  --panel-label: #888888;
-  --panel-value: #e0e0e0;
+  --panel-label: #ffffff9e;
+  --panel-value: #ffffffb9;
   --slider-track: rgba(255, 255, 255, 0.1);
-  --slider-fill: rgba(255, 255, 255, 0.4);
+  --slider-fill: rgba(255, 255, 255, 0.5);
   --slider-thumb: #ffffff;
 
   --duration-fast: 120ms;
@@ -92,9 +92,8 @@ img { display: block; max-width: 100%; }
 .hero-card {
   position: relative;
   width: 100%;
-  max-width: 1300px;
-  /* Figma 1300/920 ≈ 1.413:1 */
-  aspect-ratio: 1300 / 920;
+  max-width: 1400px;
+  aspect-ratio: 1280 / 640;
   border-radius: 40px;
   overflow: visible; /* Allow panel + handwritten label to poke out */
   isolation: isolate;
@@ -131,7 +130,7 @@ img { display: block; max-width: 100%; }
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 72px;
+  gap: 32px;
 }
 
 /* =============================================================
@@ -141,7 +140,7 @@ img { display: block; max-width: 100%; }
 .hero-text {
   display: flex;
   flex-direction: column;
-  gap: 72px;
+  gap: 40px;
   width: 100%;
 }
 
@@ -153,33 +152,33 @@ img { display: block; max-width: 100%; }
 }
 
 .hero-headline {
-  margin: 0;
-  font-size: 80px;
-  font-weight: 800;
-  line-height: 1.0;
-  letter-spacing: -1.6px;
-  color: var(--fg-on-shader);
-  width: 100%;
+    margin: 0;
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1.0;
+    letter-spacing: -1.6px;
+    color: var(--fg-on-shader);
+    width: 100%;
 }
 
 .hero-body {
-  margin: 0;
-  font-size: 32px;
-  font-weight: 500;
-  line-height: 1.0;
-  letter-spacing: -0.32px;
-  color: var(--fg-on-shader);
-  width: 100%;
+    margin: 0;
+    font-size: 20px;
+    font-weight: 500;
+    line-height: 1.0;
+    letter-spacing: -0.32px;
+    color: var(--fg-on-shader);
+    width: 60%;
 }
 
 .hero-handoff {
-  margin: 0;
-  font-size: 32px;
-  font-weight: 400;
-  line-height: 1.0;
-  letter-spacing: -0.32px;
-  color: var(--fg-on-shader);
-  max-width: 762px;
+    margin: 0;
+    font-size: 40px;
+    font-weight: 800;
+    line-height: 1.0;
+    letter-spacing: -1.6px;
+    color: var(--fg-on-shader);
+    width: 60%;
 }
 
 .hero-handoff .frakt-chip {
@@ -189,7 +188,7 @@ img { display: block; max-width: 100%; }
   background: var(--chip-bg);
   padding: 8px 12px;
   border-radius: 8px;
-  vertical-align: -8px; /* Lift to baseline-align with surrounding 32px text */
+  vertical-align: -1px; /* Lift to baseline-align with surrounding 32px text */
   margin-right: 6px;
 }
 
@@ -224,10 +223,10 @@ img { display: block; max-width: 100%; }
   align-items: center;
   justify-content: center;
   gap: 12px;
-  height: 72px;
+  height: 64px;
   padding: 0 32px;
-  border-radius: 72px;
-  font-size: 24px;
+  border-radius: 32px;
+  font-size: 18px;
   font-weight: 600;
   font-family: inherit;
   line-height: 24px;
@@ -318,22 +317,21 @@ img { display: block; max-width: 100%; }
    ============================================================= */
 
 .controls {
-  position: absolute;
-  /* Anchor to card right; offset by panel-poke amount when there's room */
-  right: var(--panel-right, 24px);
-  bottom: var(--panel-bottom, 65px);
-  z-index: 3;
-  width: 371.5px;
-  padding: 24px 24.25px;
-  display: flex;
-  flex-direction: column;
-  gap: 24.25px;
-  background: var(--panel-bg);
-  border: 1.516px solid var(--panel-border);
-  border-radius: 12.125px;
-  -webkit-backdrop-filter: blur(15.156px);
-  backdrop-filter: blur(15.156px);
-  color: var(--panel-value);
+    position: absolute;
+    z-index: 3;
+    width: 380px;
+    padding: 24px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--panel-border);
+    border-radius: 23px;
+    -webkit-backdrop-filter: blur(16px);
+    backdrop-filter: blur(16px);
+    color: var(--panel-value);
+    right: -32px;
+    bottom: -56px;
 }
 
 /* Wide viewports (≥ 1700px): panel can poke 198.5px past card right edge */
@@ -345,23 +343,17 @@ img { display: block; max-width: 100%; }
 }
 
 .controls-handwritten {
-  /* Figma: position 1623,673 in viewport. Card centers at 960. So in card
-     coordinates: handwritten left = 1623-310 = 1313, top = 673-80 = 593.
-     With card width 1300: handwritten center is at 1313+ (text width)/2.
-     Anchor to top-right of the card so it sits to the upper-right of the panel. */
-  position: absolute;
-  bottom: calc(100% + 12px);
-  right: 4px;
-  font-family: var(--font-handwritten);
-  font-size: 38px;
-  font-weight: 400;
-  line-height: 1;
-  color: #000;
-  /* letter-spacing: -1.52px; */
-  white-space: nowrap;
-  pointer-events: none;
-  /* transform: rotate(-3deg); */
-  transform-origin: 100% 100%;
+    position: absolute;
+    bottom: calc(100% + 12px);
+    right: 0;
+    font-size: 18px;
+    font-weight: 400;
+    line-height: 1;
+    color: #0000008c;
+    white-space: nowrap;
+    pointer-events: none;
+    width: 100%;
+    text-align: center;
 }
 
 .controls-label {
