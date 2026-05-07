@@ -208,10 +208,12 @@
     }
   }
 
-  // ── Mobile relocation: move .controls into the inline slot on mobile ──
+  // ── Narrow-viewport relocation: at ≤1100 the absolute controls panel
+  // would crash into the hero text column, so it moves inline below the
+  // content. Above 1100, it returns to the absolute bottom-right slot. ──
   function applyResponsiveLayout() {
-    const isMobile = window.matchMedia('(max-width: 768px)').matches;
-    if (isMobile) {
+    const isNarrow = window.matchMedia('(max-width: 1100px)').matches;
+    if (isNarrow) {
       if ($controls.parentElement !== $mobileSlot) {
         $mobileSlot.appendChild($controls);
       }

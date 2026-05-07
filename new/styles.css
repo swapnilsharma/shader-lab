@@ -682,7 +682,21 @@ svg { display: block; }
   font-size: 9px; font-weight: 500; letter-spacing: 0.08em;
   color: var(--text-secondary); text-transform: uppercase;
   margin-bottom: 10px;
+  display: flex; align-items: center;
 }
+.rp-zone-label > :first-child { flex: 1; min-width: 0; }
+.rp-zone-label--toggle { cursor: pointer; user-select: none; }
+.rp-zone-label--toggle:hover { color: var(--text-primary); }
+.rp-zone-chev {
+  margin-left: 8px; font-size: 12px; line-height: 1;
+  color: var(--text-secondary);
+  transition: transform 0.15s ease;
+  display: inline-block;
+}
+.rp-zone-label--toggle:hover .rp-zone-chev { color: var(--text-primary); }
+.rp-zone--collapsed .rp-zone-chev { transform: rotate(-90deg); }
+.rp-zone--collapsed .rp-zone-label { margin-bottom: 0; }
+.rp-zone--collapsed > *:not(.rp-zone-label) { display: none; }
 
 /* ── Sliders ── */
 .ctrl-row {
@@ -699,24 +713,24 @@ svg { display: block; }
    slider.value on input. Hover/active thumb brighten; active adds
    a subtle glow ring. */
 .ctrl-slider {
-  flex: 1; min-width: 0; height: 4px;
+  flex: 1; min-width: 0; height: 24px;
   -webkit-appearance: none; appearance: none;
   background: linear-gradient(to right,
     #666 0%,
     #666 calc(var(--fill, 0) * 100%),
     #2e2e2e calc(var(--fill, 0) * 100%),
     #2e2e2e 100%);
-  border-radius: 2px; cursor: pointer; outline: none;
+  border-radius: 4px; cursor: pointer; outline: none;
   padding: 0; margin: 0;
 }
 .ctrl-slider::-webkit-slider-runnable-track {
-  height: 4px; border-radius: 2px; background: transparent;
+  height: 4px; border-radius: 4px; background: transparent;
 }
 .ctrl-slider::-webkit-slider-thumb {
   -webkit-appearance: none; appearance: none;
-  width: 12px; height: 12px; border-radius: 50%;
+  width: 4px; height: 24px; border-radius: 2px;
   background: #f0f0f0; border: none; cursor: pointer;
-  margin-top: -4px;  /* centre the 12px thumb on the 4px track */
+  margin-top: -10px;  /* centre the 12px thumb on the 4px track */
   transition: background 0.1s ease, box-shadow 0.1s ease;
 }
 .ctrl-slider:hover::-webkit-slider-thumb { background: #ffffff; }
@@ -725,6 +739,7 @@ svg { display: block; }
   background: #ffffff;
   box-shadow: 0 0 0 3px rgba(255,255,255,0.1);
 }
+
 /* Firefox parity */
 .ctrl-slider::-moz-range-track {
   height: 4px; border-radius: 2px; background: transparent;
@@ -833,8 +848,8 @@ input.swatch-hex-input:focus {
   transition-duration: 0.1s;
 }
 .toggle-opt:active { transform: scale(0.96); }
-.toggle-opt:first-child { border-radius: 2px 0 0 2px; }
-.toggle-opt:last-child { border-radius: 0 2px 2px 0; border-left: none; }
+.toggle-opt:first-child { border-radius: 20px 0 0 20px; }
+.toggle-opt:last-child { border-radius: 0 20px 20px 0; border-left: none; }
 .toggle-opt.active { background: #333; color: var(--text-primary); border-color: #555; }
 .toggle-opt:hover:not(.active) { background: #222; color: var(--text-primary); }
 

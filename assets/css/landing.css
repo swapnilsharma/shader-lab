@@ -123,7 +123,7 @@ img { display: block; max-width: 100%; }
 /* Content stack — Figma: 1080px wide, top 159px from card top, gap 72px */
 .hero-content {
   position: absolute;
-  top: 159px;
+  top: clamp(80px, 12vh, 160px);
   left: 50%;
   transform: translateX(-50%);
   width: min(1080px, 100% - 96px);
@@ -131,7 +131,7 @@ img { display: block; max-width: 100%; }
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 32px;
+  gap: clamp(24px, 3vh, 40px);
 }
 
 /* =============================================================
@@ -154,32 +154,34 @@ img { display: block; max-width: 100%; }
 
 .hero-headline {
     margin: 0;
-    font-size: 40px;
+    font-size: clamp(40px, 4.5vw, 72px);
     font-weight: 800;
-    line-height: 1.0;
-    letter-spacing: -1.6px;
+    line-height: 1.05;
+    letter-spacing: -0.04em;
     color: var(--fg-on-shader);
     width: 100%;
 }
 
 .hero-body {
     margin: 0;
-    font-size: 20px;
+    font-size: clamp(18px, 1.4vw, 22px);
     font-weight: 500;
-    line-height: 1.0;
-    letter-spacing: -0.32px;
+    line-height: 1.4;
+    letter-spacing: -0.01em;
     color: var(--fg-on-shader);
-    width: 60%;
+    width: 100%;
+    max-width: 60ch;
 }
 
 .hero-handoff {
     margin: 0;
-    font-size: 40px;
+    font-size: clamp(22px, 2vw, 32px);
     font-weight: 800;
-    line-height: 1.0;
-    letter-spacing: -1.6px;
+    line-height: 1.2;
+    letter-spacing: -0.02em;
     color: var(--fg-on-shader);
-    width: 60%;
+    width: 100%;
+    max-width: 60ch;
 }
 
 .hero-handoff .frakt-chip {
@@ -530,48 +532,31 @@ img { display: block; max-width: 100%; }
 }
 
 /* =============================================================
-   Tablet (769–1280)
+   Narrow viewport (≤1100): controls panel pokes too far into the
+   hero content column. Switch to a single-column layout where the
+   shader sits behind the content (which flows naturally) and the
+   controls panel relocates to a slot under the content via JS.
    ============================================================= */
 
-@media (max-width: 1280px) and (min-width: 769px) {
-  .hero-content {
-    top: 88px;
-    width: calc(100% - 96px);
-    gap: 56px;
-  }
-  .hero-text { gap: 56px; }
-  .hero-text-block { gap: 20px; }
-  .hero-headline { font-size: 64px; letter-spacing: -1.28px; }
-  .hero-body { font-size: 24px; letter-spacing: -0.24px; }
-  .hero-handoff { font-size: 24px; letter-spacing: -0.24px; }
-  .hero-handoff .frakt-chip { padding: 6px 10px; vertical-align: -6px; }
-  .hero-handoff .frakt-chip img { width: 58px; height: 22px; }
-  .cta { height: 60px; font-size: 20px; padding: 0 26px; }
-  .controls-handwritten { font-size: 32px; letter-spacing: -1.28px; }
-}
-
-/* =============================================================
-   Mobile
-   ============================================================= */
-
-@media (max-width: 768px) {
+@media (max-width: 1100px) {
   .hero { padding: 24px; min-height: auto; }
 
   .hero-card {
     aspect-ratio: auto;
     max-width: 100%;
+    height: auto;
+    min-height: 0;
     border-radius: 28px;
     overflow: visible;
   }
 
-  /* On mobile, the clip wrapper becomes a flow container so the content
-     determines the card's height. The shader becomes an absolutely-positioned
-     background behind the content. */
+  /* Clip wrapper becomes a flow container so the content drives the
+     card's height. Shader becomes an absolute background. */
   .hero-card-clip {
     position: relative;
     inset: auto;
     border-radius: 28px;
-    min-height: 100%;
+    min-height: 0;
   }
 
   .hero-shader {
@@ -588,52 +573,22 @@ img { display: block; max-width: 100%; }
     left: auto;
     transform: none;
     width: 100%;
-    padding: 32px 24px;
-    gap: 32px;
+    padding: 64px 48px;
+    gap: 48px;
   }
 
-  .hero-text { gap: 32px; }
-  .hero-text-block { gap: 16px; }
+  .hero-text { gap: 40px; }
+  .hero-text-block { gap: 20px; }
 
-  .hero-headline {
-    font-size: clamp(40px, 12vw, 56px);
-    letter-spacing: -1px;
-    word-break: break-word;
-    overflow-wrap: anywhere;
-    max-width: 100%;
-  }
-  .hero-body {
-    font-size: 18px;
-    letter-spacing: -0.18px;
-    line-height: 1.4;
-  }
-  .hero-handoff {
-    font-size: 18px;
-    letter-spacing: -0.18px;
-    line-height: 1.4;
-    max-width: 100%;
-  }
-  .hero-handoff .frakt-chip {
-    padding: 4px 8px;
-    vertical-align: -4px;
-  }
-  .hero-handoff .frakt-chip img { width: 47px; height: 18px; }
+  /* Body and handoff fill the column at narrow widths (no 60% cap). */
+  .hero-body { width: 100%; max-width: 100%; }
+  .hero-handoff { width: 100%; max-width: 100%; }
 
-  .cta { height: 56px; font-size: 17px; padding: 0 24px; }
+  /* Slightly tighter chip on tablet sizes */
+  .hero-handoff .frakt-chip { padding: 6px 10px; vertical-align: -6px; }
+  .hero-handoff .frakt-chip img { width: 58px; height: 22px; }
 
-  .cta--desktop { display: none; }
-  .cta-mobile-primary { display: block; width: 100%; }
-  .cta-mobile-primary .cta { width: 100%; justify-content: center; }
-
-  .hero-ctas {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 12px;
-    width: 100%;
-  }
-  .hero-ctas .cta { width: 100%; justify-content: center; }
-
-  /* Controls panel goes inline on mobile (relocated by JS) */
+  /* Controls panel relocates inline below content (JS does the move) */
   .controls-mobile-slot {
     width: 100%;
     position: relative;
@@ -654,7 +609,68 @@ img { display: block; max-width: 100%; }
     right: 8px;
   }
 
-  /* Beefier slider thumb + bigger touch target on mobile */
+  .cta { height: 60px; font-size: 18px; padding: 0 26px; }
+}
+
+/* =============================================================
+   Phone (≤600): smaller typography, stacked CTAs, touch sliders.
+   Tablet portrait (601-1100) keeps the desktop CTA, larger type,
+   and side-by-side CTAs from the narrow-viewport block above.
+   ============================================================= */
+
+@media (max-width: 600px) {
+  .hero-content {
+    padding: 32px 24px;
+    gap: 32px;
+  }
+
+  .hero-text { gap: 32px; }
+  .hero-text-block { gap: 16px; }
+
+  .hero-headline {
+    font-size: clamp(34px, 9vw, 48px);
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+  }
+  .hero-body {
+    font-size: 17px;
+    letter-spacing: -0.01em;
+    line-height: 1.4;
+  }
+  .hero-handoff {
+    font-size: 18px;
+    letter-spacing: -0.01em;
+    line-height: 1.35;
+  }
+  .hero-handoff .frakt-chip {
+    padding: 4px 8px;
+    vertical-align: -4px;
+  }
+  .hero-handoff .frakt-chip img { width: 47px; height: 18px; }
+
+  .cta { height: 56px; font-size: 17px; padding: 0 24px; }
+
+  .cta--desktop { display: none; }
+  .cta-mobile-primary { display: block; width: 100%; }
+  .cta-mobile-primary .cta { width: 100%; justify-content: center; }
+
+  /* The handwritten hint above the controls panel sits absolutely; at
+     mobile widths shrink it so it stays one line inside the panel column. */
+  .controls-handwritten {
+    font-size: clamp(16px, 5vw, 22px);
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+  }
+
+  .hero-ctas {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    width: 100%;
+  }
+  .hero-ctas .cta { width: 100%; justify-content: center; }
+
+  /* Touch-friendly slider */
   .controls-row { grid-template-columns: 80px 1fr 56px; gap: 16px; }
   .controls-slider {
     height: 44px;
@@ -668,4 +684,12 @@ img { display: block; max-width: 100%; }
     width: 24px;
     height: 24px;
   }
+}
+
+/* =============================================================
+   Wide desktop (≥1600): bump hero typography for full-bleed scale
+   ============================================================= */
+
+@media (min-width: 1600px) {
+  .hero-headline { font-size: clamp(64px, 4.2vw, 80px); }
 }

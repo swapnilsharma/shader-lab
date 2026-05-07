@@ -1,0 +1,41 @@
+/* ── Sliders ── */
+.ctrl-row {
+  display: flex; align-items: center; gap: 6px;
+  margin-bottom: 8px; min-height: 20px;
+}
+.ctrl-row:last-child { margin-bottom: 0; }
+.ctrl-label {
+  color: var(--text-label); font-size: 10px;
+  width: 80px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Fill-to-the-left slider: the track is a CSS gradient keyed to a
+   --fill custom property (0..1) that engine.js keeps in sync with
+   slider.value on input. Hover/active thumb brighten; active adds
+   a subtle glow ring. */
+.ctrl-slider {
+  flex: 1; min-width: 0; height: 4px;
+  -webkit-appearance: none; appearance: none;
+  background: linear-gradient(to right,
+    #666 0%,
+    #666 calc(var(--fill, 0) * 100%),
+    #2e2e2e calc(var(--fill, 0) * 100%),
+    #2e2e2e 100%);
+  border-radius: 2px; cursor: pointer; outline: none;
+  padding: 0; margin: 0;
+}
+.ctrl-slider::-webkit-slider-runnable-track {
+  height: 4px; border-radius: 2px; background: transparent;
+}
+.ctrl-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: #f0f0f0; border: none; cursor: pointer;
+  margin-top: -4px;  /* centre the 12px thumb on the 4px track */
+  transition: background 0.1s ease, box-shadow 0.1s ease;
+}
+.ctrl-slider:hover::-webkit-slider-thumb { background: #ffffff; }
+.ctrl-slider:active::-webkit-slider-thumb,
+.ctrl-slider:focus::-webkit-slider-thumb {
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(255,255,255,0.1);
+}
