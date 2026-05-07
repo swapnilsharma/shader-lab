@@ -86,26 +86,27 @@ img { display: block; max-width: 100%; }
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 80px 24px;
+  padding: 0;
 }
 
 .hero-card {
+  /* Full-bleed: edge-to-edge, no max-width or radius. Height leaves a peek
+     of the next section visible at the bottom of the viewport. */
   position: relative;
   width: 100%;
-  max-width: 1400px;
-  aspect-ratio: 1280 / 640;
-  border-radius: 40px;
-  overflow: visible; /* Allow panel + handwritten label to poke out */
+  max-width: none;
+  aspect-ratio: auto;
+  height: 85vh;
+  min-height: 600px;
+  border-radius: 0;
+  overflow: visible;
   isolation: isolate;
 }
 
 .hero-card-clip {
-  /* Inner clip wrapper — the shader and content are clipped to the rounded
-     card; the controls panel + handwritten label live in .hero-card and can
-     extend past this clip. */
   position: absolute;
   inset: 0;
-  border-radius: 40px;
+  border-radius: 0;
   overflow: hidden;
   background: #1a1a1a;
 }
@@ -330,15 +331,17 @@ img { display: block; max-width: 100%; }
     -webkit-backdrop-filter: blur(16px);
     backdrop-filter: blur(16px);
     color: var(--panel-value);
-    right: -32px;
-    bottom: -56px;
+    /* Hero is full-bleed — panel tucks inside the viewport instead of poking past. */
+    right: 32px;
+    bottom: 32px;
 }
 
-/* Wide viewports (≥ 1700px): panel can poke 198.5px past card right edge */
+/* Hero is full-bleed now — the card edge IS the viewport edge, so the panel
+   tucks inside instead of poking out. */
 @media (min-width: 1700px) {
   .controls {
-    --panel-right: -198.5px;
-    --panel-bottom: 65.25px;
+    --panel-right: 48px;
+    --panel-bottom: 48px;
   }
 }
 

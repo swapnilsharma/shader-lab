@@ -19,8 +19,7 @@
    ============================================================= */
 
 .hiw {
-  /* Carousel section ends with its own 96px bottom padding; this section
-     adds 0 top so the gap stays at 96px. */
+  /* Full page width, edge-to-edge, no header. */
   padding: 0 0 96px;
   width: 100%;
 }
@@ -28,13 +27,13 @@
 .hiw-video-card {
   position: relative;
   width: 100%;
-  max-width: 1120px;
-  margin: 0 auto;
+  max-width: none;
+  margin: 0;
   aspect-ratio: 16 / 9;
-  border-radius: 32px;
+  border-radius: 0;
   overflow: hidden;
   background: #1a1a1a;
-  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.08);
+  box-shadow: none;
 }
 
 .hiw-video-card iframe {
@@ -60,69 +59,31 @@
   width: 100%;
   max-width: 960px;
   margin: 0 auto;
-  /* Tall enough to hold the 400px code block + breathing room for scattered
-     logos top/bottom. Logos are absolutely positioned within. */
-  height: 600px;
+  /* Reduced — Frakt icon at center, scattered logos float around. */
+  height: 360px;
 }
 
-/* ── Code block ─────────────────────────────────────────────── */
+/* ── Frakt icon (replaces the prior code block as focal element) ─── */
 
-.ex-code {
+.ex-icon {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  /* Lowered (logos sit at z-index 1 — they now overlap the code block on top) */
   z-index: 0;
-  width: 720px;
-  max-width: 100%;
-  height: 400px;
-  background: #0d1117;
-  border-radius: 16px;
-  padding: 24px 32px;
-  box-shadow: 0 24px 48px -12px rgba(0, 0, 0, 0.12);
-  overflow: hidden;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.ex-code::after {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 40%;
-  background: linear-gradient(to bottom, rgba(13, 17, 23, 0) 0%, #0d1117 75%);
+  width: 128px;
+  height: 128px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
-  z-index: 1;
 }
 
-.ex-code pre {
-  margin: 0;
-  padding: 0;
-  font-family: var(--font-mono);
-  font-size: 13px;
-  line-height: 1.6;
-  color: #f8f8f2;
-  white-space: pre;
-  overflow: hidden;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.ex-code code {
-  font-family: inherit;
+.ex-icon img {
   display: block;
+  width: 100%;
+  height: 100%;
 }
-
-/* Dracula-inspired token colors */
-.ex-code .tk-kw  { color: #ff79c6; }
-.ex-code .tk-str { color: #f1fa8c; }
-.ex-code .tk-cm  { color: #6272a4; font-style: italic; }
-.ex-code .tk-fn  { color: #50fa7b; }
-.ex-code .tk-num { color: #bd93f9; }
-.ex-code .tk-pn  { color: #ff79c6; }     /* punctuation accent for backticks */
 
 /* ── Scattered logos ────────────────────────────────────────── */
 
@@ -251,8 +212,8 @@
    ============================================================= */
 
 @media (max-width: 1024px) and (min-width: 769px) {
-  .ex-stage { height: 540px; }
-  .ex-code { width: 90%; height: 360px; padding: 20px 24px; }
+  .ex-stage { height: 320px; }
+  .ex-icon { width: 112px; height: 112px; }
 }
 
 /* =============================================================
@@ -275,17 +236,15 @@
   }
   .ex-stage .ex-logo { display: none; }
 
-  .ex-code {
+  .ex-icon {
     position: relative;
     left: auto;
     top: auto;
     transform: none !important;
-    width: 100%;
-    max-width: 100%;
-    height: 320px;
-    padding: 20px 20px;
+    width: 96px;
+    height: 96px;
+    margin: 0 auto;
   }
-  .ex-code pre { font-size: 12px; }
 
   /* Mobile horizontal logo strip — populated by JS from desktop logos */
   .ex-logo-strip {
