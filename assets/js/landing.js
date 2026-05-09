@@ -224,48 +224,129 @@
     }
   }
 
-  // ── "See how it works" modal ───────────────────────────────
-  function wireWatchModal() {
-    const $modal = document.getElementById('modal-watch');
+  // ── "See how it works" → smooth-scroll to the Vimeo embed and play.
+  // Uses Vimeo Player postMessage so the iframe doesn't need to be
+  // reloaded with autoplay (which would pop the user out of the page). ──
+  function wireWatchCTA() {
     const $cta = document.getElementById('cta-secondary');
-    const $close = document.getElementById('modal-close');
-    const $backdrop = document.getElementById('modal-backdrop');
+    const $hiw = document.querySelector('.hiw');
+    const $iframe = document.getElementById('hiw-video-iframe');
+    if (!$cta || !$hiw || !$iframe) return;
 
-    function open() { $modal.removeAttribute('hidden'); }
-    function close() { $modal.setAttribute('hidden', ''); }
+    function playVideo() {
+      try {
+        $iframe.contentWindow.postMessage('{"method":"play"}', '*');
+      } catch (e) { /* iframe may not be ready — that's fine */ }
+    }
 
-    $cta.addEventListener('click', open);
-    $close.addEventListener('click', close);
-    $backdrop.addEventListener('click', close);
-    document.addEventListener('keydown', e => {
-      if (e.key === 'Escape' && !$modal.hasAttribute('hidden')) close();
+    $cta.addEventListener('click', () => {
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      $hiw.scrollIntoView({
+        behavior: reduce ? 'auto' : 'smooth',
+        block: 'start',
+      });
+      // Vimeo iframe is loading="lazy" — once it's in view, the script
+      // attaches. Give the player a beat to wire up before posting play.
+      setTimeout(playVideo, reduce ? 100 : 600);
     });
   }
 
-  // ── Mobile primary CTA: "Email me a link" stub ─────────────
+  // ── Mobile primary CTA: "Open on my desktop"
+  // Primary path: Web Share API. On iPhone this opens the native share
+  // sheet — AirDrop straight to the user's Mac is the magic case, but
+  // Mail/Messages/Notes/Reminders all work too, no typing required.
+  //
+  // Fallback (Firefox, some desktop Chromes): reveal an email input and
+  // pop the user's mail app via mailto: with a pre-composed message
+  // addressed to themselves. They tap send and receive the link.
+  //
+  // Important: navigator.share() must be invoked synchronously inside
+  // the click handler — iOS rejects it if any awaited work runs first. ──
   function wireEmailCTA() {
     const $toggle  = document.getElementById('cta-email-toggle');
     const $form    = document.getElementById('cta-email-form');
     const $input   = document.getElementById('cta-email-input');
     const $confirm = document.getElementById('cta-email-confirm');
+    if (!$toggle || !$form || !$input || !$confirm) return;
 
-    $toggle.addEventListener('click', () => {
+    const SITE_URL = 'https://frakt.app';
+    const SHARE_PAYLOAD = {
+      title: 'Frakt',
+      text: 'Make beautiful shaders without writing any code.',
+      url: SITE_URL,
+    };
+
+    function isValidEmail(s) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+    }
+
+    function showConfirm(message) {
+      $confirm.textContent = message;
+      $confirm.removeAttribute('hidden');
+    }
+
+    function openMailComposer(toEmail) {
+      const subject = 'Frakt — open this on your laptop';
+      const body =
+        "Here's your link to Frakt — open it on a desktop browser to start " +
+        "building shaders:\n\n" + SITE_URL + "\n\n— sent from frakt.app";
+      const href = 'mailto:' + encodeURIComponent(toEmail) +
+        '?subject=' + encodeURIComponent(subject) +
+        '&body=' + encodeURIComponent(body);
+      // Anchor + click() is the most reliable cross-browser trigger;
+      // window.location.href = 'mailto:…' is flaky on iOS Safari outside
+      // a direct user gesture.
+      const a = document.createElement('a');
+      a.href = href;
+      a.rel = 'noopener';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    function revealEmailFallback() {
       $toggle.setAttribute('hidden', '');
       $form.classList.add('is-open');
       setTimeout(() => $input.focus(), 0);
+    }
+
+    $toggle.addEventListener('click', () => {
+      // Web Share API — call synchronously so iOS recognizes the gesture.
+      if (typeof navigator.share === 'function') {
+        navigator.share(SHARE_PAYLOAD).then(
+          () => {
+            $toggle.setAttribute('hidden', '');
+            showConfirm('Sent. Open this on your laptop.');
+          },
+          (err) => {
+            // AbortError = user dismissed the share sheet. Silent no-op.
+            // For other errors (rare: NotAllowedError, etc.), fall back
+            // to the mailto form so they still have a path.
+            if (err && err.name !== 'AbortError') {
+              revealEmailFallback();
+            }
+          }
+        );
+        return;
+      }
+      // No Web Share support: reveal the email form for the mailto path.
+      revealEmailFallback();
     });
 
     $form.addEventListener('submit', e => {
       e.preventDefault();
       const email = ($input.value || '').trim();
-      if (!email || !email.includes('@')) {
+      if (!isValidEmail(email)) {
         $input.focus();
+        $input.setAttribute('aria-invalid', 'true');
         return;
       }
-      // v1 stub: no real send. Real email flow is a future task.
+      $input.removeAttribute('aria-invalid');
+      openMailComposer(email);
       $form.classList.remove('is-open');
       $form.style.display = 'none';
-      $confirm.removeAttribute('hidden');
+      showConfirm('Mail app opened — hit send to receive your link.');
     });
   }
 
@@ -293,7 +374,7 @@
     if (!renderer) return;
 
     wireSliders(layers);
-    wireWatchModal();
+    wireWatchCTA();
     wireEmailCTA();
   }
 

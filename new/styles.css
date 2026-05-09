@@ -711,6 +711,7 @@ svg { display: block; }
 /* Fill-to-the-left slider: the track is a CSS gradient keyed to a
    --fill custom property (0..1) that engine.js keeps in sync with
    slider.value on input. Hover/active thumb brighten; active adds
+   dd
    a subtle glow ring. */
 .ctrl-slider {
   flex: 1; min-width: 0; height: 24px;
