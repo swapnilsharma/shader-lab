@@ -1,0 +1,170 @@
+/* =============================================================
+   Frakt landing — Footer (Session 4)
+
+   Three-column link footer with a shader fade at the top. The
+   canvas is absolutely positioned and masked with a vertical
+   gradient so the shader fades in from transparent (top) to
+   visible (bottom). Footer text sits in front via z-index.
+   ============================================================= */
+
+.ft {
+  position: relative;
+  width: 100%;
+  /* 96px gap above is from pricing's bottom padding. */
+  padding: 120px 0 32px; /* 120 of top-padding accommodates the fade region */
+  background: var(--bg-page, #fafafa);
+  overflow: hidden;
+  isolation: isolate;
+}
+
+/* Shader canvas — full-width, full-height, behind the content.
+   The mask gradient creates the fade-in effect from the top. */
+.ft-shader {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  z-index: 0;
+  opacity: 0.7;
+  pointer-events: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 240px);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 240px);
+}
+
+.ft-container {
+  position: relative;
+  z-index: 1;
+  max-width: 1280px;
+  margin: 0 auto;
+  padding-left: 48px;
+  padding-right: 48px;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Three-column row */
+.ft-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 48px;
+  align-items: start;
+}
+
+.ft-col {
+  min-width: 0;
+}
+
+/* Brand column */
+.ft-wordmark {
+  font-family: var(--font-sans);
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--fg, #1a1a1a);
+  line-height: 1;
+  letter-spacing: -0.01em;
+}
+
+.ft-tagline {
+  margin-top: 8px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--fg-muted, #666);
+  line-height: 1.4;
+}
+
+.ft-author {
+  margin-top: 16px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--fg-subtle, #888);
+  line-height: 1.4;
+}
+
+/* Link columns */
+.ft-col-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs, 12px);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle, #888);
+}
+
+.ft-links {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ft-link {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--fg, #1a1a1a);
+  text-decoration: none;
+  transition: color var(--duration-fast, 120ms) var(--ease, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.ft-link:hover {
+  color: var(--fg-muted, #666);
+  text-decoration: underline;
+}
+
+/* Divider + bottom line */
+.ft-divider {
+  margin-top: 64px;
+  height: 1px;
+  background: var(--line, rgba(0, 0, 0, 0.06));
+  width: 100%;
+}
+
+.ft-bottom {
+  margin: 24px 0 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--fg-subtle, #888);
+  text-align: center;
+}
+
+/* =============================================================
+   Mobile (≤768)
+   ============================================================= */
+
+@media (max-width: 768px) {
+  .ft {
+    padding: 96px 0 32px;
+  }
+
+  .ft-shader {
+    -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 160px);
+            mask-image: linear-gradient(to bottom, transparent 0, #000 160px);
+  }
+
+  .ft-container {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .ft-columns {
+    grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  /* Columns stay left-aligned on mobile per spec */
+  .ft-col,
+  .ft-col-label,
+  .ft-links {
+    text-align: left;
+  }
+
+  .ft-divider { margin-top: 40px; }
+}

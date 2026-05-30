@@ -1,3 +1,7 @@
+/* CAROUSEL: removed for launch, restore post-launch when distinct shaders exist.
+   This file is not loaded by index.html in the launch build — the <script>
+   tag that imported it has been commented out. Code preserved verbatim below. */
+
 // =============================================================
 // Frakt landing — Carousel section
 //

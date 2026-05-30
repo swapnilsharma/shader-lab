@@ -668,45 +668,19 @@ img { display: block; max-width: 100%; }
   }
   .hero-ctas .cta { width: 100%; justify-content: center; }
 
-  /* ── Compact controls panel on mobile ──────────────────────
-     The Figma-derived defaults (24/24 padding, 24px gaps, 44px tall
-     slider, 16/17px labels) feel chunky at phone widths where the
-     panel is the same width as the body text. Tighten padding, gaps,
-     fonts, and slider height so the panel reads as a compact
-     secondary surface, not a second hero card. */
-  .controls {
-    padding: 16px 18px;
-    gap: 14px;
-    border-radius: 18px;
+  /* Touch-friendly slider */
+  .controls-row { grid-template-columns: 80px 1fr 56px; gap: 16px; }
+  .controls-slider {
+    height: 44px;
   }
-  .controls-label {
-    font-size: 12px;
-    line-height: 1.2;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-  .controls-rows { gap: 10px; }
-  .controls-row {
-    grid-template-columns: 72px 1fr 40px;
-    gap: 12px;
-  }
-  .controls-row-label,
-  .controls-value {
-    font-size: 14px;
-    line-height: 1.2;
-  }
-
-  /* Slider stays touch-friendly via the larger interaction area
-     (height 36 + thumb 20) without dominating the panel. */
-  .controls-slider { height: 36px; }
   .controls-slider::-webkit-slider-thumb {
-    width: 20px;
-    height: 20px;
-    margin-top: -7px;
+    width: 24px;
+    height: 24px;
+    margin-top: -9px;
   }
   .controls-slider::-moz-range-thumb {
-    width: 20px;
-    height: 20px;
+    width: 24px;
+    height: 24px;
   }
 }
 

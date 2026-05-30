@@ -30,9 +30,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Delicious+Handrawn&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/assets/css/landing.css">
-  <link rel="stylesheet" href="/assets/css/carousel.css">
+  <!-- CAROUSEL: removed for launch, restore post-launch when distinct shaders exist -->
+  <!-- <link rel="stylesheet" href="/assets/css/carousel.css"> -->
   <link rel="stylesheet" href="/assets/css/sections.css">
   <link rel="stylesheet" href="/assets/css/columns.css">
+  <link rel="stylesheet" href="/assets/css/where-they-go.css">
+  <link rel="stylesheet" href="/assets/css/pricing.css">
+  <link rel="stylesheet" href="/assets/css/footer.css">
 </head>
 <body>
 
@@ -107,10 +111,87 @@
     </section>
 
     <!-- ─────────────────────────────────────────────────────────
-         Carousel section — eight use cases, each card hosts a live
-         shader inside an HTML/CSS mockup. Auto-scrolls right with
-         pause-on-hover; touch-swipe only on mobile.
+         Where they go — three hand-built mockups proving "shaders
+         earn their keep". Each mockup hosts a live preset shader
+         inside an HTML/CSS frame; alternating left/right alignment
+         creates rhythm without centering everything.
          ───────────────────────────────────────────────────────── -->
+    <section class="wtg" aria-labelledby="wtg-heading">
+      <div class="wtg-container">
+        <header class="wtg-header">
+          <h2 class="wtg-heading" id="wtg-heading">Where they go.</h2>
+          <p class="wtg-subhead">Three places shaders earn their keep.</p>
+        </header>
+
+        <div class="wtg-stack">
+          <!-- Mockup 1 — Website hero (LEFT-aligned, wide) -->
+          <figure class="wtg-mockup wtg-mockup--align-left">
+            <div class="wtg-browser" data-preset="01_Website hero.frakt">
+              <div class="wtg-browser-chrome">
+                <span class="wtg-browser-dots" aria-hidden="true">
+                  <span class="wtg-browser-dot" style="background:#ff5f56"></span>
+                  <span class="wtg-browser-dot" style="background:#ffbd2e"></span>
+                  <span class="wtg-browser-dot" style="background:#27c93f"></span>
+                </span>
+                <span class="wtg-browser-url">frakt.app</span>
+              </div>
+              <div class="wtg-browser-viewport">
+                <canvas class="wtg-shader" data-shader-canvas aria-hidden="true"></canvas>
+                <div class="wtg-browser-overlay">
+                  <div class="wtg-browser-headline">Big idea goes here.</div>
+                  <button class="wtg-browser-btn" type="button" tabindex="-1">Get started</button>
+                </div>
+              </div>
+            </div>
+            <figcaption class="wtg-caption">WEBSITE HERO</figcaption>
+          </figure>
+
+          <!-- Mockup 2 — Phone splash (RIGHT-aligned, tall) -->
+          <figure class="wtg-mockup wtg-mockup--align-right">
+            <div class="wtg-phone" data-preset="02_AI agent.frakt">
+              <div class="wtg-phone-frame">
+                <div class="wtg-phone-screen">
+                  <canvas class="wtg-shader" data-shader-canvas aria-hidden="true"></canvas>
+                  <div class="wtg-phone-status" aria-hidden="true">
+                    <span class="wtg-phone-time">9:41</span>
+                    <span class="wtg-phone-status-icons">
+                      <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor"><rect x="0" y="6" width="2" height="4" rx="0.5"/><rect x="3" y="4" width="2" height="6" rx="0.5"/><rect x="6" y="2" width="2" height="8" rx="0.5"/><rect x="9" y="0" width="2" height="10" rx="0.5"/></svg>
+                      <svg width="14" height="10" viewBox="0 0 14 10" fill="currentColor"><path d="M7 9.5a1 1 0 100-2 1 1 0 000 2zm-3.5-3a4.5 4.5 0 017 0l-1 1a3 3 0 00-5 0l-1-1zm-2-2a7 7 0 0111 0l-1 1a5.5 5.5 0 00-9 0l-1-1z"/></svg>
+                      <svg width="22" height="10" viewBox="0 0 22 10" fill="none" stroke="currentColor" stroke-width="1"><rect x="0.5" y="0.5" width="18" height="9" rx="2"/><rect x="2" y="2" width="14" height="6" rx="0.5" fill="currentColor"/><rect x="19.5" y="3" width="1.5" height="4" rx="0.4" fill="currentColor"/></svg>
+                    </span>
+                  </div>
+                  <div class="wtg-phone-logo"><span>F</span></div>
+                </div>
+              </div>
+            </div>
+            <figcaption class="wtg-caption">APP SPLASH</figcaption>
+          </figure>
+
+          <!-- Mockup 3 — AI agent / chat orb (LEFT-aligned, medium) -->
+          <figure class="wtg-mockup wtg-mockup--align-left">
+            <div class="wtg-chat" data-preset="04_Hover state.frakt">
+              <div class="wtg-chat-row wtg-chat-row--user">
+                <div class="wtg-chat-bubble wtg-chat-bubble--user">Help me visualize this.</div>
+              </div>
+              <div class="wtg-chat-row wtg-chat-row--ai">
+                <div class="wtg-chat-orb">
+                  <canvas class="wtg-shader" data-shader-canvas aria-hidden="true"></canvas>
+                </div>
+                <div class="wtg-chat-bubble wtg-chat-bubble--ai">Sure — let me sketch a few directions.</div>
+              </div>
+            </div>
+            <figcaption class="wtg-caption">AI AGENT</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <!-- CAROUSEL: removed for launch, restore post-launch when distinct shaders exist.
+         Markup is preserved inside a <template> below — its content is parsed
+         into a DocumentFragment and never rendered. To revive: replace the
+         <template> wrapper with the section element itself, and uncomment the
+         carousel.css <link> + carousel.js <script> tags. -->
+    <template id="cs-section-removed-for-launch">
     <section class="cs sec--two-col" aria-labelledby="cs-heading">
       <div class="sec-grid sec-grid--30l">
         <div class="sec-heading-col">
@@ -296,6 +377,8 @@
         </div>
       </div>
     </section>
+    </template>
+    <!-- /CAROUSEL preserved markup -->
 
     <!-- ─────────────────────────────────────────────────────────
          How it works — Vimeo embed (full page width, no header)
@@ -366,11 +449,109 @@
         </div>
       </div>
     </section>
+
+    <!-- ─────────────────────────────────────────────────────────
+         Pricing — single card, free during beta. Email field is a
+         stub (no backend) until Tally integration post-launch.
+         ───────────────────────────────────────────────────────── -->
+    <section class="pr" id="pricing" aria-labelledby="pr-heading">
+      <div class="pr-container">
+        <header class="pr-header">
+          <h2 class="pr-heading" id="pr-heading">Free during beta.</h2>
+          <p class="pr-subhead">Use it commercially. Ship it. Weld it into client work. Your shaders are yours.</p>
+        </header>
+
+        <div class="pr-card">
+          <div class="pr-card-meta">RIGHT NOW</div>
+          <div class="pr-card-headline">Free.</div>
+          <div class="pr-card-sub">Everything you need to ship.</div>
+
+          <ul class="pr-bullets" role="list">
+            <li>All content layers — gradients, mesh gradients, waves, shapes, images</li>
+            <li>All twelve presets</li>
+            <li>Export to Three.js, Shadertoy, Framer, Flutter, GLSL ES</li>
+            <li>Save up to 3 shaders</li>
+            <li>Commercial use, no attribution required</li>
+          </ul>
+
+          <div class="pr-divider" aria-hidden="true"></div>
+
+          <div class="pr-card-meta">COMING IN PRO</div>
+          <ul class="pr-bullets pr-bullets--pro" role="list">
+            <li>Triggered presets — interactive shaders</li>
+            <li>Unlimited cloud saves</li>
+            <li>No watermark on export</li>
+            <li>First access to new export targets — SwiftUI Metal, Unity HLSL, React Native Skia</li>
+          </ul>
+
+          <div class="pr-launch-line">Get the launch price.</div>
+          <div class="pr-launch-sub">Founding-member pricing for everyone on the list before launch.</div>
+
+          <form class="pr-email-form" id="pr-email-form" novalidate>
+            <input class="pr-email-input"
+                   id="pr-email-input"
+                   type="email"
+                   placeholder="you@example.com"
+                   autocomplete="email"
+                   aria-label="Your email"
+                   required>
+            <button class="pr-email-submit" type="submit">Notify me</button>
+          </form>
+          <p class="pr-email-error" id="pr-email-error" hidden>That doesn't look right — try again?</p>
+          <p class="pr-email-confirm" id="pr-email-confirm" hidden>Thanks. You'll hear from us first.</p>
+        </div>
+
+        <p class="pr-disclaimer">No credit card. No surprise charges.</p>
+      </div>
+    </section>
   </main>
+
+  <!-- ─────────────────────────────────────────────────────────
+       Footer — three-column links, with a shader fade-in at the
+       top that bridges from the page background to the footer.
+       The shader is masked so it's transparent at the very top
+       and fully visible by ~240px down (160px on mobile).
+       ───────────────────────────────────────────────────────── -->
+  <footer class="ft" aria-label="Site footer">
+    <canvas class="ft-shader" id="ft-shader" aria-hidden="true"></canvas>
+    <div class="ft-container">
+      <div class="ft-columns">
+        <div class="ft-col ft-col--brand">
+          <div class="ft-wordmark">frakt</div>
+          <div class="ft-tagline">Shaders for the rest of us.</div>
+          <div class="ft-author">Made by Swapnil</div>
+        </div>
+
+        <div class="ft-col ft-col--links">
+          <div class="ft-col-label">PRODUCT</div>
+          <ul class="ft-links" role="list">
+            <li><a class="ft-link" href="/new">Editor</a></li>
+            <li><a class="ft-link" href="#pricing">Pricing</a></li>
+          </ul>
+        </div>
+
+        <div class="ft-col ft-col--links">
+          <div class="ft-col-label">ELSEWHERE</div>
+          <ul class="ft-links" role="list">
+            <li><a class="ft-link" href="https://x.com/swapnilxd" target="_blank" rel="noopener">X / Twitter</a></li>
+            <li><a class="ft-link" href="https://github.com/swapnilxd" target="_blank" rel="noopener">GitHub</a></li>
+            <li><a class="ft-link" href="mailto:hello@frakt.app">hello@frakt.app</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="ft-divider" aria-hidden="true"></div>
+      <p class="ft-bottom">© 2026 Frakt.</p>
+    </div>
+  </footer>
 
   <script src="/lib/renderer.js"></script>
   <script src="/assets/js/landing.js"></script>
-  <script src="/assets/js/carousel.js"></script>
+  <!-- CAROUSEL: removed for launch, restore post-launch when distinct shaders exist -->
+  <!-- <script src="/assets/js/carousel.js"></script> -->
   <script src="/assets/js/sections.js"></script>
+  <script src="/assets/js/where-they-go.js"></script>
+  <script src="/assets/js/pricing.js"></script>
+  <script src="/assets/js/footer.js"></script>
 </body>
 </html>

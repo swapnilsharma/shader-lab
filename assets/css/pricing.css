@@ -1,0 +1,283 @@
+/* =============================================================
+   Frakt landing — Pricing section (Session 4)
+
+   One white card, max 560px wide, centered. Two bullet lists
+   (Right now / Coming in Pro), divider between them, then a
+   launch-price email capture row at the bottom.
+   ============================================================= */
+
+.pr {
+  /* 96px gap above is from the export section's bottom padding. */
+  padding: 96px 0 96px;
+  width: 100%;
+  position: relative;
+}
+
+.pr-container {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding-left: 48px;
+  padding-right: 48px;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Heading + subhead — centered above the card */
+.pr-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 48px;
+  text-align: center;
+  max-width: 720px;
+}
+
+.pr-heading {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-3xl);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+}
+
+.pr-subhead {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-lg);
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--fg-muted);
+  max-width: 640px;
+}
+
+/* =============================================================
+   Card
+   ============================================================= */
+
+.pr-card {
+  width: 100%;
+  max-width: 560px;
+  background: #ffffff;
+  border: 1px solid var(--line-strong);
+  border-radius: 24px;
+  padding: 40px;
+  box-shadow: var(--shadow-card-soft);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.pr-card-meta {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--fg-subtle);
+}
+
+.pr-card-headline {
+  margin-top: 8px;
+  font-family: var(--font-sans);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--fg);
+  letter-spacing: -0.02em;
+}
+
+.pr-card-sub {
+  margin-top: 8px;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--fg-muted);
+}
+
+/* Bullet lists — Lucide check icon as ::before */
+.pr-bullets {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--fg);
+}
+
+.pr-bullets li {
+  position: relative;
+  padding-left: 26px;
+}
+
+.pr-bullets li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 3px;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  /* Inline-data Lucide `check` mask (M20 6 9 17l-5-5) */
+  -webkit-mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6 9 17l-5-5'/></svg>");
+  mask-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><path d='M20 6 9 17l-5-5'/></svg>");
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  color: var(--fg);
+}
+
+/* Pro features get the same checks but slightly muted color */
+.pr-bullets--pro li { color: var(--fg); }
+.pr-bullets--pro { margin-top: 16px; }
+
+.pr-divider {
+  margin: 32px 0;
+  height: 1px;
+  background: var(--line);
+  width: 100%;
+}
+
+/* Launch price line + sub */
+.pr-launch-line {
+  margin-top: 24px;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--fg);
+  line-height: 1.4;
+}
+
+.pr-launch-sub {
+  margin-top: 4px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--fg-muted);
+  line-height: 1.4;
+}
+
+/* Email field + button */
+.pr-email-form {
+  margin-top: 16px;
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  width: 100%;
+}
+
+.pr-email-input {
+  flex: 1 1 70%;
+  min-width: 0;
+  background: #fafafa;
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 400;
+  color: var(--fg);
+  outline: none;
+  transition: border-color var(--duration-fast, 120ms) var(--ease, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.pr-email-input::placeholder {
+  color: #999;
+}
+
+.pr-email-input:focus {
+  border-color: var(--fg);
+}
+
+.pr-email-input[aria-invalid="true"] {
+  border-color: #d04646;
+}
+
+.pr-email-submit {
+  flex: 0 0 auto;
+  background: #000000;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  font-weight: 500;
+  padding: 12px 24px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--duration-fast, 120ms) var(--ease, cubic-bezier(0.2, 0, 0, 1));
+}
+
+.pr-email-submit:hover { background: #1a1a1a; }
+.pr-email-submit:active { transform: scale(0.98); }
+
+.pr-email-error {
+  margin: 8px 0 0;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: #d04646;
+}
+
+.pr-email-confirm {
+  margin: 16px 0 0;
+  padding: 14px 18px;
+  background: #f4f9f4;
+  border: 1px solid #cfe6cf;
+  border-radius: 12px;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 500;
+  color: #2d6a31;
+}
+
+/* Disclaimer below the card */
+.pr-disclaimer {
+  margin-top: 16px;
+  margin-bottom: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  color: var(--fg-subtle);
+  text-align: center;
+}
+
+/* =============================================================
+   Mobile (≤768)
+   ============================================================= */
+
+@media (max-width: 768px) {
+  .pr { padding: 64px 0 64px; }
+
+  .pr-container {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .pr-header { margin-bottom: 32px; gap: 8px; }
+  .pr-heading { font-size: var(--text-2xl); }
+  .pr-subhead { font-size: var(--text-base); }
+
+  .pr-card { padding: 28px 24px; border-radius: 20px; }
+  .pr-card-headline { font-size: 28px; }
+  .pr-card-sub { font-size: 15px; }
+  .pr-bullets { font-size: 14px; }
+
+  /* Stack the email row on narrow phones */
+  .pr-email-form {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .pr-email-submit { width: 100%; padding: 14px 20px; }
+}
