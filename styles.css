@@ -1345,9 +1345,212 @@ input.swatch-hex-input:focus {
 .preset-card.selected .blank-card-canvas { border-color: #e0e0e0; }
 .blank-card-plus {
   font-size: 20px; color: #333;
-  line-height: 1g160;
+  line-height: 1;
 }
 
+/* ════════════════════════════════════════════════════════════════
+   FTUX — 3-slide onboarding modal (redesign)
+   ════════════════════════════════════════════════════════════════ */
+.ftux-overlay {
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+}
+.ftux-overlay.hidden { display: none; }
+
+/* Skip — outside the modal, fixed top-right of the viewport */
+.ftux-skip {
+  position: fixed; top: 20px; right: 24px;
+  background: none; border: none; padding: 0;
+  font-family: var(--font-mono);
+  font-size: 12px; color: rgba(255,255,255,0.4);
+  cursor: pointer;
+  transition: color 0.15s ease;
+  z-index: 1001;
+}
+.ftux-skip:hover { color: rgba(255,255,255,0.8); }
+
+/* Fixed-size shell — never changes between slides */
+.ftux-card {
+  position: relative;
+  width: 680px; height: 460px;
+  background: #141414;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 8px;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+
+/* Slides stack — fade only, never moves or resizes */
+.ftux-slides {
+  position: absolute; inset: 0;
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
+.ftux-slide {
+  position: absolute; inset: 0;
+}
+.ftux-slide.hidden { display: none; }
+
+/* ── Slide 1 — Welcome (two columns) ── */
+.ftux-slide--welcome { display: flex; }
+.ftux-shader {
+  flex: 0 0 33.333%;
+  position: relative;
+  background: #0d0d0d;
+  overflow: hidden;
+}
+.ftux-shader canvas {
+  display: block;
+  width: 100%; height: 100%;
+}
+.ftux-welcome {
+  flex: 1;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 40px 36px;
+}
+.ftux-logo {
+  width: 64px; height: 64px;
+  border-radius: 14px;
+  margin-bottom: 20px;
+  display: block;
+  image-rendering: -webkit-optimize-contrast;
+}
+.ftux-brand {
+  font-size: 42px; font-weight: 800;
+  color: #ffffff; letter-spacing: -0.08em;
+  margin: 0 0 4px;
+}
+.ftux-tagline {
+  font-size: 14px; color: #666; letter-spacing: -0.01em;
+  margin: 0 0 24px;
+}
+.ftux-body {
+  font-size: 15px; color: #999; line-height: 1.75;
+  margin: 0;
+}
+
+/* ── Slide 2 — How it works (horizontal cards) ── */
+.ftux-heading {
+  font-size: 24px; font-weight: 700; color: #ffffff;
+  margin: 0;
+}
+.ftux-slide--how .ftux-heading { padding: 36px 36px 24px; }
+.ftux-cards {
+    display: flex;
+    gap: 12px;
+    padding: 0 24px 24px;
+    height: 290px;
+}
+.ftux-card-item {
+    flex: 1;
+    background: #1e1e1e;
+    border-radius: 12px;
+    padding: 28px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 1px 0 rgba(255, 255, 255, 0.06) inset;
+    justify-content: flex-end;
+}
+
+.ftux-card-icon {
+    font-size: 32px;
+}
+
+.ftux-card-title {
+  font-size: 14px; font-weight: 700; color: #ffffff;
+}
+.ftux-card-body {
+  font-size: 12px; color: #777; line-height: 1.65;
+}
+
+/* ── Slide 3 — Preset gallery ── */
+.ftux-slide--gallery .ftux-heading { padding: 36px 36px 20px; }
+.ftux-gallery {
+  animation: none; opacity: 1;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  padding: 0 24px;
+  justify-content: initial;
+}
+.ftux-gallery .preset-card {
+  animation: none; opacity: 1;
+  gap: 0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.ftux-gallery .preset-card:hover {
+  transform: scale(1.04);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.ftux-gallery .preset-card-canvas,
+.ftux-gallery .blank-card-canvas {
+  width: 100%; height: auto; aspect-ratio: 148 / 110;
+  border: none; border-radius: 8px;
+  overflow: hidden;
+}
+.ftux-gallery .preset-card:hover .preset-card-canvas { border: none; }
+.ftux-gallery .blank-card-canvas {
+  background: #161616;
+  border: 1px solid #2a2a2a;
+}
+.ftux-gallery .preset-card:hover .blank-card-canvas { border-color: #2a2a2a; }
+.ftux-gallery .blank-card-plus {
+  font-size: 24px; color: #333; line-height: 1;
+}
+.ftux-gallery .preset-card-label {
+  font-size: 11px; color: #666;
+  text-align: center; margin-top: 5px;
+}
+.ftux-skip-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: #444;
+  cursor: pointer;
+  padding: 12px 24px 0;
+}
+.ftux-skip-label input {
+  accent-color: #555;
+  cursor: pointer; margin: 0;
+}
+
+/* ── Navigation — fixed corners, same on every slide ── */
+.ftux-dots {
+  position: absolute; left: 20px; bottom: 20px;
+  display: flex; align-items: center; gap: 6px;
+  z-index: 2;
+}
+.ftux-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #3a3a3a;
+  transition: background 0.2s ease, width 0.2s ease, height 0.2s ease;
+}
+.ftux-dot.is-active {
+  width: 10px; height: 10px;
+  background: #ffffff;
+}
+.ftux-nav {
+  position: absolute; right: 20px; bottom: 20px;
+  display: flex; gap: 8px;
+  z-index: 2;
+}
+.ftux-chevron {
+  width: 32px; height: 32px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 6px;
+  font-size: 16px; color: #aaa;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, opacity 0.2s ease;
+}
+.ftux-chevron:hover {
+  color: #ffffff;
+  background: rgba(255,255,255,0.14);
+}
+.ftux-chevron.is-hidden {
+  opacity: 0; pointer-events: none;
+}
 /* ── Layer Popover ── */
 .layer-popover {
   position: fixed; z-index: 500;

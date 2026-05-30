@@ -16,7 +16,10 @@ echo '{' > "$INDEX_FILE"
 echo '  "presets": [' >> "$INDEX_FILE"
 
 first=true
-for filepath in "$PRESETS_DIR"/*.frakt; do
+# Iterate in deterministic, case-insensitive alphabetical order so the
+# generated index.json is stable regardless of the machine's locale.
+shopt -s nullglob
+while IFS= read -r filepath; do
   [ -f "$filepath" ] || continue
   filename=$(basename "$filepath")
   id="${filename%.frakt}"
@@ -38,7 +41,7 @@ except:
   fi
 
   printf '    { "id": "%s", "file": "%s", "name": "%s" }' "$id" "$filename" "$name" >> "$INDEX_FILE"
-done
+done < <(printf '%s\n' "$PRESETS_DIR"/*.frakt | LC_ALL=C sort -f)
 
 echo '' >> "$INDEX_FILE"
 echo '  ]' >> "$INDEX_FILE"
