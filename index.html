@@ -35,6 +35,17 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="mobile.css">
+
+  <!-- Mobile detection — runs before paint so the desktop editor never
+       flashes on phones. Adds .frakt-mobile to <html> when the viewport is
+       below 768px or the UA is mobile; CSS + the boot gate key off it. -->
+  <script>
+    window.fraktIsMobile = function () {
+      return window.innerWidth < 768 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+    };
+    if (window.fraktIsMobile()) document.documentElement.classList.add('frakt-mobile');
+  </script>
   <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
   
   <!-- JSZip (client-side zip bundling for Export) -->
@@ -691,8 +702,72 @@ https://frakt.app</p>
 <!-- Toast -->
 <div id="toast" class="toast hidden"></div>
 
+<!-- ═══ MOBILE EXPERIENCE ═══ -->
+<!-- Shown (via .frakt-mobile on <html>) instead of the desktop editor on
+     phones / narrow viewports. Three vertically-scrolling sections. The
+     hero shader carousel is populated by lib/mobile.js. -->
+<div id="mobile-experience" aria-hidden="false">
+
+  <!-- SECTION 1 — HERO -->
+  <section class="mobile-hero">
+    <div class="mobile-hero-bg" id="mobile-hero-bg"><!-- shader canvases injected by JS --></div>
+    <div class="mobile-hero-dots" id="mobile-hero-dots"><!-- dot indicators injected by JS --></div>
+    <div class="mobile-hero-content">
+      <img src="assets/frakt-ico-128.png" class="mobile-hero-icon" alt="Frakt" />
+      <h1 class="mobile-hero-title">frakt</h1>
+      <p class="mobile-hero-tagline">Shaders for the rest of us</p>
+      <p class="mobile-hero-body">
+        A layer-based shader editor.<br>
+        Make something beautiful.<br>
+        Export the code.
+      </p>
+    </div>
+    <button class="mobile-scroll-down" id="mobile-scroll-down" type="button">
+      See how it works
+      <span class="chevron">↓</span>
+    </button>
+  </section>
+
+  <!-- SECTION 2 — HOW IT WORKS VIDEO -->
+  <section class="mobile-video-section" id="mobile-section-2">
+    <h2 class="mobile-section-title">How it works</h2>
+    <p class="mobile-section-subtitle">Watch a quick walkthrough.</p>
+    <div class="mobile-video-wrapper">
+      <iframe
+        src="https://www.youtube.com/embed/hsEMfdci1Rw"
+        frameborder="0"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowfullscreen
+      ></iframe>
+    </div>
+  </section>
+
+  <!-- SECTION 3 — EMAIL YOURSELF THE LINK -->
+  <section class="mobile-email-section">
+    <h2 class="mobile-section-title">Open Frakt on your computer</h2>
+    <p class="mobile-section-subtitle">
+      Frakt is a desktop tool. Send yourself the link to open later.
+    </p>
+    <form class="mobile-email-form" onsubmit="sendLink(event)">
+      <input type="email" placeholder="your@email.com" required class="mobile-email-input" />
+      <button type="submit" class="mobile-email-button">Send link →</button>
+    </form>
+    <p class="mobile-email-direct">
+      Or just copy:
+      <button type="button" class="mobile-copy-link" onclick="copyLink()">frakt.app</button>
+    </p>
+    <div class="mobile-footer-links">
+      <a href="https://x.com/swaaaapnilaaa" target="_blank" rel="noopener">Follow on X</a>
+      <span>·</span>
+      <a href="mailto:hello@frakt.app">hello@frakt.app</a>
+    </div>
+  </section>
+
+</div>
+
 <script src="lib/presets.js"></script>
 <script src="lib/renderer.js"></script>
 <script src="lib/engine.js"></script>
+<script src="lib/mobile.js"></script>
 </body>
 </html>

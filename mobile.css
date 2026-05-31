@@ -1,0 +1,267 @@
+/* ================================================================
+   FRAKT — Mobile Experience styles
+   Active only when <html> has the .frakt-mobile class (set by the
+   detection script in index.html / lib/mobile.js). Below 768px or on a
+   mobile UA the desktop editor is hidden and #mobile-experience is shown.
+   ================================================================ */
+
+/* Hidden by default; the desktop app owns the viewport. */
+#mobile-experience { display: none; }
+
+html.frakt-mobile #app { display: none !important; }
+html.frakt-mobile #mobile-experience { display: block; }
+
+/* The desktop app locks scrolling on <html>/<body>; the mobile page needs
+   normal vertical document scroll between its sections. */
+html.frakt-mobile,
+html.frakt-mobile body {
+  height: auto !important;
+  overflow: visible !important;
+  overflow-x: hidden !important;
+  position: static !important;
+}
+
+#mobile-experience {
+  background: #0a0a0a;
+  color: #fff;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── SECTION 1 — HERO ─────────────────────────────────────────── */
+.mobile-hero {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: #000;
+}
+
+.mobile-hero-bg {
+  position: absolute;
+  inset: 0;
+}
+
+.mobile-hero-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* Slides start off-screen right; lib/mobile.js positions each slide and
+     drives the horizontal slide transition (per-element, so wrap-around
+     snaps don't animate). */
+  transform: translateX(100%);
+  will-change: transform;
+}
+
+.mobile-hero-content {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  box-sizing: border-box;
+  padding: 32px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.mobile-hero-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  margin-bottom: 20px;
+}
+
+.mobile-hero-title {
+  font-size: 56px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.08em;
+  margin: 0 0 4px;
+  line-height: 1;
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.4);
+}
+
+.mobile-hero-tagline {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.65);
+  margin: 0 0 32px;
+}
+
+.mobile-hero-body {
+  font-size: 15px;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.8;
+  margin: 0;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Dot indicators — sit above the scroll-down button. */
+.mobile-hero-dots {
+  position: absolute;
+  left: 50%;
+  bottom: 88px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  z-index: 3;
+}
+
+.mobile-hero-dot {
+  width: 4px;
+  height: 4px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  transition: background 0.3s ease;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.mobile-hero-dot.active {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.mobile-scroll-down {
+  position: absolute;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  border-radius: 100px;
+  padding: 12px 20px;
+  font-size: 14px;
+  color: #fff;
+  cursor: pointer;
+  z-index: 3;
+}
+
+.mobile-scroll-down .chevron {
+  display: inline-block;
+  animation: mobileChevronBounce 2s ease-in-out infinite;
+}
+
+@keyframes mobileChevronBounce {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(4px); }
+}
+
+/* ── SECTION 2 — HOW IT WORKS VIDEO ───────────────────────────── */
+.mobile-video-section {
+  padding: 64px 24px;
+  background: #0a0a0a;
+}
+
+.mobile-section-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 8px;
+}
+
+.mobile-section-subtitle {
+  font-size: 14px;
+  color: #777;
+  margin: 0 0 24px;
+}
+
+.mobile-video-wrapper {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #111;
+}
+
+.mobile-video-wrapper iframe {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border: 0;
+}
+
+/* ── SECTION 3 — EMAIL YOURSELF THE LINK ──────────────────────── */
+.mobile-email-section {
+  padding: 48px 24px 64px;
+  background: #0a0a0a;
+}
+
+.mobile-email-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.mobile-email-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: #181818;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-size: 15px;
+  color: #fff;
+}
+
+.mobile-email-input:focus {
+  border-color: #444;
+  outline: none;
+}
+
+.mobile-email-button {
+  background: #fff;
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 14px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mobile-email-direct {
+  font-size: 13px;
+  color: #555;
+  margin-bottom: 32px;
+  text-align: center;
+}
+
+.mobile-copy-link {
+  background: transparent;
+  border: 1px solid #2a2a2a;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 13px;
+  color: #aaa;
+  margin-left: 4px;
+  font-family: monospace;
+  cursor: pointer;
+}
+
+.mobile-footer-links {
+  text-align: center;
+  font-size: 12px;
+  color: #444;
+  margin-top: 24px;
+}
+
+.mobile-footer-links a {
+  color: #777;
+  text-decoration: none;
+}
+
+.mobile-footer-links span {
+  margin: 0 8px;
+}
